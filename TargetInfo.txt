@@ -521,11 +521,10 @@ local TargetInfo = {
                 end
             end
 
-            -- Проверяем атрибуты самого Tool
+            -- Если предмет не найден в Items, используем атрибуты Tool, но описание берем как имя
             local imageId = tool:GetAttribute("ImageID") or "rbxassetid://6966623635"
             local rarity = tool:GetAttribute("RarityName") or "Common"
-            local description = tool:GetAttribute("Description") or tool.Name
-            return description, imageId, rarityColor[rarity] or Color3.fromRGB(255, 255, 255)
+            return tool.Name, imageId, rarityColor[rarity] or Color3.fromRGB(255, 255, 255)
         end
 
         local function getTargetEquippedItem(target)
