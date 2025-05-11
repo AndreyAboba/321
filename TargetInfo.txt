@@ -52,8 +52,7 @@ local TargetInfo = {
 
         -- Настройки для ItemAttributes
         local ItemAttributesSettings = {
-            Enabled = false,
-            Target = "LocalPlayer" -- "LocalPlayer" или "TargetPlayer"
+            Enabled = false
         }
 
         -- ScreenGui для TargetHud
@@ -701,7 +700,7 @@ local TargetInfo = {
             for i = 1, #str do
                 hash = (hash * 33 + string.byte(str, i)) % 4294967296
             end
-            return tostring(hash)
+            return hash
         end
 
         local function getHashKey()
@@ -709,14 +708,23 @@ local TargetInfo = {
         end
 
         local function getAttributeNameMap(hashKey)
-            local knownAttributes = {"Description", "ImageID", "RarityName"}
-            local attributeMap = {}
-            for _, attrName in ipairs(knownAttributes) do
-                local hash = djb2Hash(attrName)
-                local encryptedName = hashKey .. hash
-                attributeMap[encryptedName] = attrName
+            local knownAttributes = {
+                [djb2Hash("Description")] = "Description",
+                [djb2Hash("ImageID")] = "ImageID",
+                [djb2Hash("RarityName")] = "RarityName",
+                [djb2Hash("Destructive")] = "Destructive",
+                [djb2Hash("itemGUID")] = "itemGUID",
+                [djb2Hash("KnockbackForce")] = "KnockbackForce",
+                [djb2Hash("Bounces")] = "Bounces",
+                [djb2Hash("ThrowDebounceTime")] = "ThrowDebounceTime",
+                [djb2Hash("RarityPrice")] = "RarityPrice",
+                [djb2Hash("RagdollChance")] = "RagdollChance"
+            }
+            local map = {}
+            for hash, name in pairs(knownAttributes) do
+                map[tostring(hashKey) .. tostring(hash)] = name
             end
-            return attributeMap
+            return map
         end
 
         local function getPlayerItems(player)
@@ -743,7 +751,7 @@ local TargetInfo = {
             for _, child in pairs(attrListFrame:GetChildren()) do
                 if child:IsA("Frame") then child:Destroy() end
             end
-            local targetPlayer = ItemAttributesSettings.Target == "LocalPlayer" and Core.PlayerData.LocalPlayer or TargetInventorySettings.LastTarget
+            local targetPlayer = TargetInventorySettings.LastTarget or Core.PlayerData.LocalPlayer
             if not targetPlayer then
                 local emptyLabel = Instance.new("Frame")
                 emptyLabel.Size = UDim2.new(1, 0, 0, 20)
@@ -1002,6 +1010,7 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetInventorySettings.Enabled = value
                         invFrame.Visible = value and TargetInventorySettings.AlwaysVisible
+                        if ItemAttributesSettings.Enabled and value then updateItemAttributesView() end
                         notify("Target Inventory", "Target Inventory " .. (value and "Enabled" or "Disabled"), true)
                     end
                 }, 'TEnabled')
@@ -1039,6 +1048,7 @@ local TargetInfo = {
                     Default = "GunSilent Target",
                     Callback = function(value)
                         TargetInventorySettings.TargetMode = value
+                        if ItemAttributesSettings.Enabled then updateItemAttributesView() end
                         notify("Target Inventory", "Target Mode set to " .. value, true)
                     end
                 }, 'GTargetMode')
@@ -1094,16 +1104,6 @@ local TargetInfo = {
                         notify("Item Attributes", "Item Attributes " .. (value and "Enabled" or "Disabled"), true)
                     end
                 }, 'ItemAttributesEnabled')
-                UI.Sections.ItemAttributes:Dropdown({
-                    Name = "Target",
-                    Options = {"LocalPlayer", "TargetPlayer"},
-                    Default = "LocalPlayer",
-                    Callback = function(value)
-                        ItemAttributesSettings.Target = value
-                        if ItemAttributesSettings.Enabled then updateItemAttributesView() end
-                        notify("Item Attributes", "Target set to: " .. value, true)
-                    end
-                }, 'ItemAttributesTarget')
             end
         end
 
