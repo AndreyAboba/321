@@ -474,9 +474,9 @@ local TargetInfo = {
             end
         end)
 
-        local function getItemIcon(tool)
-            local rarity = tool:GetAttribute("RarityName") or "Common"
-            local imageId = tool:GetAttribute("ImageID") or ""
+        local function getItemInfo(tool)
+            local Items = ReplicatedStorage:WaitForChild("Items")
+            local categories = {"gun", "melee", "throwable", "consumable", "misc"}
             local rarityColor = {
                 Common = Color3.fromRGB(255, 255, 255),
                 Uncommon = Color3.fromRGB(0, 255, 0),
@@ -484,38 +484,59 @@ local TargetInfo = {
                 Legendary = Color3.fromRGB(255, 215, 0)
             }
 
-            -- Проверка ImageID
-            if imageId and imageId:find("rbxassetid://") then
-                return imageId, rarityColor[rarity] or Color3.fromRGB(255, 255, 255)
+            -- Проверка MeshPart
+            local meshName = nil
+            for _, child in pairs(tool:GetDescendants()) do
+                if child:IsA("MeshPart") and child.Name:match("^Meshes/") then
+                    meshName = child.Name:match("Meshes/([^/%.]+)") -- Извлекаем название (например, ak47 из Meshes/ak47_1.006)
+                    break
+                end
             end
 
-            -- Поиск в Meshes
-            for _, child in pairs(tool:GetDescendants()) do
-                if child.Name:match("^Meshes/") then
-                    local weaponName = child.Name:match("Meshes/([^/]+)")
-                    if weaponName then
-                        local iconMap = {
-                            ak47 = "rbxassetid://109065124754087",
-                            ["m4a1"] = "rbxassetid://109065124754087", -- Пример, можно расширить
-                        }
-                        return iconMap[weaponName:lower()] or "rbxassetid://6966623635", rarityColor[rarity] or Color3.fromRGB(255, 255, 255)
+            -- Если есть MeshPart, ищем в Items.gun
+            if meshName then
+                local gunItems = Items:FindFirstChild("gun")
+                if gunItems then
+                    local matchedItem = gunItems:FindFirstChild(meshName)
+                    if matchedItem then
+                        local imageId = matchedItem:GetAttribute("ImageID") or "rbxassetid://6966623635"
+                        local rarity = matchedItem:GetAttribute("RarityName") or "Common"
+                        local description = matchedItem:GetAttribute("Description") or matchedItem.Name
+                        return description, imageId, rarityColor[rarity] or Color3.fromRGB(255, 255, 255)
                     end
                 end
             end
 
-            -- По умолчанию
-            return "rbxassetid://6966623635", rarityColor[rarity] or Color3.fromRGB(255, 255, 255)
+            -- Проверяем по имени Tool в категориях
+            for _, category in pairs(categories) do
+                local categoryItems = Items:FindFirstChild(category)
+                if categoryItems then
+                    local matchedItem = categoryItems:FindFirstChild(tool.Name)
+                    if matchedItem then
+                        local imageId = matchedItem:GetAttribute("ImageID") or "rbxassetid://6966623635"
+                        local rarity = matchedItem:GetAttribute("RarityName") or "Common"
+                        local description = matchedItem:GetAttribute("Description") or matchedItem.Name
+                        return description, imageId, rarityColor[rarity] or Color3.fromRGB(255, 255, 255)
+                    end
+                end
+            end
+
+            -- Проверяем атрибуты самого Tool
+            local imageId = tool:GetAttribute("ImageID") or "rbxassetid://6966623635"
+            local rarity = tool:GetAttribute("RarityName") or "Common"
+            local description = tool:GetAttribute("Description") or tool.Name
+            return description, imageId, rarityColor[rarity] or Color3.fromRGB(255, 255, 255)
         end
 
         local function getTargetEquippedItem(target)
             if not target or not target.Character then
-                return "None", nil
+                return "None", nil, Color3.fromRGB(255, 255, 255)
             end
             local character = target.Character
             for _, item in pairs(character:GetChildren()) do
                 if item:IsA("Tool") and item.Name:lower() ~= "fists" then
-                    local icon, color = getItemIcon(item)
-                    return item.Name, icon, color
+                    local name, icon, color = getItemInfo(item)
+                    return name, icon, color
                 end
             end
             return "None", nil, Color3.fromRGB(255, 255, 255)
@@ -532,9 +553,11 @@ local TargetInfo = {
             local _, equippedIcon = getTargetEquippedItem(target)
             local items = {}
             for _, item in pairs(backpack:GetChildren()) do
-                if item:IsA("Tool") and item.Name:lower() ~= "fists" and getItemIcon(item) ~= equippedIcon then
-                    local icon, color = getItemIcon(item)
-                    table.insert(items, {name = item.Name, icon = icon, color = color})
+                if item:IsA("Tool") and item.Name:lower() ~= "fists" then
+                    local name, icon, color = getItemInfo(item)
+                    if icon ~= equippedIcon then
+                        table.insert(items, {name = name, icon = icon, color = color})
+                    end
                 end
             end
             return items
@@ -573,19 +596,6 @@ local TargetInfo = {
                 end
             end
             return nearestPlayer
-        end
-
-        local function isGunEquipped()
-            local character = Core.PlayerData.LocalPlayer.Character
-            if not character then
-                return false
-            end
-            for _, child in pairs(character:GetChildren()) do
-                if child:IsA("Tool") then
-                    return true
-                end
-            end
-            return false
         end
 
         local function playAppearAnimation()
@@ -731,7 +741,7 @@ local TargetInfo = {
             equippedLabel.Text = "Equipped: " .. equippedItem
             equippedIcon.Image = equippedIconUrl
             equippedIcon.ImageColor3 = equippedColor
-            if equippedIconUrl ~= "" then
+            if equippedIconUrl and equippedIconUrl ~= "" then
                 equippedIcon.Visible = true
                 equippedLabel.Position = UDim2.new(0, 25, 0, 0)
             else
