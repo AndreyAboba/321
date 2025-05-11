@@ -8,7 +8,6 @@ local Workspace = game:GetService("Workspace")
 
 local TargetInfo = {
     Init = function(UI, Core, notify)
-        -- Настройки для TargetHud
         local TargetHud = {
             Settings = {
                 Enabled = { Value = false, Default = false },
@@ -31,7 +30,6 @@ local TargetInfo = {
             }
         }
 
-        -- Настройки для TargetInventory
         local TargetInventorySettings = {
             ShowNick = false,
             AlwaysVisible = true,
@@ -47,10 +45,9 @@ local TargetInfo = {
             LastUpdateTime = 0,
             UpdateInterval = 0.2,
             LastFovUpdateTime = 0,
-            FovUpdateInterval = 1/30 -- ~30 FPS для круга FOV
+            FovUpdateInterval = 1/30
         }
 
-        -- Создание ScreenGui для TargetHud
         local hudScreenGui = Instance.new("ScreenGui")
         hudScreenGui.Name = "TargetHUDGui"
         hudScreenGui.Parent = Core.Services.CoreGuiService
@@ -141,7 +138,6 @@ local TargetInfo = {
         healthBarFillCorner.CornerRadius = UDim.new(0, 5)
         healthBarFillCorner.Parent = healthBarFill
 
-        -- Создание ScreenGui для TargetInventory
         local invScreenGui = Instance.new("ScreenGui")
         invScreenGui.Name = "TargetInventoryGui"
         invScreenGui.ResetOnSpawn = false
@@ -221,7 +217,6 @@ local TargetInfo = {
         nickLabel.TextXAlignment = Enum.TextXAlignment.Center
         nickLabel.Parent = invFrame
 
-        -- Круг FOV для TargetInventory
         local fovCircle = Instance.new("Frame")
         fovCircle.Size = UDim2.new(0, TargetInventorySettings.FOV.Value, 0, TargetInventorySettings.FOV.Value)
         fovCircle.Position = UDim2.new(0.5, -TargetInventorySettings.FOV.Value / 2, 0.5, -TargetInventorySettings.FOV.Value / 2)
@@ -239,7 +234,6 @@ local TargetInfo = {
         fovCircleCorner.CornerRadius = UDim.new(1, 0)
         fovCircleCorner.Parent = fovCircle
 
-        -- Функции TargetHud
         local function UpdatePlayerIcon(target)
             if not target then
                 playerIcon.Image = ""
@@ -448,7 +442,6 @@ local TargetInfo = {
             TargetHud.State.CurrentTarget = target
         end
 
-        -- Перетаскивание для TargetHud
         local hudDragging = false
         local hudDragStart = nil
         local hudStartPos = nil
@@ -481,7 +474,6 @@ local TargetInfo = {
             end
         end)
 
-        -- Функции TargetInventory
         local function getItemIcon(itemName)
             local Items = ReplicatedStorage:WaitForChild("Items")
             local GunItems = Items:WaitForChild("gun")
@@ -507,46 +499,37 @@ local TargetInfo = {
 
         local function getItemName(tool)
             local itemName = tool.Name
-            -- Проверка на зашифрованное имя (например, "xyz123456")
             if itemName:match("^xyz%d+$") then
-                print("[TargetInventory] getItemName: Detected encrypted name", itemName)
                 local Items = ReplicatedStorage:WaitForChild("Items")
+                -- Поиск в ReplicatedStorage.Items
                 for _, category in pairs({"gun", "melee", "throwable", "consumable", "misc"}) do
                     local categoryItems = Items:FindFirstChild(category)
                     if categoryItems then
                         for _, item in pairs(categoryItems:GetChildren()) do
-                            -- Проверяем, есть ли зашифрованное имя как атрибут или дочерний объект
-                            if tool:GetAttribute("EncryptedName") == itemName and tool:GetAttribute("RealName") then
-                                local realName = tool:GetAttribute("RealName")
-                                print("[TargetInventory] getItemName: Decrypted via attribute -", itemName, "->", realName)
-                                return realName
-                            end
-                            -- Проверяем дочерние объекты (например, Configuration или StringValue)
-                            for _, child in pairs(tool:GetChildren()) do
-                                if child:IsA("StringValue") and child.Name == "EncryptedName" and child.Value == itemName then
-                                    local realNameValue = tool:FindFirstChild("RealName")
-                                    if realNameValue and realNameValue:IsA("StringValue") then
-                                        local realName = realNameValue.Value
-                                        print("[TargetInventory] getItemName: Decrypted via StringValue -", itemName, "->", realName)
-                                        return realName
-                                    end
-                                end
-                            end
-                            -- Проверяем соответствие в ReplicatedStorage.Items
-                            if item:GetAttribute("EncryptedName") == itemName then
-                                print("[TargetInventory] getItemName: Decrypted via ReplicatedStorage -", itemName, "->", item.Name)
+                            if item.Name == itemName then
                                 return item.Name
                             end
                         end
-                    else
-                        print("[TargetInventory] getItemName: Category", category, "not found")
                     end
                 end
-                -- Логируем атрибуты для анализа
+                -- Поиск в атрибутах
                 for attr, value in pairs(tool:GetAttributes()) do
-                    print("[TargetInventory] getItemName: Attribute for", itemName, ":", attr, "=", value)
+                    if value == itemName and tool:GetAttribute("RealName") then
+                        local realName = tool:GetAttribute("RealName")
+                        return realName
+                    end
                 end
-                print("[TargetInventory] getItemName: Failed to decrypt", itemName)
+                -- Поиск в StringValue
+                for _, child in pairs(tool:GetChildren()) do
+                    if child:IsA("StringValue") and child.Name == "RealName" then
+                        return child.Value
+                    end
+                end
+                -- Поиск в Configuration
+                local config = tool:FindFirstChildWhichIsA("Configuration")
+                if config and config:FindFirstChild("RealName") then
+                    return config.RealName.Value
+                end
             end
             return itemName
         end
@@ -833,7 +816,6 @@ local TargetInfo = {
             end
         end
 
-        -- Перетаскивание для TargetInventory
         local invDragging = false
         local invDragStart = nil
         local invStartPos = nil
@@ -866,7 +848,6 @@ local TargetInfo = {
             end
         end)
 
-        -- UI для TargetHud
         if UI.Tabs.Visuals then
             UI.Sections.TargetHud = UI.Tabs.Visuals:Section({ Name = "Target HUD", Side = "Left" })
             if UI.Sections.TargetHud then
@@ -965,7 +946,6 @@ local TargetInfo = {
                 }, 'TOrbMoveDistance')
             end
 
-            -- UI для TargetInventory
             UI.Sections.TargetInventory = UI.Tabs.Visuals:Section({ Name = "Target Inventory", Side = "Left" })
             if UI.Sections.TargetInventory then
                 UI.Sections.TargetInventory:Header({ Name = "Target Inventory Settings" })
@@ -1056,7 +1036,6 @@ local TargetInfo = {
             end
         end
 
-        -- Обновление TargetInventory и TargetHud
         Core.Services.RunService.Stepped:Connect(function()
             if TargetHud.Settings.Enabled.Value then
                 UpdateTargetHud()
@@ -1066,7 +1045,6 @@ local TargetInfo = {
             end
         end)
 
-        -- Отдельное обновление позиции круга FOV для плавности
         Core.Services.RunService.RenderStepped:Connect(function()
             updateFovCirclePosition()
         end)
