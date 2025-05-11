@@ -8,6 +8,7 @@ local Workspace = game:GetService("Workspace")
 
 local TargetInfo = {
     Init = function(UI, Core, notify)
+        -- Настройки для TargetHud
         local TargetHud = {
             Settings = {
                 Enabled = { Value = false, Default = false },
@@ -30,6 +31,7 @@ local TargetInfo = {
             }
         }
 
+        -- Настройки для TargetInventory
         local TargetInventorySettings = {
             ShowNick = false,
             AlwaysVisible = true,
@@ -45,9 +47,15 @@ local TargetInfo = {
             LastUpdateTime = 0,
             UpdateInterval = 0.2,
             LastFovUpdateTime = 0,
-            FovUpdateInterval = 1/30
+            FovUpdateInterval = 1/30 -- ~30 FPS для круга FOV
         }
 
+        -- Настройки для ItemAttributes
+        local ItemAttributesSettings = {
+            Enabled = false
+        }
+
+        -- Создание ScreenGui для TargetHud
         local hudScreenGui = Instance.new("ScreenGui")
         hudScreenGui.Name = "TargetHUDGui"
         hudScreenGui.Parent = Core.Services.CoreGuiService
@@ -138,6 +146,7 @@ local TargetInfo = {
         healthBarFillCorner.CornerRadius = UDim.new(0, 5)
         healthBarFillCorner.Parent = healthBarFill
 
+        -- Создание ScreenGui для TargetInventory
         local invScreenGui = Instance.new("ScreenGui")
         invScreenGui.Name = "TargetInventoryGui"
         invScreenGui.ResetOnSpawn = false
@@ -217,6 +226,7 @@ local TargetInfo = {
         nickLabel.TextXAlignment = Enum.TextXAlignment.Center
         nickLabel.Parent = invFrame
 
+        -- Круг FOV для TargetInventory
         local fovCircle = Instance.new("Frame")
         fovCircle.Size = UDim2.new(0, TargetInventorySettings.FOV.Value, 0, TargetInventorySettings.FOV.Value)
         fovCircle.Position = UDim2.new(0.5, -TargetInventorySettings.FOV.Value / 2, 0.5, -TargetInventorySettings.FOV.Value / 2)
@@ -234,6 +244,52 @@ local TargetInfo = {
         fovCircleCorner.CornerRadius = UDim.new(1, 0)
         fovCircleCorner.Parent = fovCircle
 
+        -- Создание ScreenGui для ItemAttributes
+        local attrScreenGui = Instance.new("ScreenGui")
+        attrScreenGui.Name = "ItemAttributesGui"
+        attrScreenGui.ResetOnSpawn = false
+        attrScreenGui.IgnoreGuiInset = true
+        attrScreenGui.Parent = Core.Services.CoreGuiService
+
+        local attrFrame = Instance.new("Frame")
+        attrFrame.Size = UDim2.new(0, 300, 0, 400)
+        attrFrame.Position = UDim2.new(0, 50, 0, 50)
+        attrFrame.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
+        attrFrame.BackgroundTransparency = 0.3
+        attrFrame.BorderSizePixel = 0
+        attrFrame.Visible = false
+        attrFrame.Parent = attrScreenGui
+
+        local attrCorner = Instance.new("UICorner")
+        attrCorner.CornerRadius = UDim.new(0, 10)
+        attrCorner.Parent = attrFrame
+
+        local attrTitleLabel = Instance.new("TextLabel")
+        attrTitleLabel.Size = UDim2.new(0, 280, 0, 20)
+        attrTitleLabel.Position = UDim2.new(0, 10, 0, 10)
+        attrTitleLabel.BackgroundTransparency = 1
+        attrTitleLabel.Text = "Item Attributes"
+        attrTitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        attrTitleLabel.TextSize = 16
+        attrTitleLabel.Font = Enum.Font.GothamBold
+        attrTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+        attrTitleLabel.Parent = attrFrame
+
+        local attrListFrame = Instance.new("ScrollingFrame")
+        attrListFrame.Size = UDim2.new(0, 280, 0, 350)
+        attrListFrame.Position = UDim2.new(0, 10, 0, 40)
+        attrListFrame.BackgroundTransparency = 1
+        attrListFrame.BorderSizePixel = 0
+        attrListFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+        attrListFrame.ScrollBarThickness = 5
+        attrListFrame.Parent = attrFrame
+
+        local attrListLayout = Instance.new("UIListLayout")
+        attrListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        attrListLayout.Padding = UDim.new(0, 2)
+        attrListLayout.Parent = attrListFrame
+
+        -- Функции TargetHud
         local function UpdatePlayerIcon(target)
             if not target then
                 playerIcon.Image = ""
@@ -369,6 +425,7 @@ local TargetInfo = {
                 healthBarBackground.Visible = true
                 healthBarFill.Visible = true
 
+                -- Проверяем, есть ли валидная текущая цель
                 local target = TargetHud.State.CurrentTarget
                 if target and target.Character and target.Character:FindFirstChild("Humanoid") and target.Character.Humanoid.Health > 0 then
                     local humanoid = target.Character.Humanoid
@@ -378,6 +435,7 @@ local TargetInfo = {
                     UpdateHealthBarColor(humanoid.Health, humanoid.MaxHealth)
                     UpdatePlayerIcon(target)
                 else
+                    -- Если цели нет или она невалидна, показываем локального игрока
                     nameLabel.Text = "Preview"
                     healthLabel.Text = "HP: 100.0"
                     healthBarFill.Size = UDim2.new(1, 0, 1, 0)
@@ -411,6 +469,7 @@ local TargetInfo = {
                 target = TargetHud.State.CurrentTarget or Core.PlayerData.LocalPlayer
             end
 
+            -- Проверка валидности цели
             if not target or not target.Character or not target.Character:FindFirstChild("Humanoid") or target.Character.Humanoid.Health <= 0 then
                 TargetHud.State.CurrentTarget = nil
                 TargetHud.State.PreviousHealth = nil
@@ -442,6 +501,7 @@ local TargetInfo = {
             TargetHud.State.CurrentTarget = target
         end
 
+        -- Перетаскивание для TargetHud
         local hudDragging = false
         local hudDragStart = nil
         local hudStartPos = nil
@@ -474,89 +534,43 @@ local TargetInfo = {
             end
         end)
 
-        local function getItemInfo(tool)
+        -- Функции TargetInventory
+        local function getItemIcon(itemName)
             local Items = ReplicatedStorage:WaitForChild("Items")
-            local categories = {"gun", "melee", "throwable", "consumable", "misc"}
-            local rarityColor = {
-                Common = Color3.fromRGB(255, 255, 255),
-                Uncommon = Color3.fromRGB(0, 255, 0),
-                Rare = Color3.fromRGB(0, 128, 255),
-                Legendary = Color3.fromRGB(255, 215, 0)
-            }
+            local GunItems = Items:WaitForChild("gun")
+            local MeleeItems = Items:WaitForChild("melee")
+            local ThrowableItems = Items:WaitForChild("throwable")
+            local ConsumableItems = Items:WaitForChild("consumable")
+            local MiscItems = Items:WaitForChild("misc")
 
-            -- Проверка MeshPart
-            local meshName = nil
-            for _, child in pairs(tool:GetDescendants()) do
-                if child:IsA("MeshPart") and child.Name:match("^Meshes/") then
-                    meshName = child.Name:match("Meshes/([^/%.]+)") -- Извлекаем название (например, ak47 из Meshes/ak47_1.006)
-                    break
-                end
-            end
-
-            -- Если есть MeshPart, ищем в Items.gun
-            if meshName then
-                local gunItems = Items:FindFirstChild("gun")
-                if gunItems then
-                    local matchedItem = gunItems:FindFirstChild(meshName)
-                    if matchedItem then
-                        local imageId = matchedItem:GetAttribute("ImageID") or "rbxassetid://6966623635"
-                        local rarity = matchedItem:GetAttribute("RarityName") or "Common"
-                        local description = matchedItem:GetAttribute("Description") or matchedItem.Name
-                        return description, imageId, rarityColor[rarity] or Color3.fromRGB(255, 255, 255)
-                    end
-                end
-            end
-
-            -- Проверяем по имени Tool в категориях
-            for _, category in pairs(categories) do
-                local categoryItems = Items:FindFirstChild(category)
-                if categoryItems then
-                    local matchedItem = categoryItems:FindFirstChild(tool.Name)
-                    if matchedItem then
-                        local imageId = matchedItem:GetAttribute("ImageID") or "rbxassetid://6966623635"
-                        local rarity = matchedItem:GetAttribute("RarityName") or "Common"
-                        local description = matchedItem:GetAttribute("Description") or matchedItem.Name
-                        return description, imageId, rarityColor[rarity] or Color3.fromRGB(255, 255, 255)
-                    end
-                end
-            end
-
-            -- Если предмет не найден в Items, используем атрибуты Tool, но описание берем как имя
-            local imageId = tool:GetAttribute("ImageID") or "rbxassetid://6966623635"
-            local rarity = tool:GetAttribute("RarityName") or "Common"
-            return tool.Name, imageId, rarityColor[rarity] or Color3.fromRGB(255, 255, 255)
+            if GunItems:FindFirstChild(itemName) then return "rbxassetid://109065124754087"
+            elseif MeleeItems:FindFirstChild(itemName) then return "rbxassetid://10455604811"
+            elseif ThrowableItems:FindFirstChild(itemName) then return "rbxassetid://13492316452"
+            elseif ConsumableItems:FindFirstChild(itemName) then return "rbxassetid://17181103870"
+            elseif MiscItems:FindFirstChild(itemName) then return "rbxassetid://6966623635"
+            else return "" end
         end
 
         local function getTargetEquippedItem(target)
-            if not target or not target.Character then
-                return "None", nil, Color3.fromRGB(255, 255, 255)
-            end
+            if not target or not target.Character then return "None", nil end
             local character = target.Character
             for _, item in pairs(character:GetChildren()) do
                 if item:IsA("Tool") and item.Name:lower() ~= "fists" then
-                    local name, icon, color = getItemInfo(item)
-                    return name, icon, color
+                    return item.Name, item.Name
                 end
             end
-            return "None", nil, Color3.fromRGB(255, 255, 255)
+            return "None", nil
         end
 
         local function getTargetInventory(target)
-            if not target then
-                return {}
-            end
+            if not target then return {} end
             local backpack = target:FindFirstChild("Backpack")
-            if not backpack then
-                return {}
-            end
-            local _, equippedIcon = getTargetEquippedItem(target)
+            if not backpack then return {} end
+            local _, equippedItemName = getTargetEquippedItem(target)
             local items = {}
             for _, item in pairs(backpack:GetChildren()) do
-                if item:IsA("Tool") and item.Name:lower() ~= "fists" then
-                    local name, icon, color = getItemInfo(item)
-                    if icon ~= equippedIcon then
-                        table.insert(items, {name = name, icon = icon, color = color})
-                    end
+                if item:IsA("Tool") and item.Name:lower() ~= "fists" and item.Name ~= equippedItemName then
+                    table.insert(items, item.Name)
                 end
             end
             return items
@@ -565,9 +579,7 @@ local TargetInfo = {
         local function getNearestPlayerToMouse()
             local localPlayer = Core.PlayerData.LocalPlayer
             local localCharacter = localPlayer.Character
-            if not localCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") then
-                return nil
-            end
+            if not localCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") then return nil end
             local localPos = localCharacter.HumanoidRootPart.Position
 
             local referencePos
@@ -595,6 +607,18 @@ local TargetInfo = {
                 end
             end
             return nearestPlayer
+        end
+
+        local function isGunEquipped()
+            local character = Core.PlayerData.LocalPlayer.Character
+            if not character then return false end
+            for _, child in pairs(character:GetChildren()) do
+                if child:IsA("Tool") then
+                    local gunItem = game:GetService("ReplicatedStorage"):WaitForChild("Items"):WaitForChild("gun"):FindFirstChild(child.Name)
+                    return gunItem ~= nil
+                end
+            end
+            return false
         end
 
         local function playAppearAnimation()
@@ -686,6 +710,7 @@ local TargetInfo = {
                 useMouseTargeting = true
             end
 
+            -- Проверка валидности цели
             if target and (not target.Character or not target.Character:FindFirstChild("Humanoid") or target.Character.Humanoid.Health <= 0) then
                 target = nil
             end
@@ -699,6 +724,7 @@ local TargetInfo = {
                 return
             end
 
+            -- Пропуск обновления UI, если цель не изменилась
             if TargetInventorySettings.LastTarget == target then
                 return
             end
@@ -715,7 +741,6 @@ local TargetInfo = {
                 equippedLabel.Text = "Equipped: No Target"
                 equippedIcon.Image = ""
                 equippedLabel.Position = UDim2.new(0, 0, 0, 0)
-                equippedIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
                 for _, child in pairs(inventoryFrame:GetChildren()) do
                     if child:IsA("Frame") then child:Destroy() end
                 end
@@ -736,15 +761,13 @@ local TargetInfo = {
                 return
             end
 
-            local equippedItem, equippedIconUrl, equippedColor = getTargetEquippedItem(target)
+            local equippedItem, equippedItemName = getTargetEquippedItem(target)
             equippedLabel.Text = "Equipped: " .. equippedItem
-            equippedIcon.Image = equippedIconUrl
-            equippedIcon.ImageColor3 = equippedColor
-            if equippedIconUrl and equippedIconUrl ~= "" then
-                equippedIcon.Visible = true
+            if equippedItemName then
+                equippedIcon.Image = getItemIcon(equippedItemName)
                 equippedLabel.Position = UDim2.new(0, 25, 0, 0)
             else
-                equippedIcon.Visible = false
+                equippedIcon.Image = ""
                 equippedLabel.Position = UDim2.new(0, 0, 0, 0)
             end
 
@@ -754,7 +777,7 @@ local TargetInfo = {
 
             local inventory = getTargetInventory(target)
             if #inventory > 0 then
-                for i, item in ipairs(inventory) do
+                for i, itemName in ipairs(inventory) do
                     local itemContainer = Instance.new("Frame")
                     itemContainer.Size = UDim2.new(1, 0, 0, 20)
                     itemContainer.BackgroundTransparency = 1
@@ -765,16 +788,15 @@ local TargetInfo = {
                     itemIcon.Size = UDim2.new(0, 20, 0, 20)
                     itemIcon.Position = UDim2.new(0, 0, 0, 0)
                     itemIcon.BackgroundTransparency = 1
-                    itemIcon.Image = item.icon
-                    itemIcon.ImageColor3 = item.color
+                    itemIcon.Image = getItemIcon(itemName)
                     itemIcon.Parent = itemContainer
 
                     local itemLabel = Instance.new("TextLabel")
                     itemLabel.Size = UDim2.new(0, 170, 0, 20)
                     itemLabel.Position = UDim2.new(0, 25, 0, 0)
                     itemLabel.BackgroundTransparency = 1
-                    itemLabel.Text = item.name
-                    itemLabel.TextColor3 = item.color
+                    itemLabel.Text = itemName
+                    itemLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
                     itemLabel.TextSize = 14
                     itemLabel.Font = Enum.Font.Gotham
                     itemLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -799,6 +821,158 @@ local TargetInfo = {
             end
         end
 
+        -- Функции ItemAttributes
+        local function djb2Hash(str)
+            local hash = 5381
+            for i = 1, #str do
+                hash = (hash * 33 + string.byte(str, i)) % 4294967296
+            end
+            return tostring(hash)
+        end
+
+        local function getHashKey()
+            return workspace:GetAttribute("HashKey") or workspace:GetAttributeChangedSignal("HashKey"):Wait()
+        end
+
+        local function getAttributeNameMap(hashKey)
+            local knownAttributes = {"Description", "ImageID", "RarityName"}
+            local attributeMap = {}
+            for _, attrName in ipairs(knownAttributes) do
+                local hash = djb2Hash(attrName)
+                local encryptedName = hashKey .. hash
+                attributeMap[encryptedName] = attrName
+            end
+            return attributeMap
+        end
+
+        local function updateItemAttributesView()
+            -- Очищаем текущий список
+            for _, child in pairs(attrListFrame:GetChildren()) do
+                if child:IsA("Frame") then child:Destroy() end
+            end
+
+            local Items = ReplicatedStorage:FindFirstChild("Items")
+            if not Items then
+                local emptyLabel = Instance.new("Frame")
+                emptyLabel.Size = UDim2.new(1, 0, 0, 20)
+                emptyLabel.BackgroundTransparency = 1
+                emptyLabel.Parent = attrListFrame
+                local emptyText = Instance.new("TextLabel")
+                emptyText.Size = UDim2.new(1, 0, 1, 0)
+                emptyText.BackgroundTransparency = 1
+                emptyText.Text = "Items not found"
+                emptyText.TextColor3 = Color3.fromRGB(255, 255, 255)
+                emptyText.TextSize = 14
+                emptyText.Font = Enum.Font.Gotham
+                emptyText.TextXAlignment = Enum.TextXAlignment.Left
+                emptyText.Parent = emptyLabel
+                attrListFrame.CanvasSize = UDim2.new(0, 0, 0, 20)
+                return
+            end
+
+            local hashKey = getHashKey()
+            local attributeMap = getAttributeNameMap(hashKey)
+            local categories = {"gun", "melee", "throwable", "consumable", "misc"}
+            local itemCount = 0
+
+            for _, category in ipairs(categories) do
+                local categoryItems = Items:FindFirstChild(category)
+                if categoryItems then
+                    -- Добавляем заголовок категории
+                    local categoryLabel = Instance.new("Frame")
+                    categoryLabel.Size = UDim2.new(1, 0, 0, 20)
+                    categoryLabel.BackgroundTransparency = 1
+                    categoryLabel.LayoutOrder = itemCount
+                    categoryLabel.Parent = attrListFrame
+                    local categoryText = Instance.new("TextLabel")
+                    categoryText.Size = UDim2.new(1, 0, 1, 0)
+                    categoryText.BackgroundTransparency = 1
+                    categoryText.Text = "Category: " .. category
+                    categoryText.TextColor3 = Color3.fromRGB(150, 150, 255)
+                    categoryText.TextSize = 14
+                    categoryText.Font = Enum.Font.GothamBold
+                    categoryText.TextXAlignment = Enum.TextXAlignment.Left
+                    categoryText.Parent = categoryLabel
+                    itemCount = itemCount + 1
+
+                    for _, item in pairs(categoryItems:GetChildren()) do
+                        -- Добавляем название предмета
+                        local itemLabel = Instance.new("Frame")
+                        itemLabel.Size = UDim2.new(1, 0, 0, 20)
+                        itemLabel.BackgroundTransparency = 1
+                        itemLabel.LayoutOrder = itemCount
+                        itemLabel.Parent = attrListFrame
+                        local itemText = Instance.new("TextLabel")
+                        itemText.Size = UDim2.new(1, 0, 1, 0)
+                        itemText.BackgroundTransparency = 1
+                        itemText.Text = "Item: " .. item.Name
+                        itemText.TextColor3 = Color3.fromRGB(200, 200, 200)
+                        itemText.TextSize = 14
+                        itemText.Font = Enum.Font.Gotham
+                        itemText.TextXAlignment = Enum.TextXAlignment.Left
+                        itemText.Parent = itemLabel
+                        itemCount = itemCount + 1
+
+                        -- Добавляем атрибуты предмета
+                        for attrName, attrValue in pairs(item:GetAttributes()) do
+                            local decryptedName = attributeMap[attrName] or attrName
+                            local attrLabel = Instance.new("Frame")
+                            attrLabel.Size = UDim2.new(1, 0, 0, 20)
+                            attrLabel.BackgroundTransparency = 1
+                            attrLabel.LayoutOrder = itemCount
+                            attrLabel.Parent = attrListFrame
+                            local attrText = Instance.new("TextLabel")
+                            attrText.Size = UDim2.new(1, 0, 1, 0)
+                            attrText.BackgroundTransparency = 1
+                            attrText.Text = "  " .. decryptedName .. ": " .. tostring(attrValue)
+                            attrText.TextColor3 = Color3.fromRGB(255, 255, 255)
+                            attrText.TextSize = 12
+                            attrText.Font = Enum.Font.Gotham
+                            attrText.TextXAlignment = Enum.TextXAlignment.Left
+                            attrText.Parent = attrLabel
+                            itemCount = itemCount + 1
+                        end
+                    end
+                end
+            end
+
+            attrListFrame.CanvasSize = UDim2.new(0, 0, 0, itemCount * 22)
+        end
+
+        -- Перетаскивание для ItemAttributes
+        local attrDragging = false
+        local attrDragStart = nil
+        local attrStartPos = nil
+
+        Core.Services.UserInputService.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 and attrFrame.Visible then
+                local mousePos = Core.Services.UserInputService:GetMouseLocation()
+                local attrPos = attrFrame.Position
+                local attrSize = attrFrame.Size
+                if mousePos.X >= attrPos.X.Offset and mousePos.X <= attrPos.X.Offset + attrSize.X.Offset and
+                   mousePos.Y >= attrPos.Y.Offset and mousePos.Y <= attrPos.Y.Offset + attrSize.Y.Offset then
+                    attrDragging = true
+                    attrDragStart = mousePos
+                    attrStartPos = attrPos
+                end
+            end
+        end)
+
+        Core.Services.UserInputService.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement and attrDragging then
+                local mousePos = Core.Services.UserInputService:GetMouseLocation()
+                local delta = mousePos - attrDragStart
+                attrFrame.Position = UDim2.new(0, attrStartPos.X.Offset + delta.X, 0, attrStartPos.Y.Offset + delta.Y)
+            end
+        end)
+
+        Core.Services.UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                attrDragging = false
+            end
+        end)
+
+        -- Перетаскивание для TargetInventory
         local invDragging = false
         local invDragStart = nil
         local invStartPos = nil
@@ -831,6 +1005,7 @@ local TargetInfo = {
             end
         end)
 
+        -- UI для TargetHud
         if UI.Tabs.Visuals then
             UI.Sections.TargetHud = UI.Tabs.Visuals:Section({ Name = "Target HUD", Side = "Left" })
             if UI.Sections.TargetHud then
@@ -929,6 +1104,7 @@ local TargetInfo = {
                 }, 'TOrbMoveDistance')
             end
 
+            -- UI для TargetInventory
             UI.Sections.TargetInventory = UI.Tabs.Visuals:Section({ Name = "Target Inventory", Side = "Left" })
             if UI.Sections.TargetInventory then
                 UI.Sections.TargetInventory:Header({ Name = "Target Inventory Settings" })
@@ -1017,8 +1193,27 @@ local TargetInfo = {
                     end
                 }, 'CircleMethod')
             end
+
+            -- UI для ItemAttributes
+            UI.Sections.ItemAttributes = UI.Tabs.Visuals:Section({ Name = "Item Attributes", Side = "Left" })
+            if UI.Sections.ItemAttributes then
+                UI.Sections.ItemAttributes:Header({ Name = "Item Attributes Settings" })
+                UI.Sections.ItemAttributes:Toggle({
+                    Name = "Enabled",
+                    Default = false,
+                    Callback = function(value)
+                        ItemAttributesSettings.Enabled = value
+                        attrFrame.Visible = value
+                        if value then
+                            updateItemAttributesView()
+                        end
+                        notify("Item Attributes", "Item Attributes " .. (value and "Enabled" or "Disabled"), true)
+                    end
+                }, 'ItemAttributesEnabled')
+            end
         end
 
+        -- Обновление TargetInventory и TargetHud
         Core.Services.RunService.Stepped:Connect(function()
             if TargetHud.Settings.Enabled.Value then
                 UpdateTargetHud()
@@ -1028,6 +1223,7 @@ local TargetInfo = {
             end
         end)
 
+        -- Отдельное обновление позиции круга FOV для плавности
         Core.Services.RunService.RenderStepped:Connect(function()
             updateFovCirclePosition()
         end)
