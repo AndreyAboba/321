@@ -246,11 +246,13 @@ local TargetInfo = {
                 playerIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
                 playerIcon.Size = UDim2.new(0, 40, 0, 40)
                 TargetHud.State.CurrentThumbnail = nil
+                print("[TargetHud] UpdatePlayerIcon: No target provided")
                 return
             end
 
             local userId = target.UserId
             if TargetHud.State.CurrentThumbnail and TargetHud.State.CurrentThumbnail.UserId == userId then
+                print("[TargetHud] UpdatePlayerIcon: Thumbnail already set for UserId", userId)
                 return
             end
 
@@ -261,9 +263,11 @@ local TargetInfo = {
             if success and thumbnailUrl then
                 playerIcon.Image = thumbnailUrl
                 TargetHud.State.CurrentThumbnail = { UserId = userId, Url = thumbnailUrl }
+                print("[TargetHud] UpdatePlayerIcon: Set thumbnail for", target.Name, "URL:", thumbnailUrl)
             else
                 playerIcon.Image = ""
                 TargetHud.State.CurrentThumbnail = nil
+                print("[TargetHud] UpdatePlayerIcon: Failed to get thumbnail for", target.Name)
             end
         end
 
@@ -283,6 +287,7 @@ local TargetInfo = {
             end
 
             healthBarFill.BackgroundColor3 = color
+            print("[TargetHud] UpdateHealthBarColor: Health =", health, "MaxHealth =", maxHealth, "Color =", color)
         end
 
         local function CreateOrb()
@@ -306,6 +311,7 @@ local TargetInfo = {
             orbGradient.Rotation = 45
             orbGradient.Parent = orb
 
+            print("[TargetHud] CreateOrb: Orb created")
             return orb
         end
 
@@ -325,11 +331,13 @@ local TargetInfo = {
 
             task.delay(TargetHud.Settings.OrbFadeDuration.Value, function()
                 orb:Destroy()
+                print("[TargetHud] AnimateOrb: Orb destroyed")
             end)
         end
 
         local function PlayDamageAnimation()
             if not TargetHud.State.CurrentTarget or tick() - TargetHud.State.LastDamageAnimationTime < TargetHud.Settings.DamageAnimationCooldown.Value then
+                print("[TargetHud] PlayDamageAnimation: Skipped (No target or cooldown)")
                 return
             end
             TargetHud.State.LastDamageAnimationTime = tick()
@@ -358,12 +366,14 @@ local TargetInfo = {
                     TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
                     { ImageColor3 = originalColor, Size = originalSize }
                 ):Play()
+                print("[TargetHud] PlayDamageAnimation: Animation completed")
             end)
         end
 
         local function UpdateHudPreview()
             if not TargetHud.Settings.Enabled.Value then
                 hudFrame.Visible = false
+                print("[TargetHud] UpdateHudPreview: Disabled, hiding HUD")
                 return
             end
 
@@ -375,23 +385,22 @@ local TargetInfo = {
                 healthBarBackground.Visible = true
                 healthBarFill.Visible = true
 
-                -- Проверяем, есть ли валидная текущая цель
                 local target = TargetHud.State.CurrentTarget
-                if target and target.Character then
-                    local health = Core.GetStateValue(target.Character, "Health") or (target.Character.Humanoid and target.Character.Humanoid.Health) or 100
-                    local maxHealth = Core.GetStateValue(target.Character, "MaxHealth") or (target.Character.Humanoid and target.Character.Humanoid.MaxHealth) or 100
+                if target and target.Character and target.Character:FindFirstChild("Humanoid") and target.Character.Humanoid.Health > 0 then
+                    local humanoid = target.Character.Humanoid
                     nameLabel.Text = target.Name
-                    healthLabel.Text = string.format("HP: %.1f", health)
-                    healthBarFill.Size = UDim2.new(health / maxHealth, 0, 1, 0)
-                    UpdateHealthBarColor(health, maxHealth)
+                    healthLabel.Text = string.format("HP: %.1f", humanoid.Health)
+                    healthBarFill.Size = UDim2.new(humanoid.Health / humanoid.MaxHealth, 0, 1, 0)
+                    UpdateHealthBarColor(humanoid.Health, humanoid.MaxHealth)
                     UpdatePlayerIcon(target)
+                    print("[TargetHud] UpdateHudPreview: Preview for target", target.Name, "Health =", humanoid.Health)
                 else
-                    -- Если цели нет или она невалидна, показываем локального игрока
                     nameLabel.Text = "Preview"
                     healthLabel.Text = "HP: 100.0"
                     healthBarFill.Size = UDim2.new(1, 0, 1, 0)
                     UpdateHealthBarColor(100, 100)
                     UpdatePlayerIcon(Core.PlayerData.LocalPlayer)
+                    print("[TargetHud] UpdateHudPreview: No valid target, showing local player preview")
                 end
             elseif not TargetHud.State.CurrentTarget then
                 hudFrame.Visible = false
@@ -400,12 +409,14 @@ local TargetInfo = {
                 healthLabel.Visible = false
                 healthBarBackground.Visible = false
                 healthBarFill.Visible = false
+                print("[TargetHud] UpdateHudPreview: No target, hiding HUD")
             end
         end
 
         local function UpdateTargetHud()
             if not TargetHud.Settings.Enabled.Value then
                 UpdateHudPreview()
+                print("[TargetHud] UpdateTargetHud: Disabled, running preview")
                 return
             end
 
@@ -420,23 +431,19 @@ local TargetInfo = {
                 target = TargetHud.State.CurrentTarget or Core.PlayerData.LocalPlayer
             end
 
-            -- Проверка валидности цели
-            if not target or not target.Character then
+            print("[TargetHud] UpdateTargetHud: Target =", target and target.Name or "nil")
+
+            if not target or not target.Character or not target.Character:FindFirstChild("Humanoid") or target.Character.Humanoid.Health <= 0 then
                 TargetHud.State.CurrentTarget = nil
                 TargetHud.State.PreviousHealth = nil
                 UpdateHudPreview()
+                print("[TargetHud] UpdateTargetHud: Invalid target, resetting")
                 return
             end
 
-            local health = Core.GetStateValue(target.Character, "Health") or (target.Character.Humanoid and target.Character.Humanoid.Health) or 0
-            local maxHealth = Core.GetStateValue(target.Character, "MaxHealth") or (target.Character.Humanoid and target.Character.Humanoid.MaxHealth) or 100
-
-            if health <= 0 then
-                TargetHud.State.CurrentTarget = nil
-                TargetHud.State.PreviousHealth = nil
-                UpdateHudPreview()
-                return
-            end
+            local humanoid = target.Character.Humanoid
+            local health = humanoid.Health
+            local maxHealth = humanoid.MaxHealth
 
             hudFrame.Visible = true
             playerIcon.Visible = true
@@ -456,6 +463,8 @@ local TargetInfo = {
             end
             TargetHud.State.PreviousHealth = health
             TargetHud.State.CurrentTarget = target
+
+            print("[TargetHud] UpdateTargetHud: Updated for", target.Name, "Health =", health, "MaxHealth =", maxHealth)
         end
 
         -- Перетаскивание для TargetHud
@@ -473,6 +482,7 @@ local TargetInfo = {
                     hudDragging = true
                     hudDragStart = mousePos
                     hudStartPos = hudPos
+                    print("[TargetHud] Drag: Started at", mousePos)
                 end
             end
         end)
@@ -482,12 +492,14 @@ local TargetInfo = {
                 local mousePos = Core.Services.UserInputService:GetMouseLocation()
                 local delta = mousePos - hudDragStart
                 hudFrame.Position = UDim2.new(0, hudStartPos.X.Offset + delta.X, 0, hudStartPos.Y.Offset + delta.Y)
+                print("[TargetHud] Drag: Moved to", hudFrame.Position)
             end
         end)
 
         Core.Services.UserInputService.InputEnded:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 then
                 hudDragging = false
+                print("[TargetHud] Drag: Ended")
             end
         end)
 
@@ -500,65 +512,110 @@ local TargetInfo = {
             local ConsumableItems = Items:WaitForChild("consumable")
             local MiscItems = Items:WaitForChild("misc")
 
-            if GunItems:FindFirstChild(itemName) then return "rbxassetid://109065124754087"
-            elseif MeleeItems:FindFirstChild(itemName) then return "rbxassetid://10455604811"
-            elseif ThrowableItems:FindFirstChild(itemName) then return "rbxassetid://13492316452"
-            elseif ConsumableItems:FindFirstChild(itemName) then return "rbxassetid://17181103870"
-            elseif MiscItems:FindFirstChild(itemName) then return "rbxassetid://6966623635"
-            else return "" end
+            if GunItems:FindFirstChild(itemName) then
+                print("[TargetInventory] getItemIcon: Found", itemName, "in GunItems")
+                return "rbxassetid://109065124754087"
+            elseif MeleeItems:FindFirstChild(itemName) then
+                print("[TargetInventory] getItemIcon: Found", itemName, "in MeleeItems")
+                return "rbxassetid://10455604811"
+            elseif ThrowableItems:FindFirstChild(itemName) then
+                print("[TargetInventory] getItemIcon: Found", itemName, "in ThrowableItems")
+                return "rbxassetid://13492316452"
+            elseif ConsumableItems:FindFirstChild(itemName) then
+                print("[TargetInventory] getItemIcon: Found", itemName, "in ConsumableItems")
+                return "rbxassetid://17181103870"
+            elseif MiscItems:FindFirstChild(itemName) then
+                print("[TargetInventory] getItemIcon: Found", itemName, "in MiscItems")
+                return "rbxassetid://6966623635"
+            else
+                print("[TargetInventory] getItemIcon: No icon for", itemName)
+                return ""
+            end
         end
 
         local function getItemName(tool)
-            -- Проверяем состояние ItemName или GunType через StatefulObject
-            local itemName = Core.GetStateValue(tool, "ItemName") or Core.GetStateValue(tool, "GunType") or tool.Name
-            -- Если имя хэшировано, пытаемся найти в ReplicatedStorage.Items
+            local itemName = tool.Name
+            print("[TargetInventory] getItemName: Initial name for tool", tool:GetFullName(), "is", itemName)
+
+            -- Проверка на хэшированное имя
             if itemName:match("^xyz%d+$") then
+                print("[TargetInventory] getItemName: Detected hashed name", itemName)
                 local Items = ReplicatedStorage:WaitForChild("Items")
                 for _, category in pairs({"gun", "melee", "throwable", "consumable", "misc"}) do
-                    for _, item in pairs(Items[category]:GetChildren()) do
-                        if tool:FindFirstChild(item.Name) or Core.GetStateValue(tool, item.Name) then
-                            return item.Name
+                    local categoryItems = Items:FindFirstChild(category)
+                    if categoryItems then
+                        for _, item in pairs(categoryItems:GetChildren()) do
+                            -- Проверяем дочерние объекты или атрибуты
+                            if tool:FindFirstChild(item.Name) or tool:GetAttribute(item.Name) then
+                                print("[TargetInventory] getItemName: Matched", itemName, "to", item.Name, "in", category)
+                                return item.Name
+                            end
+                            -- Проверяем конфигурационные объекты внутри инструмента
+                            for _, child in pairs(tool:GetChildren()) do
+                                if child:IsA("StringValue") and child.Name == "ItemName" and child.Value == item.Name then
+                                    print("[TargetInventory] getItemName: Found ItemName", item.Name, "in StringValue")
+                                    return item.Name
+                                end
+                            end
                         end
+                    else
+                        print("[TargetInventory] getItemName: Category", category, "not found")
                     end
                 end
+                print("[TargetInventory] getItemName: No match found for hashed name", itemName)
             end
             return itemName
         end
 
         local function getTargetEquippedItem(target)
-            if not target or not target.Character then return "None", nil end
+            if not target or not target.Character then
+                print("[TargetInventory] getTargetEquippedItem: No target or character")
+                return "None", nil
+            end
             local character = target.Character
-            local tools = Core.FindStatefulItems("Tool", { Parent = character })
-            for _, item in pairs(tools) do
-                local tool = item.Instance
-                if tool.Name:lower() ~= "fists" then
-                    local itemName = getItemName(tool)
+            print("[TargetInventory] getTargetEquippedItem: Checking character", target.Name)
+            for _, item in pairs(character:GetChildren()) do
+                if item:IsA("Tool") and item.Name:lower() ~= "fists" then
+                    local itemName = getItemName(item)
+                    print("[TargetInventory] getTargetEquippedItem: Found equipped item", itemName)
                     return itemName, itemName
                 end
             end
+            print("[TargetInventory] getTargetEquippedItem: No equipped item found")
             return "None", nil
         end
 
         local function getTargetInventory(target)
-            if not target then return {} end
+            if not target then
+                print("[TargetInventory] getTargetInventory: No target")
+                return {}
+            end
             local backpack = target:FindFirstChild("Backpack")
-            if not backpack then return {} end
+            if not backpack then
+                print("[TargetInventory] getTargetInventory: No Backpack for", target.Name)
+                return {}
+            end
             local _, equippedItemName = getTargetEquippedItem(target)
             local items = {}
-            local tools = Core.FindStatefulItems("Tool", { Parent = backpack })
-            for _, item in pairs(tools) do
-                local tool = item.Instance
-                if tool.Name:lower() ~= "fists" and getItemName(tool) ~= equippedItemName then
-                    table.insert(items, getItemName(tool))
+            print("[TargetInventory] getTargetInventory: Checking Backpack for", target.Name)
+            for _, item in pairs(backpack:GetChildren()) do
+                if item:IsA("Tool") and item.Name:lower() ~= "fists" and getItemName(item) ~= equippedItemName then
+                    local itemName = getItemName(item)
+                    table.insert(items, itemName)
+                    print("[TargetInventory] getTargetInventory: Added item", itemName)
                 end
             end
+            print("[TargetInventory] getTargetInventory: Found", #items, "items")
             return items
         end
 
         local function getNearestPlayerToMouse()
             local localPlayer = Core.PlayerData.LocalPlayer
             local localCharacter = localPlayer.Character
-            if not localCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") then return nil end
+            if not localCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") then
+                print("[TargetInventory] getNearestPlayerToMouse: No local character or HumanoidRootPart")
+                return nil
+            end
             local localPos = localCharacter.HumanoidRootPart.Position
 
             local referencePos
@@ -582,22 +639,32 @@ local TargetInfo = {
                     if distToReference < minDist and (TargetInventorySettings.DistanceLimit == 0 or worldDist <= TargetInventorySettings.DistanceLimit) then
                         minDist = distToReference
                         nearestPlayer = player
+                        print("[TargetInventory] getNearestPlayerToMouse: Found player", player.Name, "Distance =", distToReference)
                     end
                 end
+            end
+            if not nearestPlayer then
+                print("[TargetInventory] getNearestPlayerToMouse: No player found within FOV")
             end
             return nearestPlayer
         end
 
         local function isGunEquipped()
             local character = Core.PlayerData.LocalPlayer.Character
-            if not character then return false end
-            local tools = Core.FindStatefulItems("Tool", { Parent = character })
-            for _, item in pairs(tools) do
-                local tool = item.Instance
-                local itemName = getItemName(tool)
-                local gunItem = game:GetService("ReplicatedStorage"):WaitForChild("Items"):WaitForChild("gun"):FindFirstChild(itemName)
-                if gunItem then return true end
+            if not character then
+                print("[TargetInventory] isGunEquipped: No local character")
+                return false
             end
+            for _, child in pairs(character:GetChildren()) do
+                if child:IsA("Tool") then
+                    local gunItem = game:GetService("ReplicatedStorage"):WaitForChild("Items"):WaitForChild("gun"):FindFirstChild(getItemName(child))
+                    if gunItem then
+                        print("[TargetInventory] isGunEquipped: Gun found", getItemName(child))
+                        return true
+                    end
+                end
+            end
+            print("[TargetInventory] isGunEquipped: No gun equipped")
             return false
         end
 
@@ -610,6 +677,7 @@ local TargetInfo = {
                         child.Visible = true
                     end
                 end
+                print("[TargetInventory] playAppearAnimation: Skipped animation")
                 return
             end
 
@@ -634,6 +702,7 @@ local TargetInfo = {
                         child.Visible = true
                     end
                 end
+                print("[TargetInventory] playAppearAnimation: Animation completed")
             end)
         end
 
@@ -641,6 +710,7 @@ local TargetInfo = {
             if not TargetInventorySettings.Enabled or not TargetInventorySettings.ShowCircle.Value or
                not (TargetInventorySettings.TargetMode == "Mouse" or TargetInventorySettings.TargetMode == "All") then
                 fovCircle.Visible = false
+                print("[TargetInventory] updateFovCirclePosition: Circle hidden")
                 return
             end
 
@@ -654,14 +724,17 @@ local TargetInfo = {
             fovCircle.Size = UDim2.new(0, TargetInventorySettings.FOV.Value, 0, TargetInventorySettings.FOV.Value)
             if TargetInventorySettings.CircleMethod.Value == "Middle" then
                 fovCircle.Position = UDim2.new(0.5, -TargetInventorySettings.FOV.Value / 2, 0.5, -TargetInventorySettings.FOV.Value / 2)
+                print("[TargetInventory] updateFovCirclePosition: Circle at Middle")
             elseif TargetInventorySettings.CircleMethod.Value == "Cursor" then
                 local mousePos = Core.Services.UserInputService:GetMouseLocation()
                 fovCircle.Position = UDim2.new(0, mousePos.X - TargetInventorySettings.FOV.Value / 2, 0, mousePos.Y - TargetInventorySettings.FOV.Value / 2)
+                print("[TargetInventory] updateFovCirclePosition: Circle at Cursor", mousePos)
             end
 
             if TargetInventorySettings.CircleGradient.Value then
                 local t = (math.sin(currentTime * 2) + 1) / 2
                 fovCircleBorder.Color = Core.GradientColors.Color1.Value:Lerp(Core.GradientColors.Color2.Value, t)
+                print("[TargetInventory] updateFovCirclePosition: Gradient applied")
             else
                 fovCircleBorder.Color = Color3.fromRGB(255, 255, 255)
             end
@@ -670,6 +743,7 @@ local TargetInfo = {
         local function updateTargetInventoryView()
             if not TargetInventorySettings.Enabled then
                 invFrame.Visible = false
+                print("[TargetInventory] updateTargetInventoryView: Disabled, hiding frame")
                 return
             end
 
@@ -684,28 +758,32 @@ local TargetInfo = {
 
             if TargetInventorySettings.TargetMode == "GunSilent Target" or TargetInventorySettings.TargetMode == "All" then
                 target = Core.GunSilentTarget.CurrentTarget
+                print("[TargetInventory] updateTargetInventoryView: GunSilentTarget =", target and target.Name or "nil")
             end
             if TargetInventorySettings.TargetMode == "Mouse" or (TargetInventorySettings.TargetMode == "All" and not target) then
                 target = getNearestPlayerToMouse()
                 useMouseTargeting = true
+                print("[TargetInventory] updateTargetInventoryView: Mouse target =", target and target.Name or "nil")
             end
 
-            -- Проверка валидности цели
-            if target and (not target.Character or not Core.GetStateValue(target.Character, "Health")) then
+            if target and (not target.Character or not target.Character:FindFirstChild("Humanoid") or target.Character.Humanoid.Health <= 0) then
                 target = nil
+                print("[TargetInventory] updateTargetInventoryView: Target invalid (no character or dead)")
             end
 
             local shouldBeVisible = TargetInventorySettings.AlwaysVisible or (target ~= nil)
             if shouldBeVisible and not invFrame.Visible then
                 invFrame.Visible = true
                 playAppearAnimation()
+                print("[TargetInventory] updateTargetInventoryView: Frame shown")
             elseif not shouldBeVisible then
                 invFrame.Visible = false
+                print("[TargetInventory] updateTargetInventoryView: Frame hidden")
                 return
             end
 
-            -- Пропуск обновления UI, если цель не изменилась
             if TargetInventorySettings.LastTarget == target then
+                print("[TargetInventory] updateTargetInventoryView: Target unchanged, skipping UI update")
                 return
             end
             TargetInventorySettings.LastTarget = target
@@ -713,6 +791,7 @@ local TargetInfo = {
             if TargetInventorySettings.ShowNick then
                 nickLabel.Text = target and target.Name or "No Target"
                 nickLabel.Visible = true
+                print("[TargetInventory] updateTargetInventoryView: Nick set to", nickLabel.Text)
             else
                 nickLabel.Visible = false
             end
@@ -738,6 +817,7 @@ local TargetInfo = {
                 emptyText.TextXAlignment = Enum.TextXAlignment.Left
                 emptyText.Parent = emptyLabel
                 inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, 20)
+                print("[TargetInventory] updateTargetInventoryView: No target, showing empty UI")
                 return
             end
 
@@ -746,9 +826,11 @@ local TargetInfo = {
             if equippedItemName then
                 equippedIcon.Image = getItemIcon(equippedItemName)
                 equippedLabel.Position = UDim2.new(0, 25, 0, 0)
+                print("[TargetInventory] updateTargetInventoryView: Equipped item set to", equippedItem)
             else
                 equippedIcon.Image = ""
                 equippedLabel.Position = UDim2.new(0, 0, 0, 0)
+                print("[TargetInventory] updateTargetInventoryView: No equipped item icon")
             end
 
             for _, child in pairs(inventoryFrame:GetChildren()) do
@@ -781,8 +863,10 @@ local TargetInfo = {
                     itemLabel.Font = Enum.Font.Gotham
                     itemLabel.TextXAlignment = Enum.TextXAlignment.Left
                     itemLabel.Parent = itemContainer
+                    print("[TargetInventory] updateTargetInventoryView: Added inventory item", itemName)
                 end
                 inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, #inventory * 22)
+                print("[TargetInventory] updateTargetInventoryView: Inventory size set to", #inventory * 22)
             else
                 local emptyLabel = Instance.new("Frame")
                 emptyLabel.Size = UDim2.new(1, 0, 0, 20)
@@ -798,6 +882,7 @@ local TargetInfo = {
                 emptyText.TextXAlignment = Enum.TextXAlignment.Left
                 emptyText.Parent = emptyLabel
                 inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, 20)
+                print("[TargetInventory] updateTargetInventoryView: Inventory empty")
             end
         end
 
@@ -816,6 +901,7 @@ local TargetInfo = {
                     invDragging = true
                     invDragStart = mousePos
                     invStartPos = invPos
+                    print("[TargetInventory] Drag: Started at", mousePos)
                 end
             end
         end)
@@ -825,12 +911,14 @@ local TargetInfo = {
                 local mousePos = Core.Services.UserInputService:GetMouseLocation()
                 local delta = mousePos - invDragStart
                 invFrame.Position = UDim2.new(0, invStartPos.X.Offset + delta.X, 0, invStartPos.Y.Offset + delta.Y)
+                print("[TargetInventory] Drag: Moved to", invFrame.Position)
             end
         end)
 
         Core.Services.UserInputService.InputEnded:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 then
                 invDragging = false
+                print("[TargetInventory] Drag: Ended")
             end
         end)
 
@@ -846,6 +934,7 @@ local TargetInfo = {
                         TargetHud.Settings.Enabled.Value = value
                         notify("Target HUD", "Target HUD " .. (value and "Enabled" or "Disabled"), true)
                         UpdateHudPreview()
+                        print("[TargetHud] UI: Enabled set to", value)
                     end
                 }, 'TGEnabled')
                 UI.Sections.TargetHud:Toggle({
@@ -855,6 +944,7 @@ local TargetInfo = {
                         TargetHud.Settings.Preview.Value = value
                         notify("Target HUD", "Preview " .. (value and "Enabled" or "Disabled"), true)
                         UpdateHudPreview()
+                        print("[TargetHud] UI: Preview set to", value)
                     end
                 }, 'TPreview')
                 UI.Sections.TargetHud:Slider({
@@ -866,6 +956,7 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetHud.Settings.AvatarPulseDuration.Value = value
                         notify("Target HUD", "Avatar Pulse Duration set to: " .. value)
+                        print("[TargetHud] UI: Avatar Pulse CD set to", value)
                     end
                 }, 'TAvatarPulseCD')
                 UI.Sections.TargetHud:Slider({
@@ -877,6 +968,7 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetHud.Settings.DamageAnimationCooldown.Value = value
                         notify("Target HUD", "Damage Animation Cooldown set to: " .. value)
+                        print("[TargetHud] UI: DamageAnim Cd set to", value)
                     end
                 }, 'TDamageAnimCD')
                 UI.Sections.TargetHud:Toggle({
@@ -885,6 +977,7 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetHud.Settings.OrbsEnabled.Value = value
                         notify("Target HUD", "Orbs " .. (value and "Enabled" or "Disabled"), true)
+                        print("[TargetHud] UI: Orbs Enabled set to", value)
                     end
                 }, 'TOrbsEnabled')
                 UI.Sections.TargetHud:Slider({
@@ -896,6 +989,7 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetHud.Settings.OrbCount.Value = value
                         notify("Target HUD", "Orb Count set to: " .. value)
+                        print("[TargetHud] UI: Orb Count set to", value)
                     end
                 }, 'TORBCount')
                 UI.Sections.TargetHud:Slider({
@@ -907,6 +1001,7 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetHud.Settings.OrbLifetime.Value = value
                         notify("Target HUD", "Orb Lifetime set to: " .. value)
+                        print("[TargetHud] UI: Orb Lifetime set to", value)
                     end
                 }, 'TOrbLifetime')
                 UI.Sections.TargetHud:Slider({
@@ -918,6 +1013,7 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetHud.Settings.OrbFadeDuration.Value = value
                         notify("Target HUD", "Orb Fade Duration set to: " .. value)
+                        print("[TargetHud] UI: OrbFade Duration set to", value)
                     end
                 }, 'TOrbFadeDuration')
                 UI.Sections.TargetHud:Slider({
@@ -929,6 +1025,7 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetHud.Settings.OrbMoveDistance.Value = value
                         notify("Target HUD", "Orb Move Distance set to: " .. value)
+                        print("[TargetHud] UI: Orb Move Distance set to", value)
                     end
                 }, 'TOrbMoveDistance')
             end
@@ -944,6 +1041,7 @@ local TargetInfo = {
                         TargetInventorySettings.Enabled = value
                         invFrame.Visible = value and TargetInventorySettings.AlwaysVisible
                         notify("Target Inventory", "Target Inventory " .. (value and "Enabled" or "Disabled"), true)
+                        print("[TargetInventory] UI: Enabled set to", value)
                     end
                 }, 'TEnabled')
                 UI.Sections.TargetInventory:Toggle({
@@ -952,6 +1050,7 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetInventorySettings.ShowNick = value
                         notify("Target Inventory", "Show Nick " .. (value and "Enabled" or "Disabled"), true)
+                        print("[TargetInventory] UI: Show Nick set to", value)
                     end
                 }, 'ShowNickT')
                 UI.Sections.TargetInventory:Toggle({
@@ -963,6 +1062,7 @@ local TargetInfo = {
                             invFrame.Visible = value
                         end
                         notify("Target Inventory", "Always Visible " .. (value and "Enabled" or "Disabled"), true)
+                        print("[TargetInventory] UI: Always Visible set to", value)
                     end
                 }, 'AlwaysVisible')
                 UI.Sections.TargetInventory:Slider({
@@ -974,6 +1074,7 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetInventorySettings.DistanceLimit = value
                         notify("Target Inventory", "Distance Limit set to " .. value)
+                        print("[TargetInventory] UI: Distance Limit set to", value)
                     end
                 }, 'TDistanceLimit')
                 UI.Sections.TargetInventory:Dropdown({
@@ -983,6 +1084,7 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetInventorySettings.TargetMode = value
                         notify("Target Inventory", "Target Mode set to " .. value, true)
+                        print("[TargetInventory] UI: Target Mode set to", value)
                     end
                 }, 'GTargetMode')
                 UI.Sections.TargetInventory:Slider({
@@ -994,6 +1096,7 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetInventorySettings.FOV.Value = value
                         notify("Target Inventory", "FOV set to: " .. value)
+                        print("[TargetInventory] UI: FOV set to", value)
                     end
                 }, 'TFOV')
                 UI.Sections.TargetInventory:Toggle({
@@ -1002,6 +1105,7 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetInventorySettings.ShowCircle.Value = value
                         notify("Target Inventory", "FOV Circle " .. (value and "Enabled" or "Disabled"), true)
+                        print("[TargetInventory] UI: Show FOV Circle set to", value)
                     end
                 }, 'TShowFOVCircle')
                 UI.Sections.TargetInventory:Toggle({
@@ -1010,6 +1114,7 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetInventorySettings.CircleGradient.Value = value
                         notify("Target Inventory", "Circle Gradient " .. (value and "Enabled" or "Disabled"), true)
+                        print("[TargetInventory] UI: Circle Gradient set to", value)
                     end
                 }, 'CircleTGradient')
                 UI.Sections.TargetInventory:Dropdown({
@@ -1019,6 +1124,7 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetInventorySettings.CircleMethod.Value = value
                         notify("Target Inventory", "Circle Method set to: " .. value, true)
+                        print("[TargetInventory] UI: Circle Method set to", value)
                     end
                 }, 'CircleMethod')
             end
@@ -1039,7 +1145,7 @@ local TargetInfo = {
             updateFovCirclePosition()
         end)
 
-        -- Очистка при выгрузке
+        print("[TargetInfo] Initialized successfully")
     end
 }
 
