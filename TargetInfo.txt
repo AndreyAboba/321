@@ -695,38 +695,6 @@ local TargetInfo = {
         end
 
         -- Функции ItemAttributes
-        local function djb2Hash(str)
-            local hash = 5381
-            for i = 1, #str do
-                hash = (hash * 33 + string.byte(str, i)) % 4294967296
-            end
-            return hash
-        end
-
-        local function getHashKey()
-            return workspace:GetAttribute("HashKey") or workspace:GetAttributeChangedSignal("HashKey"):Wait()
-        end
-
-        local function getAttributeNameMap(hashKey)
-            local knownAttributes = {
-                [djb2Hash("Description")] = "Description",
-                [djb2Hash("ImageID")] = "ImageID",
-                [djb2Hash("RarityName")] = "RarityName",
-                [djb2Hash("Destructive")] = "Destructive",
-                [djb2Hash("itemGUID")] = "itemGUID",
-                [djb2Hash("KnockbackForce")] = "KnockbackForce",
-                [djb2Hash("Bounces")] = "Bounces",
-                [djb2Hash("ThrowDebounceTime")] = "ThrowDebounceTime",
-                [djb2Hash("RarityPrice")] = "RarityPrice",
-                [djb2Hash("RagdollChance")] = "RagdollChance"
-            }
-            local map = {}
-            for hash, name in pairs(knownAttributes) do
-                map[tostring(hashKey) .. tostring(hash)] = name
-            end
-            return map
-        end
-
         local function getPlayerItems(player)
             local items = {}
             if player.Character then
@@ -769,8 +737,6 @@ local TargetInfo = {
                 attrListFrame.CanvasSize = UDim2.new(0, 0, 0, 20)
                 return
             end
-            local hashKey = getHashKey()
-            local attributeMap = getAttributeNameMap(hashKey)
             local items = getPlayerItems(targetPlayer)
             local itemCount = 0
 
@@ -825,7 +791,8 @@ local TargetInfo = {
                     itemCount = itemCount + 1
 
                     for attrName, attrValue in pairs(item:GetAttributes()) do
-                        local decryptedName = attributeMap[attrName] or attrName
+                        -- Пропускаем зашифрованные имена, пытаемся использовать оригинальные
+                        local originalAttrName = attrName:match("^%d+") and attrName or attrName
                         local attrLabel = Instance.new("Frame")
                         attrLabel.Size = UDim2.new(1, 0, 0, 20)
                         attrLabel.BackgroundTransparency = 1
@@ -834,7 +801,7 @@ local TargetInfo = {
                         local attrText = Instance.new("TextLabel")
                         attrText.Size = UDim2.new(1, 0, 1, 0)
                         attrText.BackgroundTransparency = 1
-                        attrText.Text = "  " .. decryptedName .. ": " .. tostring(attrValue)
+                        attrText.Text = "  " .. originalAttrName .. ": " .. tostring(attrValue)
                         attrText.TextColor3 = Color3.fromRGB(255, 255, 255)
                         attrText.TextSize = 12
                         attrText.Font = Enum.Font.Gotham
