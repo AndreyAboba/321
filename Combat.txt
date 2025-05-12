@@ -61,7 +61,6 @@ local ThrowSilent = {
         Predict = { Value = true, Default = true },
         PredictVisualisation = { Value = true, Default = true },
         Rage = { Value = false, Default = false },
-        -- Добавляем настройку пинга для адаптивного предикта
         PingCompensation = { Value = 0.1, Default = 0.1 } -- Пинг в секундах (100 мс по умолчанию)
     },
     State = {
@@ -98,7 +97,7 @@ local rayCheck = RaycastParams.new()
 rayCheck.RespectCanCollide = true
 rayCheck.FilterType = Enum.RaycastFilterType.Exclude
 
--- Функции KillAura
+-- Функции KillAura (оставляем без изменений)
 local function getEquippedTool()
     if not LocalCharacter then return nil end
     for _, child in pairs(LocalCharacter:GetChildren()) do
@@ -388,13 +387,11 @@ local function getEquippedToolThrowSilent()
 end
 
 local function getThrowRadius(tool)
-    -- Поскольку Range больше не используется, мы просто добавляем RangePlus к фиксированному значению
     local baseRadius = ThrowSilent.Constants.DEFAULT_THROW_RADIUS
     return baseRadius + ThrowSilent.Settings.RangePlus.Value
 end
 
 local function getThrowSpeed(tool)
-    -- Проверяем сначала зашифрованный атрибут throw_speed через Core, затем обычный ThrowSpeed
     if not tool then
         return ThrowSilent.Constants.DEFAULT_THROW_SPEED
     end
@@ -405,7 +402,6 @@ local function getThrowSpeed(tool)
         throwSpeed = tool:GetAttribute(encryptedThrowSpeedAttr)
     end
     
-    -- Если зашифрованный атрибут не найден, пробуем обычный ThrowSpeed
     if not throwSpeed then
         throwSpeed = tool:GetAttribute("ThrowSpeed")
     end
@@ -488,6 +484,32 @@ local function lookAtTargetThrowSilent(target)
     rootPart.CFrame = CFrame.new(rootPart.Position) * CFrame.fromMatrix(Vector3.new(), lookCFrame.XVector, Vector3.new(0, 1, 0), lookCFrame.ZVector)
 end
 
+-- Новая функция для расчета времени столкновения с землей (аналог u2.plane_quad_intersect)
+local function calculateGroundHitTime(startPos, velocity, groundHeight)
+    local gravity = Vector3.new(0, -Workspace.Gravity, 0)
+    local a = 0.5 * gravity.Y -- Коэффициент при t^2 (гравитация)
+    local b = velocity.Y -- Коэффициент при t (вертикальная скорость)
+    local c = startPos.Y - groundHeight -- Константа (начальная высота относительно земли)
+
+    -- Решаем уравнение a*t^2 + b*t + c = 0
+    local discriminant = b * b - 4 * a * c
+    if discriminant < 0 then
+        return nil -- Нет пересечения с землей
+    end
+
+    local sqrtDiscriminant = math.sqrt(discriminant)
+    local t1 = (-b + sqrtDiscriminant) / (2 * a)
+    local t2 = (-b - sqrtDiscriminant) / (2 * a)
+
+    -- Берем положительное время (меньшее из двух)
+    if t1 > 0 then
+        return t1
+    elseif t2 > 0 then
+        return t2
+    end
+    return nil
+end
+
 local function predictTargetPositionAndRotation(target, throwSpeed)
     if not ThrowSilent.Settings.Predict.Value then
         if ThrowSilent.State.PredictVisualPart then ThrowSilent.State.PredictVisualPart:Destroy() ThrowSilent.State.PredictVisualPart = nil end
@@ -515,31 +537,51 @@ local function predictTargetPositionAndRotation(target, throwSpeed)
     local velocity = targetRoot.Velocity
     local distance = (targetHead.Position - myRoot.Position).Magnitude
 
-    -- Рассчитываем время полета снаряда (дистанция / скорость броска)
+    -- Начальная позиция броска (смещаем на 1.5 вверх, как в оригинале)
+    local startPos = myRoot.Position + Vector3.new(0, 1.5, 0)
+
+    -- Рассчитываем направление броска
+    local directionToTarget = (targetHead.Position - startPos).Unit
+    local angleAdjustment = math.clamp(distance / 20, 0, 1) * 0.2
+    local adjustedDirection = (directionToTarget + Vector3.new(0, angleAdjustment, 0)).Unit
+
+    -- Начальная скорость броска
+    local initialVelocity = adjustedDirection * throwSpeed
+
+    -- Рассчитываем время полета до цели
     local timeToTarget = distance / throwSpeed
 
-    -- Учитываем пинг (задержка до сервера, примерно половина RTT)
-    local pingDelay = ThrowSilent.Settings.PingCompensation.Value / 2 -- Односторонний пинг
-
-    -- Итоговое время для предсказания: время полета + задержка из-за пинга
+    -- Учитываем пинг
+    local pingDelay = ThrowSilent.Settings.PingCompensation.Value / 2
     local totalPredictionTime = timeToTarget + pingDelay
 
-    -- Предсказываем позицию цели с учетом её скорости и времени
+    -- Предсказываем позицию цели
     local predictedPosition = targetRoot.Position + velocity * totalPredictionTime
 
-    -- Учитываем гравитацию для вертикальной коррекции
-    local gravity = Vector3.new(0, -196.2, 0) -- Стандартная гравитация Roblox
-    local verticalDrop = 0.5 * gravity * timeToTarget * timeToTarget -- Вертикальное падение снаряда
-    local adjustedPosition = predictedPosition + verticalDrop
+    -- Находим высоту земли под целью
+    local groundRay = Workspace:Raycast(targetRoot.Position, Vector3.new(0, -1000, 0), rayCheck)
+    local groundHeight = groundRay and groundRay.Position.Y or targetRoot.Position.Y - 3
+
+    -- Рассчитываем время столкновения снаряда с землей
+    local hitTime = calculateGroundHitTime(startPos, initialVelocity, groundHeight)
+
+    -- Если снаряд достигнет земли раньше, чем долетит до цели, корректируем позицию
+    if hitTime and hitTime < totalPredictionTime then
+        totalPredictionTime = hitTime
+        predictedPosition = targetRoot.Position + velocity * totalPredictionTime
+    end
+
+    -- Рассчитываем позицию снаряда с учетом гравитации
+    local gravity = Vector3.new(0, -Workspace.Gravity, 0)
+    local projectilePosition = startPos + initialVelocity * totalPredictionTime + 0.5 * gravity * totalPredictionTime * totalPredictionTime
 
     -- Ограничиваем позицию, чтобы она не уходила ниже земли
-    local groundLevel = targetRoot.Position.Y - 3
-    adjustedPosition = Vector3.new(adjustedPosition.X, math.max(adjustedPosition.Y, groundLevel), adjustedPosition.Z)
+    projectilePosition = Vector3.new(projectilePosition.X, math.max(projectilePosition.Y, groundHeight), projectilePosition.Z)
 
-    -- Рассчитываем направление броска с учетом высоты
-    local directionToTarget = (targetHead.Position - (myRoot.Position + Vector3.new(0, 1.5, 0))).Unit
-    local angleAdjustment = math.clamp(distance / 20, 0, 1) * 0.2 -- Коррекция угла для больших дистанций
-    local adjustedDirection = (directionToTarget + Vector3.new(0, angleAdjustment, 0)).Unit
+    -- Корректируем направление, чтобы попасть в предсказанную позицию
+    adjustedDirection = (predictedPosition - startPos).Unit
+    angleAdjustment = math.clamp(distance / 20, 0, 1) * 0.2
+    adjustedDirection = (adjustedDirection + Vector3.new(0, angleAdjustment, 0)).Unit
 
     -- Визуализация предсказанной позиции
     if ThrowSilent.Settings.PredictVisualisation.Value then
@@ -554,7 +596,7 @@ local function predictTargetPositionAndRotation(target, throwSpeed)
             part.Parent = Workspace
             ThrowSilent.State.PredictVisualPart = part
         end
-        ThrowSilent.State.PredictVisualPart.Position = adjustedPosition
+        ThrowSilent.State.PredictVisualPart.Position = predictedPosition
         
         if not ThrowSilent.State.RotationVisualPart then
             local part = Instance.new("Part")
@@ -566,16 +608,16 @@ local function predictTargetPositionAndRotation(target, throwSpeed)
             part.Parent = Workspace
             ThrowSilent.State.RotationVisualPart = part
         end
-        local startPos = myRoot.Position + Vector3.new(0, 1.5, 0)
+        local startPosVisual = startPos
         local endPos = startPos + (adjustedDirection * 5)
-        ThrowSilent.State.RotationVisualPart.CFrame = CFrame.lookAt(startPos, endPos)
-        ThrowSilent.State.RotationVisualPart.Position = startPos + (adjustedDirection * 2.5)
+        ThrowSilent.State.RotationVisualPart.CFrame = CFrame.lookAt(startPosVisual, endPos)
+        ThrowSilent.State.RotationVisualPart.Position = startPosVisual + (adjustedDirection * 2.5)
     else
         if ThrowSilent.State.PredictVisualPart then ThrowSilent.State.PredictVisualPart:Destroy() ThrowSilent.State.PredictVisualPart = nil end
         if ThrowSilent.State.RotationVisualPart then ThrowSilent.State.RotationVisualPart:Destroy() ThrowSilent.State.RotationVisualPart = nil end
     end
     
-    return {position = adjustedPosition, direction = adjustedDirection}
+    return {position = predictedPosition, direction = adjustedDirection}
 end
 
 local lastToolCheckTime = 0
@@ -1110,18 +1152,17 @@ local function setupUI()
                 end
             end
         })
-        -- Добавляем слайдер для настройки пинга
         UI.Sections.ThrowableSilent:Slider({
-            Name = "Ping Compensation (ms)",
-            Default = ThrowSilent.Settings.PingCompensation.Default * 1000, -- Преобразуем в миллисекунды для UI
+            Name = "Ping Compensation",
+            Default = ThrowSilent.Settings.PingCompensation.Default, -- Значение в секундах (0.1 = 100 мс)
             Minimum = 0,
-            Maximum = 500,
+            Maximum = 0.5, -- Максимум 500 мс (0.5 секунд)
             DisplayMethod = "Value",
-            Precision = 0,
+            Precision = 3, -- Отображение с тремя знаками после запятой (0.100)
             Callback = function(value)
-                ThrowSilent.Settings.PingCompensation.Value = value / 1000 -- Преобразуем миллисекунды в секунды
+                ThrowSilent.Settings.PingCompensation.Value = value -- Оставляем в секундах
                 if notify then
-                    notify("Throwable Silent", "Ping Compensation set to: " .. value .. " ms")
+                    notify("Throwable Silent", "Ping Compensation set to: " .. string.format("%.3f", value) .. " seconds")
                 end
             end
         })
@@ -1145,7 +1186,7 @@ local function Init(ui, core, notificationFunc)
             LocalCharacter = character
         end)
         if LocalPlayer.Character then
-            LocalCharacter = LocalPlayer.Character
+            LocalCharacter = character
         end
     else
         warn("LocalPlayer is nil, cannot set up CharacterAdded connection")
