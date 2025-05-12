@@ -576,16 +576,21 @@ FastAttack.Start = function()
         local backpack = LocalPlayerObj:FindFirstChild("Backpack")
         if not backpack then return end
 
+        local encryptedSpeedAttr = core.GetEncryptedAttributeName("speed")
         for _, item in ipairs(backpack:GetChildren()) do
-            if item.Name == "fists" or item:GetAttribute(core.GetEncryptedAttributeName("Speed")) ~= nil then
+            if item.Name == "fists" or item:GetAttribute(encryptedSpeedAttr) ~= nil then
                 pcall(function()
-                    item:SetAttribute(core.GetEncryptedAttributeName("Speed"), 0)
+                    -- Проверяем, существует ли атрибут, и устанавливаем значение
+                    if not item:GetAttribute(encryptedSpeedAttr) then
+                        item:SetAttribute(encryptedSpeedAttr, 1) -- Устанавливаем начальное значение, если его нет
+                    end
+                    item:SetAttribute(encryptedSpeedAttr, 0) -- Устанавливаем скорость атаки на 0
                 end)
             end
         end
     end)
 
-    notify("FastAttack", "Started with Speed set to 0", true)
+    notify("FastAttack", "Started with speed set to 0", true)
 end
 
 FastAttack.Stop = function()
@@ -596,10 +601,14 @@ FastAttack.Stop = function()
 
     local backpack = LocalPlayerObj:FindFirstChild("Backpack")
     if backpack then
+        local encryptedSpeedAttr = core.GetEncryptedAttributeName("speed")
         for _, item in ipairs(backpack:GetChildren()) do
-            if item.Name == "fists" or item:GetAttribute(core.GetEncryptedAttributeName("Speed")) ~= nil then
+            if item.Name == "fists" or item:GetAttribute(encryptedSpeedAttr) ~= nil then
                 pcall(function()
-                    item:SetAttribute(core.GetEncryptedAttributeName("Speed"), 1)
+                    if not item:GetAttribute(encryptedSpeedAttr) then
+                        item:SetAttribute(encryptedSpeedAttr, 1) -- Устанавливаем начальное значение, если его нет
+                    end
+                    item:SetAttribute(encryptedSpeedAttr, 1) -- Восстанавливаем скорость атаки на 1
                 end)
             end
         end
@@ -612,8 +621,8 @@ end
 local Invisible = {}
 local DEPTH_OFFSETS = {
     Full = 0.9588,
-    Semi = 0.59,
-    Low = 0.1
+    Semi = 0.41,
+    Low = 0.15
 }
 
 local function removeFolders()
