@@ -1,4 +1,4 @@
--- Модуль LocalPlayer: Timer, Disabler, Speed, TickSpeed, HighJump, NoRagdoll, FastAttack
+-- Модуль LocalPlayer: Timer, Disabler, Speed, TickSpeed, HighJump, NoRagdoll, FastAttack, Invisible
 local LocalPlayer = {}
 
 -- Кэшированные сервисы и данные
@@ -21,8 +21,7 @@ LocalPlayer.Config = {
     Speed = {
         Enabled = false,
         AutoJump = false,
-        FakeJump = false,
-        Method = "Velocity",
+        Method = "CFrame",
         Speed = 16,
         JumpPower = 50,
         JumpInterval = 0.3,
@@ -43,19 +42,35 @@ LocalPlayer.Config = {
         Method = "Velocity",
         JumpPower = 100,
         JumpKey = nil,
-        DefaultJumpHeight = 7.5 -- Стандартная высота прыжка в Roblox (примерное значение)
+        DefaultJumpHeight = 7.5
     },
     NoRagdoll = {
         Enabled = false
     },
     FastAttack = {
         Enabled = false
+    },
+    Invisible = {
+        Enabled = false,
+        Mode = "Full",
+        ToggleKey = nil
     }
 }
 
 -- Состояния модулей
-local TimerStatus = { Running = false, Connection = nil, Speed = LocalPlayer.Config.Timer.Speed, Key = LocalPlayer.Config.Timer.ToggleKey, Enabled = LocalPlayer.Config.Timer.Enabled }
-local DisablerStatus = { Running = false, Connection = nil, Key = LocalPlayer.Config.Disabler.ToggleKey, Enabled = LocalPlayer.Config.Disabler.Enabled }
+local TimerStatus = {
+    Running = false,
+    Connection = nil,
+    Speed = LocalPlayer.Config.Timer.Speed,
+    Key = LocalPlayer.Config.Timer.ToggleKey,
+    Enabled = LocalPlayer.Config.Timer.Enabled
+}
+local DisablerStatus = {
+    Running = false,
+    Connection = nil,
+    Key = LocalPlayer.Config.Disabler.ToggleKey,
+    Enabled = LocalPlayer.Config.Disabler.Enabled
+}
 local SpeedStatus = {
     Running = false,
     Connection = nil,
@@ -64,7 +79,6 @@ local SpeedStatus = {
     Method = LocalPlayer.Config.Speed.Method,
     Speed = LocalPlayer.Config.Speed.Speed,
     AutoJump = LocalPlayer.Config.Speed.AutoJump,
-    FakeJump = LocalPlayer.Config.Speed.FakeJump,
     LastJumpTime = 0,
     JumpCooldown = 0.5,
     JumpPower = LocalPlayer.Config.Speed.JumpPower,
@@ -101,9 +115,20 @@ local NoRagdollStatus = {
 local FastAttackStatus = {
     Enabled = LocalPlayer.Config.FastAttack.Enabled,
     Connection = nil,
-    AttackSpeed = 0,
     LastCheckTime = 0,
-    CheckInterval = 0.1
+    CheckInterval = 0.5
+}
+local InvisibleStatus = {
+    Enabled = LocalPlayer.Config.Invisible.Enabled,
+    Mode = LocalPlayer.Config.Invisible.Mode,
+    Key = LocalPlayer.Config.Invisible.ToggleKey,
+    Running = false,
+    Clone = nil,
+    OldRoot = nil,
+    HipHeight = nil,
+    AnimTrack = nil,
+    Connection = nil,
+    CharacterConnection = nil
 }
 
 -- Вспомогательные функции
@@ -115,12 +140,25 @@ local function getCharacterData()
     return humanoid, rootPart
 end
 
--- Проверка, активно ли UI (например, чат)
-local function isUserInputFocused()
+local function isCharacterValid(humanoid, rootPart)
+    return humanoid and rootPart and humanoid.Health > 0
+end
+
+local function isInVehicle(rootPart)
+    local currentPart = rootPart
+    while currentPart do
+        if currentPart:IsA("Seat") or currentPart:IsA("VehicleSeat") then
+            return true
+        end
+        currentPart = currentPart.Parent
+    end
+    return false
+end
+
+local function isInputFocused()
     return Services.UserInputService:GetFocusedTextBox() ~= nil
 end
 
--- Функция вычисления хеша DJB2
 local function compute_djb2(str)
     local hash = 5381
     for i = 1, #str do
@@ -129,224 +167,12 @@ local function compute_djb2(str)
     return tostring(hash)
 end
 
--- Функция получения зашифрованного имени атрибута
 local function get_encrypted_attribute_name(attr_name)
     local hash_key = Services.Workspace:GetAttribute("HashKey") or Services.Workspace:GetAttributeChangedSignal("HashKey"):Wait()
     local hash = compute_djb2(attr_name)
-    return hash_key .. hash
-end
-
--- TickSpeed Functions
-local TickSpeed = {}
-TickSpeed.Start = function()
-    if TickSpeedStatus.Running then return end
-    local _, rootPart = getCharacterData()
-    if not rootPart then return end
-
-    -- Устанавливаем приоритет клиента
-    local success, err = pcall(function()
-        setsimulationradius(10000)
-    end)
-    if not success then
-        warn("TickSpeed: setsimulationradius failed: " .. tostring(err))
-        notify("TickSpeed", "Failed to set simulation radius.", true)
-        return
-    end
-
-    TickSpeedStatus.Running = true
-    TickSpeedStatus.LastServerPosition = rootPart.Position
-
-    TickSpeedStatus.Connection = Services.RunService.Heartbeat:Connect(function(deltaTime)
-        if not TickSpeedStatus.Enabled or not TickSpeedStatus.Running then return end
-        local humanoid, rootPart = getCharacterData()
-        if not humanoid or not rootPart then return end
-
-        -- Обновляем таймер
-        local cycleTime = TickSpeedStatus.OnDuration + TickSpeedStatus.OffDuration
-        TickSpeedStatus.Timer = (TickSpeedStatus.Timer + deltaTime) % cycleTime
-
-        -- Определяем текущий множитель скорости
-        local currentMultiplier = (TickSpeedStatus.Timer < TickSpeedStatus.OnDuration) and TickSpeedStatus.HighSpeedMultiplier or TickSpeedStatus.NormalSpeedMultiplier
-
-        -- Получаем направление движения
-        local moveDirection = humanoid.MoveDirection
-        if moveDirection.Magnitude > 0 then
-            moveDirection = moveDirection.Unit
-
-            -- Вычисляем смещение
-            local speed = 16 * currentMultiplier -- 16 — стандартная скорость
-            local offset = moveDirection * speed * deltaTime
-
-            -- Применяем новую позицию
-            local currentCFrame = rootPart.CFrame
-            rootPart.CFrame = currentCFrame + offset
-
-            -- Ограничиваем отклонение от серверной позиции
-            local currentPos = rootPart.Position
-            local deviation = (currentPos - TickSpeedStatus.LastServerPosition).Magnitude
-            if deviation > 5 then
-                local correction = (currentPos - TickSpeedStatus.LastServerPosition).Unit * (deviation - 5)
-                rootPart.CFrame = CFrame.new(currentPos - correction)
-            end
-        end
-    end)
-
-    -- Отслеживание сброса позиции сервером
-    TickSpeedStatus.ServerConnection = Services.RunService.Stepped:Connect(function()
-        local _, rootPart = getCharacterData()
-        if not rootPart then return end
-        local serverPos = rootPart.Position
-        if (serverPos - TickSpeedStatus.LastServerPosition).Magnitude > 1 then
-            TickSpeedStatus.LastServerPosition = serverPos
-        end
-    end)
-
-    notify("TickSpeed", "Started", true)
-end
-
-TickSpeed.Stop = function()
-    if TickSpeedStatus.Connection then
-        TickSpeedStatus.Connection:Disconnect()
-        TickSpeedStatus.Connection = nil
-    end
-    if TickSpeedStatus.ServerConnection then
-        TickSpeedStatus.ServerConnection:Disconnect()
-        TickSpeedStatus.ServerConnection = nil
-    end
-    TickSpeedStatus.Running = false
-    TickSpeedStatus.Timer = 0
-    local _, rootPart = getCharacterData()
-    if rootPart and TickSpeedStatus.LastServerPosition then
-        rootPart.CFrame = CFrame.new(TickSpeedStatus.LastServerPosition)
-    end
-    notify("TickSpeed", "Stopped", true)
-end
-
-TickSpeed.SetHighSpeedMultiplier = function(value)
-    TickSpeedStatus.HighSpeedMultiplier = value
-    LocalPlayer.Config.TickSpeed.HighSpeedMultiplier = value
-    notify("TickSpeed", "HighSpeedMultiplier set to: " .. value, false)
-end
-
-TickSpeed.SetNormalSpeedMultiplier = function(value)
-    TickSpeedStatus.NormalSpeedMultiplier = value
-    LocalPlayer.Config.TickSpeed.NormalSpeedMultiplier = value
-    notify("TickSpeed", "NormalSpeedMultiplier set to: " .. value, false)
-end
-
-TickSpeed.SetOnDuration = function(value)
-    TickSpeedStatus.OnDuration = value
-    LocalPlayer.Config.TickSpeed.OnDuration = value
-    notify("TickSpeed", "OnDuration set to: " .. value, false)
-end
-
-TickSpeed.SetOffDuration = function(value)
-    TickSpeedStatus.OffDuration = value
-    LocalPlayer.Config.TickSpeed.OffDuration = value
-    notify("TickSpeed", "OffDuration set to: " .. value, false)
-end
-
--- FastAttack Functions
-local FastAttack = {}
-FastAttack.Start = function()
-    if FastAttackStatus.Connection then
-        FastAttackStatus.Connection:Disconnect()
-        FastAttackStatus.Connection = nil
-    end
-
-    -- Отслеживаем добавление новых предметов в Backpack
-    FastAttackStatus.Connection = LocalPlayerObj.Backpack.ChildAdded:Connect(function(item)
-        if not FastAttackStatus.Enabled then return end
-
-        -- Проверяем, является ли предмет оружием ближнего боя
-        local isMelee = (item.Name == "fists") or (item:GetAttribute("Type") == "Melee") or (item:GetAttribute("Category") == "Melee")
-        if isMelee and item:GetAttribute("speed") ~= nil then
-            local success = pcall(function()
-                item:SetAttribute("speed", 0) -- Устанавливаем speed в 0 до экипировки
-            end)
-            if not success then
-                warn("FastAttack: Failed to set speed for " .. item.Name .. " in Backpack")
-            else
-                notify("FastAttack", "Set speed to 0 for " .. item.Name .. " in Backpack", true)
-            end
-        end
-    end)
-
-    -- Проверяем существующие предметы в Backpack при активации FastAttack
-    for _, item in ipairs(LocalPlayerObj.Backpack:GetChildren()) do
-        local isMelee = (item.Name == "fists") or (item:GetAttribute("Type") == "Melee") or (item:GetAttribute("Category") == "Melee")
-        if isMelee and item:GetAttribute("speed") ~= nil then
-            local success = pcall(function()
-                item:SetAttribute("speed", 0)
-            end)
-            if not success then
-                warn("FastAttack: Failed to set speed for " .. item.Name .. " in Backpack")
-            else
-                notify("FastAttack", "Set speed to 0 for " .. item.Name .. " in Backpack", true)
-            end
-        end
-    end
-
-    -- Проверяем экипированное оружие
-    local character = LocalPlayerObj.Character
-    if character then
-        for _, item in ipairs(character:GetChildren()) do
-            if item:IsA("Tool") then
-                local isMelee = (item.Name == "fists") or (item:GetAttribute("Type") == "Melee") or (item:GetAttribute("Category") == "Melee")
-                if isMelee then
-                    local encrypted_speed = get_encrypted_attribute_name("speed")
-                    local success = pcall(function()
-                        item:SetAttribute(encrypted_speed, 0)
-                    end)
-                    if not success then
-                        warn("FastAttack: Failed to set encrypted speed for " .. item.Name .. " in Character")
-                    else
-                        notify("FastAttack", "Set encrypted speed to 0 for " .. item.Name .. " in Character", true)
-                    end
-                end
-            end
-        end
-    end
-
-    notify("FastAttack", "Started with speed set to 0 for melee weapons", true)
-end
-
-FastAttack.Stop = function()
-    if FastAttackStatus.Connection then
-        FastAttackStatus.Connection:Disconnect()
-        FastAttackStatus.Connection = nil
-    end
-
-    -- Восстанавливаем speed при отключении
-    local backpack = LocalPlayerObj:FindFirstChild("Backpack")
-    if backpack then
-        for _, item in ipairs(backpack:GetChildren()) do
-            local isMelee = (item.Name == "fists") or (item:GetAttribute("Type") == "Melee") or (item:GetAttribute("Category") == "Melee")
-            if isMelee and item:GetAttribute("speed") ~= nil then
-                pcall(function()
-                    item:SetAttribute("speed", 1)
-                end)
-            end
-        end
-    end
-
-    -- Восстанавливаем speed для экипированного оружия
-    local character = LocalPlayerObj.Character
-    if character then
-        for _, item in ipairs(character:GetChildren()) do
-            if item:IsA("Tool") then
-                local isMelee = (item.Name == "fists") or (item:GetAttribute("Type") == "Melee") or (item:GetAttribute("Category") == "Melee")
-                if isMelee then
-                    local encrypted_speed = get_encrypted_attribute_name("speed")
-                    pcall(function()
-                        item:SetAttribute(encrypted_speed, 1)
-                    end)
-                end
-            end
-        end
-    end
-
-    notify("FastAttack", "Stopped, attack speed restored to 1", true)
+    local encrypted_name = hash_key .. hash
+    print("Encrypted attribute name for '" .. attr_name .. "': " .. encrypted_name) -- Логирование шифрованного имени
+    return encrypted_name
 end
 
 -- Timer Functions
@@ -365,8 +191,8 @@ Timer.Start = function()
     TimerStatus.Running = true
     TimerStatus.Connection = Services.RunService.RenderStepped:Connect(function(dt)
         if TimerStatus.Speed <= 1 then return end
-        local _, rootPart = getCharacterData()
-        if not rootPart then return end
+        local humanoid, rootPart = getCharacterData()
+        if not isCharacterValid(humanoid, rootPart) then return end
         local success, err = pcall(function()
             Services.RunService:Pause()
             Services.Workspace:StepPhysics(dt * (TimerStatus.Speed - 1), {rootPart})
@@ -431,9 +257,8 @@ end
 -- Speed Functions
 local Speed = {}
 Speed.UpdateMovement = function(humanoid, rootPart, moveDirection, currentTime)
-    if SpeedStatus.Method == "Velocity" then
-        humanoid.WalkSpeed = SpeedStatus.Speed
-    elseif SpeedStatus.Method == "CFrame" then
+    if not isCharacterValid(humanoid, rootPart) then return end
+    if SpeedStatus.Method == "CFrame" then
         if moveDirection.Magnitude > 0 then
             local newCFrame = rootPart.CFrame + (moveDirection * SpeedStatus.Speed * 0.0167)
             rootPart.CFrame = CFrame.new(newCFrame.Position, newCFrame.Position + moveDirection)
@@ -455,17 +280,11 @@ Speed.UpdateMovement = function(humanoid, rootPart, moveDirection, currentTime)
 end
 
 Speed.UpdateJumps = function(humanoid, rootPart, currentTime)
+    if not isCharacterValid(humanoid, rootPart) then return end
     if SpeedStatus.AutoJump and currentTime - SpeedStatus.LastJumpTime >= SpeedStatus.JumpInterval then
         if humanoid:GetState() ~= Enum.HumanoidStateType.Jumping and humanoid:GetState() ~= Enum.HumanoidStateType.Freefall then
             rootPart.Velocity = Vector3.new(rootPart.Velocity.X, SpeedStatus.JumpPower, rootPart.Velocity.Z)
             humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-            SpeedStatus.LastJumpTime = currentTime
-        end
-    end
-    if SpeedStatus.FakeJump and currentTime - SpeedStatus.LastJumpTime >= SpeedStatus.JumpInterval then
-        if humanoid.Health > 0 then
-            local newCFrame = rootPart.CFrame + Vector3.new(0, SpeedStatus.JumpPower / 20, 0)
-            rootPart.CFrame = newCFrame
             SpeedStatus.LastJumpTime = currentTime
         end
     end
@@ -479,9 +298,9 @@ Speed.Start = function()
 
     SpeedStatus.Running = true
     SpeedStatus.Connection = Services.RunService.Heartbeat:Connect(function()
-        if not SpeedStatus.Enabled or not SpeedStatus.Running then return end
         local humanoid, rootPart = getCharacterData()
-        if not humanoid or not rootPart or humanoid.Health <= 0 then return end
+        if not isCharacterValid(humanoid, rootPart) then return end
+        if not SpeedStatus.Enabled or not SpeedStatus.Running then return end
         local currentTime = tick()
         local moveDirection = humanoid.MoveDirection
         Speed.UpdateMovement(humanoid, rootPart, moveDirection, currentTime)
@@ -497,10 +316,6 @@ Speed.Stop = function()
         SpeedStatus.Connection = nil
     end
     SpeedStatus.Running = false
-    local humanoid = getCharacterData()
-    if humanoid then
-        humanoid.WalkSpeed = 16
-    end
     notify("Speed", "Stopped", true)
 end
 
@@ -544,6 +359,112 @@ Speed.SetJumpInterval = function(newInterval)
     notify("Speed", "JumpInterval set to: " .. newInterval, false)
 end
 
+-- TickSpeed Functions
+local TickSpeed = {}
+TickSpeed.Start = function()
+    if TickSpeedStatus.Running then return end
+    local humanoid, rootPart = getCharacterData()
+    if not isCharacterValid(humanoid, rootPart) then return end
+    if isInVehicle(rootPart) then
+        notify("TickSpeed", "Disabled while in vehicle.", true)
+        return
+    end
+
+    local success, err = pcall(function()
+        setsimulationradius(10000)
+    end)
+    if not success then
+        warn("TickSpeed: setsimulationradius failed: " .. tostring(err))
+        notify("TickSpeed", "Failed to set simulation radius.", true)
+        return
+    end
+
+    TickSpeedStatus.Running = true
+    TickSpeedStatus.LastServerPosition = rootPart.Position
+
+    TickSpeedStatus.Connection = Services.RunService.Heartbeat:Connect(function(deltaTime)
+        local humanoid, rootPart = getCharacterData()
+        if not isCharacterValid(humanoid, rootPart) then return end
+        if not TickSpeedStatus.Enabled or not TickSpeedStatus.Running then return end
+        if isInVehicle(rootPart) then
+            TickSpeed.Stop()
+            notify("TickSpeed", "Disabled while in vehicle.", true)
+            return
+        end
+
+        local moveDirection = humanoid.MoveDirection
+        TickSpeedStatus.Timer = (TickSpeedStatus.Timer + deltaTime) % (TickSpeedStatus.OnDuration + TickSpeedStatus.OffDuration)
+        local currentMultiplier = TickSpeedStatus.Timer < TickSpeedStatus.OnDuration and TickSpeedStatus.HighSpeedMultiplier or TickSpeedStatus.NormalSpeedMultiplier
+
+        if moveDirection.Magnitude > 0 then
+            moveDirection = moveDirection.Unit
+            local speed = 16 * currentMultiplier
+            local offset = moveDirection * speed * deltaTime
+            local newCFrame = rootPart.CFrame + offset
+            rootPart.CFrame = CFrame.new(newCFrame.Position, newCFrame.Position + moveDirection)
+
+            local deviation = (rootPart.Position - TickSpeedStatus.LastServerPosition).Magnitude
+            if deviation > 5 then
+                local correction = (rootPart.Position - TickSpeedStatus.LastServerPosition).Unit * (deviation - 5)
+                rootPart.CFrame = CFrame.new(rootPart.Position - correction)
+            end
+        end
+    end)
+
+    TickSpeedStatus.ServerConnection = Services.RunService.Stepped:Connect(function()
+        local _, rootPart = getCharacterData()
+        if not rootPart then return end
+        local serverPos = rootPart.Position
+        if (serverPos - TickSpeedStatus.LastServerPosition).Magnitude > 1 then
+            TickSpeedStatus.LastServerPosition = serverPos
+        end
+    end)
+
+    notify("TickSpeed", "Started", true)
+end
+
+TickSpeed.Stop = function()
+    if TickSpeedStatus.Connection then
+        TickSpeedStatus.Connection:Disconnect()
+        TickSpeedStatus.Connection = nil
+    end
+    if TickSpeedStatus.ServerConnection then
+        TickSpeedStatus.ServerConnection:Disconnect()
+        TickSpeedStatus.ServerConnection = nil
+    end
+    TickSpeedStatus.Running = false
+    TickSpeedStatus.Timer = 0
+    local _, rootPart = getCharacterData()
+    if rootPart and TickSpeedStatus.LastServerPosition then
+        rootPart.CFrame = CFrame.new(TickSpeedStatus.LastServerPosition)
+    end
+    notify("TickSpeed", "Stopped", true)
+end
+
+TickSpeed.SetHighSpeedMultiplier = function(value)
+    TickSpeedStatus.HighSpeedMultiplier = value
+    LocalPlayer.Config.TickSpeed.HighSpeedMultiplier = value
+    notify("TickSpeed", "HighSpeedMultiplier set to: " .. value, false)
+end
+
+TickSpeed.SetNormalSpeedMultiplier = function(value)
+    TickSpeedStatus.NormalSpeedMultiplier = value
+    LocalPlayer.Config.TickSpeed.NormalSpeedMultiplier = value
+    notify("TickSpeed", "NormalSpeedMultiplier set to: " .. value, false)
+end
+
+TickSpeed.SetOnDuration = function(value)
+    TickSpeedStatus.OnDuration = value
+    LocalPlayer.Config.TickSpeed.OnDuration = value
+    notify("TickSpeed", "OnDuration set to: " .. value, false)
+end
+
+TickSpeed.SetOffDuration = function(value)
+    TickSpeedStatus.OffDuration = value
+    LocalPlayer.Config.TickSpeed.OffDuration = value
+    notify("TickSpeed", "OffDuration set to: " .. value, false)
+end
+
 -- HighJump Functions
 local HighJump = {}
 HighJump.Trigger = function()
@@ -551,27 +472,35 @@ HighJump.Trigger = function()
         notify("HighJump", "HighJump is disabled. Enable it to use keybind.", true)
         return
     end
+
     local humanoid, rootPart = getCharacterData()
-    if not humanoid or not rootPart then return end
-    local currentTime = tick()
-    if humanoid:GetState() ~= Enum.HumanoidStateType.Running or currentTime - HighJumpStatus.LastJumpTime < HighJumpStatus.JumpCooldown then
-        notify("HighJump", humanoid:GetState() ~= Enum.HumanoidStateType.Running and "You must be on the ground to high jump!" or "HighJump is on cooldown!", true)
+    if not isCharacterValid(humanoid, rootPart) then
+        notify("HighJump", "Character is not valid.", true)
         return
     end
-    -- Устанавливаем JumpHeight только на момент прыжка
-    humanoid.JumpHeight = HighJumpStatus.JumpPower
-    humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+
+    local currentTime = tick()
+    local state = humanoid:GetState()
+    local canJump = state == Enum.HumanoidStateType.Running or state == Enum.HumanoidStateType.Landed
+    if not canJump or currentTime - HighJumpStatus.LastJumpTime < HighJumpStatus.JumpCooldown then
+        notify("HighJump", not canJump and "You must be on the ground to high jump! State: " .. tostring(state) or "HighJump is on cooldown!", true)
+        return
+    end
+
+    -- Попытка прыжка
+    notify("HighJump", "Attempting jump with method: " .. HighJumpStatus.Method, true)
     if HighJumpStatus.Method == "Velocity" then
         local gravity = Services.Workspace.Gravity or 196.2
         local jumpVelocity = math.sqrt(2 * HighJumpStatus.JumpPower * gravity)
         rootPart.Velocity = Vector3.new(rootPart.Velocity.X, jumpVelocity, rootPart.Velocity.Z)
-    else
+        humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+    else -- CFrame method
         local newCFrame = rootPart.CFrame + Vector3.new(0, HighJumpStatus.JumpPower / 10, 0)
         rootPart.CFrame = newCFrame
+        humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
     end
+
     HighJumpStatus.LastJumpTime = currentTime
-    -- Сразу восстанавливаем стандартную высоту прыжка
-    humanoid.JumpHeight = LocalPlayer.Config.HighJump.DefaultJumpHeight
     notify("HighJump", "Performed HighJump with method: " .. HighJumpStatus.Method, true)
 end
 
@@ -588,7 +517,7 @@ HighJump.SetJumpPower = function(newPower)
 end
 
 HighJump.RestoreJumpHeight = function()
-    local humanoid = getCharacterData()
+    local humanoid, _ = getCharacterData()
     if humanoid then
         humanoid.JumpHeight = LocalPlayer.Config.HighJump.DefaultJumpHeight
     end
@@ -620,30 +549,17 @@ NoRagdoll.Start = function(character)
 
     local function updatePhysics()
         local p = NoRagdollStatus.BodyParts
-        if p.LowerTorso:FindFirstChild("MoveForce") then
-            p.LowerTorso.MoveForce.Enabled = false
-        end
-        if p.UpperTorso:FindFirstChild("FloatPosition") then
-            p.UpperTorso.FloatPosition.Enabled = false
-        end
-        if p.LeftFoot:FindFirstChild("LeftFootPosition") then
-            p.LeftFoot.LeftFootPosition.Enabled = false
-        end
-        if p.RightFoot:FindFirstChild("RightFootPosition") then
-            p.RightFoot.RightFootPosition.Enabled = false
-        end
+        if p.LowerTorso:FindFirstChild("MoveForce") then p.LowerTorso.MoveForce.Enabled = false end
+        if p.UpperTorso:FindFirstChild("FloatPosition") then p.UpperTorso.FloatPosition.Enabled = false end
+        if p.LeftFoot:FindFirstChild("LeftFootPosition") then p.LeftFoot.LeftFootPosition.Enabled = false end
+        if p.RightFoot:FindFirstChild("RightFootPosition") then p.RightFoot.RightFootPosition.Enabled = false end
         for _, motor in ipairs(character:GetDescendants()) do
-            if motor:IsA("Motor6D") then
-                motor.Enabled = true
-            end
+            if motor:IsA("Motor6D") then motor.Enabled = true end
         end
     end
 
     updatePhysics()
-    NoRagdollStatus.Connection = Services.RunService.Heartbeat:Connect(function()
-        if not NoRagdollStatus.Enabled then return end
-        updatePhysics()
-    end)
+    NoRagdollStatus.Connection = Services.RunService.Heartbeat:Connect(updatePhysics)
 
     notify("NoRagdoll", "Started", true)
 end
@@ -657,12 +573,274 @@ NoRagdoll.Stop = function()
     notify("NoRagdoll", "Stopped", true)
 end
 
+-- FastAttack Functions
+local FastAttack = {}
+FastAttack.Start = function()
+    if FastAttackStatus.Connection then
+        FastAttackStatus.Connection:Disconnect()
+        FastAttackStatus.Connection = nil
+    end
+
+    FastAttackStatus.Connection = Services.RunService.Heartbeat:Connect(function()
+        if not FastAttackStatus.Enabled then return end
+        local currentTime = tick()
+        if currentTime - FastAttackStatus.LastCheckTime < FastAttackStatus.CheckInterval then return end
+        FastAttackStatus.LastCheckTime = currentTime
+
+        local backpack = LocalPlayerObj:FindFirstChild("Backpack")
+        if not backpack then return end
+
+        for _, item in ipairs(backpack:GetChildren()) do
+            if item.Name == "fists" or item:GetAttribute("Speed") ~= nil then
+                pcall(function()
+                    item:SetAttribute("Speed", 0)
+                end)
+            elseif item:GetAttribute("Speed") == nil then
+                local encrypted_speed = get_encrypted_attribute_name("speed")
+                pcall(function()
+                    item:SetAttribute(encrypted_speed, 0)
+                end)
+            end
+        end
+    end)
+
+    notify("FastAttack", "Started with Speed set to 0", true)
+end
+
+FastAttack.Stop = function()
+    if FastAttackStatus.Connection then
+        FastAttackStatus.Connection:Disconnect()
+        FastAttackStatus.Connection = nil
+    end
+
+    local backpack = LocalPlayerObj:FindFirstChild("Backpack")
+    if backpack then
+        for _, item in ipairs(backpack:GetChildren()) do
+            if item.Name == "fists" or item:GetAttribute("Speed") ~= nil then
+                pcall(function()
+                    item:SetAttribute("Speed", 1)
+                end)
+            elseif item:GetAttribute("Speed") == nil then
+                local encrypted_speed = get_encrypted_attribute_name("speed")
+                pcall(function()
+                    item:SetAttribute(encrypted_speed, 1)
+                end)
+            end
+        end
+    end
+
+    notify("FastAttack", "Stopped, attack speed restored to 1", true)
+end
+
+-- Invisible Functions
+local Invisible = {}
+local DEPTH_OFFSETS = {
+    Full = 0.9588,
+    Semi = 0.59,
+    Low = 0.1
+}
+
+local function removeFolders()
+    local playerFolder = Services.Workspace:FindFirstChild(LocalPlayerObj.Name)
+    if not playerFolder then
+        return
+    end
+
+    local doubleRig = playerFolder:FindFirstChild("DoubleRig")
+    if doubleRig then
+        doubleRig:Destroy()
+    end
+
+    local constraints = playerFolder:FindFirstChild("Constraints")
+    if constraints then
+        constraints:Destroy()
+    end
+
+    playerFolder.ChildAdded:Connect(function(child)
+        if child.Name == "DoubleRig" or child.Name == "Constraints" then
+            child:Destroy()
+        end
+    end)
+end
+
+local function doClone()
+    if LocalPlayerObj.Character and LocalPlayerObj.Character:FindFirstChild("Humanoid") and LocalPlayerObj.Character.Humanoid.Health > 0 then
+        InvisibleStatus.HipHeight = LocalPlayerObj.Character.Humanoid.HipHeight
+        InvisibleStatus.OldRoot = LocalPlayerObj.Character:FindFirstChild("HumanoidRootPart")
+        if not InvisibleStatus.OldRoot or not InvisibleStatus.OldRoot.Parent then
+            return false
+        end
+
+        local tempParent = Instance.new("Model")
+        tempParent.Parent = game
+        LocalPlayerObj.Character.Parent = tempParent
+
+        InvisibleStatus.Clone = InvisibleStatus.OldRoot:Clone()
+        InvisibleStatus.Clone.Parent = LocalPlayerObj.Character
+        InvisibleStatus.OldRoot.Parent = Services.Workspace.CurrentCamera
+        InvisibleStatus.Clone.CFrame = InvisibleStatus.OldRoot.CFrame
+
+        LocalPlayerObj.Character.PrimaryPart = InvisibleStatus.Clone
+        LocalPlayerObj.Character.Parent = Services.Workspace
+
+        for _, v in pairs(LocalPlayerObj.Character:GetDescendants()) do
+            if v:IsA("Weld") or v:IsA("Motor6D") then
+                if v.Part0 == InvisibleStatus.OldRoot then
+                    v.Part0 = InvisibleStatus.Clone
+                end
+                if v.Part1 == InvisibleStatus.OldRoot then
+                    v.Part1 = InvisibleStatus.Clone
+                end
+            end
+        end
+
+        tempParent:Destroy()
+        return true
+    end
+    return false
+end
+
+local function revertClone()
+    if not InvisibleStatus.OldRoot or not InvisibleStatus.OldRoot:IsDescendantOf(Services.Workspace) or not LocalPlayerObj.Character or LocalPlayerObj.Character.Humanoid.Health <= 0 then
+        return false
+    end
+
+    local tempParent = Instance.new("Model")
+    tempParent.Parent = game
+    LocalPlayerObj.Character.Parent = tempParent
+
+    InvisibleStatus.OldRoot.Parent = LocalPlayerObj.Character
+    LocalPlayerObj.Character.PrimaryPart = InvisibleStatus.OldRoot
+    LocalPlayerObj.Character.Parent = Services.Workspace
+    InvisibleStatus.OldRoot.CanCollide = true
+
+    for _, v in pairs(LocalPlayerObj.Character:GetDescendants()) do
+        if v:IsA("Weld") or v:IsA("Motor6D") then
+            if v.Part0 == InvisibleStatus.Clone then
+                v.Part0 = InvisibleStatus.OldRoot
+            end
+            if v.Part1 == InvisibleStatus.Clone then
+                v.Part1 = InvisibleStatus.OldRoot
+            end
+        end
+    end
+
+    if InvisibleStatus.Clone then
+        local oldPos = InvisibleStatus.Clone.CFrame
+        InvisibleStatus.Clone:Destroy()
+        InvisibleStatus.Clone = nil
+        InvisibleStatus.OldRoot.CFrame = oldPos
+    end
+
+    InvisibleStatus.OldRoot = nil
+    if LocalPlayerObj.Character and LocalPlayerObj.Character.Humanoid then
+        LocalPlayerObj.Character.Humanoid.HipHeight = InvisibleStatus.HipHeight or 2
+    end
+end
+
+local function animationTrickery()
+    if LocalPlayerObj.Character and LocalPlayerObj.Character:FindFirstChild("Humanoid") and LocalPlayerObj.Character.Humanoid.Health > 0 then
+        local anim = Instance.new("Animation")
+        anim.AnimationId = "http://www.roblox.com/asset/?id=18537363391"
+        local humanoid = LocalPlayerObj.Character.Humanoid
+        local animator = humanoid:FindFirstChild("Animator")
+        if not animator then
+            animator = Instance.new("Animator", humanoid)
+        end
+        InvisibleStatus.AnimTrack = animator:LoadAnimation(anim)
+        InvisibleStatus.AnimTrack.Priority = Enum.AnimationPriority.Action4
+        InvisibleStatus.AnimTrack:Play(0, 1, 0)
+        anim:Destroy()
+
+        InvisibleStatus.AnimTrack.Stopped:Connect(function()
+            if InvisibleStatus.Running then
+                animationTrickery()
+            end
+        end)
+
+        task.delay(0, function()
+            InvisibleStatus.AnimTrack.TimePosition = 0.77
+            task.delay(1, function()
+                InvisibleStatus.AnimTrack:AdjustSpeed(math.huge)
+            end)
+        end)
+    end
+end
+
+Invisible.Toggle = function()
+    if not LocalPlayerObj.Character or LocalPlayerObj.Character.Humanoid.Health <= 0 then
+        notify("Invisible", "Character is not valid!", true)
+        return
+    end
+
+    InvisibleStatus.Running = not InvisibleStatus.Running
+    if InvisibleStatus.Running then
+        removeFolders()
+        local success = doClone()
+        if success then
+            animationTrickery()
+            InvisibleStatus.Connection = Services.RunService.PreSimulation:Connect(function(dt)
+                if LocalPlayerObj.Character and LocalPlayerObj.Character:FindFirstChild("Humanoid") and LocalPlayerObj.Character.Humanoid.Health > 0 and InvisibleStatus.OldRoot then
+                    local root = LocalPlayerObj.Character.PrimaryPart or LocalPlayerObj.Character:FindFirstChild("HumanoidRootPart")
+                    if root then
+                        local cf = root.CFrame - Vector3.new(0, LocalPlayerObj.Character.Humanoid.HipHeight + (root.Size.Y / 2) - 1 + DEPTH_OFFSETS[InvisibleStatus.Mode], 0)
+                        InvisibleStatus.OldRoot.CFrame = cf * CFrame.Angles(math.rad(180), 0, 0)
+                        InvisibleStatus.OldRoot.Velocity = root.Velocity
+                        InvisibleStatus.OldRoot.CanCollide = false
+                    end
+                end
+            end)
+
+            InvisibleStatus.CharacterConnection = LocalPlayerObj.CharacterAdded:Connect(function(newChar)
+                wait(1)
+                local newHumanoid = newChar:WaitForChild("Humanoid", 1)
+                if newHumanoid and InvisibleStatus.Running then
+                    InvisibleStatus.OldRoot = nil
+                    if InvisibleStatus.AnimTrack then
+                        InvisibleStatus.AnimTrack:Stop()
+                        InvisibleStatus.AnimTrack:Destroy()
+                        InvisibleStatus.AnimTrack = nil
+                    end
+                    if InvisibleStatus.Connection then InvisibleStatus.Connection:Disconnect() end
+                    revertClone()
+                    removeFolders()
+                    Invisible.Toggle()
+                end
+            end)
+
+            notify("Invisible", "Enabled with mode: " .. InvisibleStatus.Mode .. " (Depth: " .. DEPTH_OFFSETS[InvisibleStatus.Mode] .. ")", true)
+        else
+            InvisibleStatus.Running = false
+            notify("Invisible", "Failed to enable invisibility!", true)
+        end
+    else
+        if InvisibleStatus.AnimTrack then
+            InvisibleStatus.AnimTrack:Stop()
+            InvisibleStatus.AnimTrack:Destroy()
+            InvisibleStatus.AnimTrack = nil
+        end
+        if InvisibleStatus.Connection then InvisibleStatus.Connection:Disconnect() end
+        if InvisibleStatus.CharacterConnection then InvisibleStatus.CharacterConnection:Disconnect() end
+        revertClone()
+        removeFolders()
+        notify("Invisible", "Disabled", true)
+    end
+end
+
+Invisible.SetMode = function(newMode)
+    if DEPTH_OFFSETS[newMode] then
+        InvisibleStatus.Mode = newMode
+        LocalPlayer.Config.Invisible.Mode = newMode
+        notify("Invisible", "Mode set to: " .. newMode .. " (Depth: " .. DEPTH_OFFSETS[newMode] .. ")", false)
+    else
+        notify("Invisible", "Invalid mode selected!", true)
+    end
+end
+
 -- Настройка UI
 local function SetupUI(UI)
-    -- Таблица для хранения UI-элементов
     local uiElements = {}
 
-    -- Timer UI
     if UI.Sections.Timer then
         UI.Sections.Timer:Header({ Name = "Timer" })
         uiElements.TimerEnabled = UI.Sections.Timer:Toggle({
@@ -691,7 +869,7 @@ local function SetupUI(UI)
             Callback = function(value)
                 TimerStatus.Key = value
                 LocalPlayer.Config.Timer.ToggleKey = value
-                if isUserInputFocused() then return end
+                if isInputFocused() then return end
                 if TimerStatus.Enabled then
                     if TimerStatus.Running then Timer.Stop() else Timer.Start() end
                 else
@@ -701,7 +879,6 @@ local function SetupUI(UI)
         }, "TimerKey")
     end
 
-    -- Disabler UI
     if UI.Sections.Disabler then
         UI.Sections.Disabler:Header({ Name = "Disabler" })
         uiElements.DisablerEnabled = UI.Sections.Disabler:Toggle({
@@ -719,7 +896,7 @@ local function SetupUI(UI)
             Callback = function(value)
                 DisablerStatus.Key = value
                 LocalPlayer.Config.Disabler.ToggleKey = value
-                if isUserInputFocused() then return end
+                if isInputFocused() then return end
                 if DisablerStatus.Enabled then
                     if DisablerStatus.Running then Disabler.Stop() else Disabler.Start() end
                 else
@@ -729,7 +906,6 @@ local function SetupUI(UI)
         }, "DisablerKey")
     end
 
-    -- Speed UI
     if UI.Sections.Speed then
         UI.Sections.Speed:Header({ Name = "Speed" })
         uiElements.SpeedEnabled = UI.Sections.Speed:Toggle({
@@ -750,18 +926,9 @@ local function SetupUI(UI)
                 notify("Speed", "AutoJump " .. (value and "Enabled" or "Disabled"), true)
             end
         }, "SpeedAutoJump")
-        uiElements.SpeedFakeJump = UI.Sections.Speed:Toggle({
-            Name = "FakeJump",
-            Default = LocalPlayer.Config.Speed.FakeJump,
-            Callback = function(value)
-                SpeedStatus.FakeJump = value
-                LocalPlayer.Config.Speed.FakeJump = value
-                notify("Speed", "FakeJump " .. (value and "Enabled" or "Disabled"), true)
-            end
-        }, "SpeedFakeJump")
         uiElements.SpeedMethod = UI.Sections.Speed:Dropdown({
             Name = "Method",
-            Options = {"Velocity", "CFrame", "PulseTP"},
+            Options = {"CFrame", "PulseTP"},
             Default = LocalPlayer.Config.Speed.Method,
             Callback = function(value)
                 Speed.SetMethod(value)
@@ -829,7 +996,7 @@ local function SetupUI(UI)
             Callback = function(value)
                 SpeedStatus.Key = value
                 LocalPlayer.Config.Speed.ToggleKey = value
-                if isUserInputFocused() then return end
+                if isInputFocused() then return end
                 if SpeedStatus.Enabled then
                     if SpeedStatus.Running then Speed.Stop() else Speed.Start() end
                 else
@@ -839,7 +1006,6 @@ local function SetupUI(UI)
         }, "SpeedKey")
     end
 
-    -- TickSpeed UI
     if UI.Sections.TickSpeed then
         UI.Sections.TickSpeed:Header({ Name = "TickSpeed" })
         uiElements.TickSpeedEnabled = UI.Sections.TickSpeed:Toggle({
@@ -901,7 +1067,7 @@ local function SetupUI(UI)
             Callback = function(value)
                 TickSpeedStatus.Key = value
                 LocalPlayer.Config.TickSpeed.ToggleKey = value
-                if isUserInputFocused() then return end
+                if isInputFocused() then return end
                 if TickSpeedStatus.Enabled then
                     if TickSpeedStatus.Running then TickSpeed.Stop() else TickSpeed.Start() end
                 else
@@ -911,7 +1077,6 @@ local function SetupUI(UI)
         }, "TickSpeedKey")
     end
 
-    -- HighJump UI
     if UI.Sections.HighJump then
         UI.Sections.HighJump:Header({ Name = "HighJump" })
         uiElements.HighJumpEnabled = UI.Sections.HighJump:Toggle({
@@ -952,13 +1117,12 @@ local function SetupUI(UI)
             Callback = function(value)
                 HighJumpStatus.Key = value
                 LocalPlayer.Config.HighJump.JumpKey = value
-                if isUserInputFocused() then return end
+                if isInputFocused() then return end
                 HighJump.Trigger()
             end
         }, "HighJumpKey")
     end
 
-    -- NoRagdoll UI
     if UI.Sections.NoRagdoll then
         UI.Sections.NoRagdoll:Header({ Name = "NoRagdoll" })
         uiElements.NoRagdollEnabled = UI.Sections.NoRagdoll:Toggle({
@@ -972,7 +1136,6 @@ local function SetupUI(UI)
         }, "NoRagdollEnabled")
     end
 
-    -- FastAttack UI
     if UI.Sections.FastAttack then
         UI.Sections.FastAttack:Header({ Name = "FastAttack" })
         uiElements.FastAttackEnabled = UI.Sections.FastAttack:Toggle({
@@ -986,13 +1149,50 @@ local function SetupUI(UI)
         }, "FastAttackEnabled")
     end
 
-    -- LocalPlayer Sync UI
+    if UI.Sections.Invisible then
+        UI.Sections.Invisible:Header({ Name = "Invisible" })
+        uiElements.InvisibleEnabled = UI.Sections.Invisible:Toggle({
+            Name = "Enabled",
+            Default = LocalPlayer.Config.Invisible.Enabled,
+            Callback = function(value)
+                InvisibleStatus.Enabled = value
+                LocalPlayer.Config.Invisible.Enabled = value
+                if value then
+                    if not InvisibleStatus.Running then Invisible.Toggle() end
+                else
+                    if InvisibleStatus.Running then Invisible.Toggle() end
+                end
+            end
+        }, "InvisibleEnabled")
+        uiElements.InvisibleMode = UI.Sections.Invisible:Dropdown({
+            Name = "Mode",
+            Options = {"Full", "Semi", "Low"},
+            Default = LocalPlayer.Config.Invisible.Mode,
+            Callback = function(value)
+                Invisible.SetMode(value)
+            end
+        }, "InvisibleMode")
+        uiElements.InvisibleKey = UI.Sections.Invisible:Keybind({
+            Name = "Toggle Key",
+            Default = LocalPlayer.Config.Invisible.ToggleKey,
+            Callback = function(value)
+                InvisibleStatus.Key = value
+                LocalPlayer.Config.Invisible.ToggleKey = value
+                if isInputFocused() then return end
+                if InvisibleStatus.Enabled then
+                    Invisible.Toggle()
+                else
+                    notify("Invisible", "Enable Invisible to use keybind.", true)
+                end
+            end
+        }, "InvisibleKey")
+    end
+
     local localconfigSection = UI.Tabs.Config:Section({ Name = "Local Player Sync", Side = "Right" })
     localconfigSection:Header({ Name = "LocalPlayer Settings Sync" })
     localconfigSection:Button({
         Name = "Sync Config",
         Callback = function()
-            -- Обновляем LocalPlayer.Config на основе текущих значений UI
             LocalPlayer.Config.Timer.Enabled = uiElements.TimerEnabled:GetState()
             LocalPlayer.Config.Timer.Speed = uiElements.TimerSpeed:GetValue()
             LocalPlayer.Config.Timer.ToggleKey = uiElements.TimerKey:GetBind()
@@ -1002,7 +1202,6 @@ local function SetupUI(UI)
 
             LocalPlayer.Config.Speed.Enabled = uiElements.SpeedEnabled:GetState()
             LocalPlayer.Config.Speed.AutoJump = uiElements.SpeedAutoJump:GetState()
-            LocalPlayer.Config.Speed.FakeJump = uiElements.SpeedFakeJump:GetState()
             local speedMethodOptions = uiElements.SpeedMethod:GetOptions()
             for option, selected in pairs(speedMethodOptions) do
                 if selected then
@@ -1039,7 +1238,16 @@ local function SetupUI(UI)
 
             LocalPlayer.Config.FastAttack.Enabled = uiElements.FastAttackEnabled:GetState()
 
-            -- Синхронизируем внутренние состояния с обновлённым LocalPlayer.Config
+            LocalPlayer.Config.Invisible.Enabled = uiElements.InvisibleEnabled:GetState()
+            local invisibleModeOptions = uiElements.InvisibleMode:GetOptions()
+            for option, selected in pairs(invisibleModeOptions) do
+                if selected then
+                    LocalPlayer.Config.Invisible.Mode = option
+                    break
+                end
+            end
+            LocalPlayer.Config.Invisible.ToggleKey = uiElements.InvisibleKey:GetBind()
+
             TimerStatus.Enabled = LocalPlayer.Config.Timer.Enabled
             TimerStatus.Speed = LocalPlayer.Config.Timer.Speed
             TimerStatus.Key = LocalPlayer.Config.Timer.ToggleKey
@@ -1059,7 +1267,6 @@ local function SetupUI(UI)
 
             SpeedStatus.Enabled = LocalPlayer.Config.Speed.Enabled
             SpeedStatus.AutoJump = LocalPlayer.Config.Speed.AutoJump
-            SpeedStatus.FakeJump = LocalPlayer.Config.Speed.FakeJump
             SpeedStatus.Method = LocalPlayer.Config.Speed.Method
             SpeedStatus.Speed = LocalPlayer.Config.Speed.Speed
             SpeedStatus.JumpPower = LocalPlayer.Config.Speed.JumpPower
@@ -1107,12 +1314,20 @@ local function SetupUI(UI)
                 FastAttack.Stop()
             end
 
+            InvisibleStatus.Enabled = LocalPlayer.Config.Invisible.Enabled
+            InvisibleStatus.Mode = LocalPlayer.Config.Invisible.Mode
+            InvisibleStatus.Key = LocalPlayer.Config.Invisible.ToggleKey
+            if InvisibleStatus.Enabled then
+                if not InvisibleStatus.Running then Invisible.Toggle() end
+            else
+                if InvisibleStatus.Running then Invisible.Toggle() end
+            end
+
             notify("LocalPlayer", "Config synchronized!", true)
         end
     })
 end
 
--- Инициализация модуля
 function LocalPlayer.Init(UI, core, notifyFunc)
     Services = core.Services
     PlayerData = core.PlayerData
@@ -1132,14 +1347,18 @@ function LocalPlayer.Init(UI, core, notifyFunc)
         if not HighJumpStatus.Enabled then
             HighJump.RestoreJumpHeight()
         end
+        if InvisibleStatus.Enabled and not InvisibleStatus.Running then
+            Invisible.Toggle()
+        end
     end)
 
     SetupUI(UI)
 
-    -- Восстанавливаем JumpHeight при инициализации, если HighJump выключен
     if not HighJumpStatus.Enabled then
         HighJump.RestoreJumpHeight()
     end
+
+    removeFolders()
 end
 
 return LocalPlayer
