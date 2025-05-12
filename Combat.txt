@@ -98,9 +98,12 @@ local rayCheck = RaycastParams.new()
 rayCheck.RespectCanCollide = true
 rayCheck.FilterType = Enum.RaycastFilterType.Exclude
 
--- Функции KillAura (оставляем без изменений)
+-- Функции KillAura
 local function getEquippedTool()
-    if not LocalCharacter then return nil end
+    if not LocalCharacter then
+        if debugMode then print("[KillAura Debug] No LocalCharacter found") end
+        return nil
+    end
     for _, child in pairs(LocalCharacter:GetChildren()) do
         if child.ClassName == "Tool" then return child end
     end
@@ -132,7 +135,10 @@ local function isVisible(targetRoot)
     lastRaycastTime = currentTime
 
     local myRoot = LocalCharacter and LocalCharacter:FindFirstChild("HumanoidRootPart")
-    if not myRoot then return false end
+    if not myRoot then
+        if debugMode then print("[KillAura Debug] No HumanoidRootPart found for LocalCharacter") end
+        return false
+    end
     rayCheck.FilterDescendantsInstances = {LocalCharacter, targetRoot.Parent}
     local raycastResult = Workspace:Raycast(myRoot.Position, (targetRoot.Position - myRoot.Position), rayCheck)
     cachedVisibility[targetRoot] = not raycastResult
@@ -147,6 +153,7 @@ end
 
 local function getNearestPlayers(attackRadius)
     if not LocalCharacter or not LocalCharacter:FindFirstChild("HumanoidRootPart") then 
+        if debugMode then print("[KillAura Debug] No LocalCharacter or HumanoidRootPart") end
         return nil, nil 
     end
     
@@ -155,7 +162,7 @@ local function getNearestPlayers(attackRadius)
     local shortestDistance1 = math.min(attackRadius, KillAura.Settings.SearchRange.Value)
     
     local allPlayers = Players:GetPlayers()
-    local friendsList = Core.Services.FriendsList or {}
+    local friendsList = Core and Core.Services and Core.Services.FriendsList or {}
     
     local validPlayers = {}
     for _, player in pairs(allPlayers) do
@@ -220,7 +227,7 @@ end
 local function lookAtTarget(target, isSnap, isMultiSnapSecondTarget)
     if not KillAura.Settings.LookAtTarget.Value or not target then return end
 
-    local friendsList = Core.Services.FriendsList or {}
+    local friendsList = Core and Core.Services and Core.Services.FriendsList or {}
     local targetName = target.Name:lower()
     if targetName and friendsList[targetName] then
         return
@@ -377,7 +384,10 @@ end
 
 -- Функции ThrowSilent
 local function getEquippedToolThrowSilent()
-    if not LocalCharacter then return nil end
+    if not LocalCharacter then
+        if debugMode then print("[ThrowSilent Debug] No LocalCharacter found") end
+        return nil
+    end
     
     for _, child in pairs(LocalCharacter:GetChildren()) do
         if child.ClassName == "Tool" and ThrowSilent.Constants.VALID_TOOLS[child.Name] then
@@ -415,11 +425,11 @@ local targetUpdateInterval = 0.5
 
 local function getNearestPlayer(throwRadius)
     local currentTime = tick()
-    local friendsList = Core.Services.FriendsList or {}
+    local friendsList = Core and Core.Services and Core.Services.FriendsList or {}
     
     if KillAura.State.LastFriendsList ~= friendsList then
         ThrowSilent.State.LastTarget = nil
-        ThrowSilent.State.LastFriendsList = friendsList
+        KillAura.State.LastFriendsList = friendsList
     end
 
     if currentTime - lastTargetUpdate < targetUpdateInterval and ThrowSilent.State.LastTarget and ThrowSilent.State.LastTarget.Character and ThrowSilent.State.LastTarget.Character.Humanoid and ThrowSilent.State.LastTarget.Character.Humanoid.Health > 0 then
@@ -433,6 +443,7 @@ local function getNearestPlayer(throwRadius)
     lastTargetUpdate = currentTime
 
     if not LocalCharacter or not LocalCharacter:FindFirstChild("HumanoidRootPart") then 
+        if debugMode then print("[ThrowSilent Debug] No LocalCharacter or HumanoidRootPart") end
         return nil 
     end
     
@@ -469,7 +480,7 @@ end
 local function lookAtTargetThrowSilent(target)
     if not ThrowSilent.Settings.LookAtTarget.Value or not target or not target.Name then return end
 
-    local friendsList = Core.Services.FriendsList or {}
+    local friendsList = Core and Core.Services and Core.Services.FriendsList or {}
     local targetName = target.Name:lower()
     if friendsList[targetName] then
         return
@@ -485,30 +496,26 @@ local function lookAtTargetThrowSilent(target)
     rootPart.CFrame = CFrame.new(rootPart.Position) * CFrame.fromMatrix(Vector3.new(), lookCFrame.XVector, Vector3.new(0, 1, 0), lookCFrame.ZVector)
 end
 
--- Функция для расчета позиции с учетом гравитации (аналог u2.position)
 local function calculatePosition(startPos, velocity, time)
     local gravity = Vector3.new(0, -Workspace.Gravity, 0)
     return startPos + velocity * time + 0.5 * gravity * time * time
 end
 
--- Функция для расчета времени столкновения с землей (аналог u2.plane_quad_intersect)
 local function calculateGroundHitTime(startPos, velocity, groundHeight)
     local gravity = Vector3.new(0, -Workspace.Gravity, 0)
-    local a = 0.5 * gravity.Y -- Коэффициент при t^2 (гравитация)
-    local b = velocity.Y -- Коэффициент при t (вертикальная скорость)
-    local c = startPos.Y - groundHeight -- Константа (начальная высота относительно земли)
+    local a = 0.5 * gravity.Y
+    local b = velocity.Y
+    local c = startPos.Y - groundHeight
 
-    -- Решаем уравнение a*t^2 + b*t + c = 0
     local discriminant = b * b - 4 * a * c
     if discriminant < 0 then
-        return nil -- Нет пересечения с землей
+        return nil
     end
 
     local sqrtDiscriminant = math.sqrt(discriminant)
     local t1 = (-b + sqrtDiscriminant) / (2 * a)
     local t2 = (-b - sqrtDiscriminant) / (2 * a)
 
-    -- Берем положительное время (меньшее из двух)
     if t1 > 0 then
         return t1
     elseif t2 > 0 then
@@ -517,7 +524,6 @@ local function calculateGroundHitTime(startPos, velocity, groundHeight)
     return nil
 end
 
--- Новая функция для очистки визуализации траектории
 local function clearTrajectoryVisuals()
     for _, beamData in pairs(ThrowSilent.State.TrajectoryBeams) do
         if beamData.Beam then beamData.Beam:Destroy() end
@@ -527,7 +533,6 @@ local function clearTrajectoryVisuals()
     ThrowSilent.State.TrajectoryBeams = {}
 end
 
--- Новая функция для визуализации траектории линиями
 local function visualizeTrajectory(points)
     clearTrajectoryVisuals()
 
@@ -535,7 +540,6 @@ local function visualizeTrajectory(points)
         local startPoint = points[i]
         local endPoint = points[i + 1]
 
-        -- Создаем два Attachment для каждой линии
         local attachment0 = Instance.new("Attachment")
         attachment0.Position = startPoint
         attachment0.Parent = Workspace.Terrain
@@ -544,18 +548,16 @@ local function visualizeTrajectory(points)
         attachment1.Position = endPoint
         attachment1.Parent = Workspace.Terrain
 
-        -- Создаем Beam для соединения точек
         local beam = Instance.new("Beam")
         beam.FaceCamera = true
         beam.Width0 = 0.1
         beam.Width1 = 0.1
         beam.Transparency = NumberSequence.new(0.5)
-        beam.Color = ColorSequence.new(Color3.fromRGB(0, 255, 255)) -- Голубой цвет для траектории
+        beam.Color = ColorSequence.new(Color3.fromRGB(0, 255, 255))
         beam.Attachment0 = attachment0
         beam.Attachment1 = attachment1
         beam.Parent = Workspace.Terrain
 
-        -- Сохраняем Beam и Attachment для последующей очистки
         table.insert(ThrowSilent.State.TrajectoryBeams, {
             Beam = beam,
             Attachment0 = attachment0,
@@ -590,57 +592,37 @@ local function predictTargetPositionAndRotation(target, throwSpeed)
         return {position = LocalCharacter.HumanoidRootPart.Position, direction = LocalCharacter.HumanoidRootPart.CFrame.LookVector}
     end
     
-    -- Получаем текущую позицию и скорость цели
     local velocity = targetRoot.Velocity
     local distance = (targetHead.Position - myRoot.Position).Magnitude
-
-    -- Начальная позиция броска (смещаем на 1.5 вверх, как в оригинале)
     local startPos = myRoot.Position + Vector3.new(0, 1.5, 0)
-
-    -- Рассчитываем направление броска
     local directionToTarget = (targetHead.Position - startPos).Unit
     local angleAdjustment = math.clamp(distance / 20, 0, 1) * 0.2
     local adjustedDirection = (directionToTarget + Vector3.new(0, angleAdjustment, 0)).Unit
-
-    -- Начальная скорость броска
     local initialVelocity = adjustedDirection * throwSpeed
-
-    -- Рассчитываем время полета до цели
     local timeToTarget = distance / throwSpeed
-
-    -- Учитываем пинг
     local pingDelay = ThrowSilent.Settings.PingCompensation.Value / 2
     local totalPredictionTime = timeToTarget + pingDelay
-
-    -- Предсказываем позицию цели
     local predictedPosition = targetRoot.Position + velocity * totalPredictionTime
 
-    -- Находим высоту земли под целью
     local groundRay = Workspace:Raycast(targetRoot.Position, Vector3.new(0, -1000, 0), rayCheck)
     local groundHeight = groundRay and groundRay.Position.Y or targetRoot.Position.Y - 3
-
-    -- Рассчитываем время столкновения снаряда с землей
     local hitTime = calculateGroundHitTime(startPos, initialVelocity, groundHeight)
 
-    -- Если снаряд достигнет земли раньше, чем долетит до цели, корректируем время
     if hitTime and hitTime < totalPredictionTime then
         totalPredictionTime = hitTime
         predictedPosition = targetRoot.Position + velocity * totalPredictionTime
     end
 
-    -- Рассчитываем траекторию для визуализации
     local trajectoryPoints = {}
     local currentTime = 0
-    local step = 0.05 -- Шаг времени (как в u2.calc_single)
-    local maxTime = math.min(totalPredictionTime, 5) -- Ограничиваем максимальное время, как в u2.calc_single
+    local step = 0.05
+    local maxTime = math.min(totalPredictionTime, 5)
 
     while currentTime <= maxTime do
         local position = calculatePosition(startPos, initialVelocity, currentTime)
         table.insert(trajectoryPoints, position)
 
-        -- Проверяем, не ниже ли позиция земли
         if position.Y <= groundHeight then
-            -- Корректируем последнюю точку, чтобы она была на уровне земли
             trajectoryPoints[#trajectoryPoints] = Vector3.new(position.X, groundHeight, position.Z)
             break
         end
@@ -648,18 +630,14 @@ local function predictTargetPositionAndRotation(target, throwSpeed)
         currentTime = currentTime + step
     end
 
-    -- Рассчитываем конечную позицию снаряда
     local projectilePosition = calculatePosition(startPos, initialVelocity, totalPredictionTime)
     projectilePosition = Vector3.new(projectilePosition.X, math.max(projectilePosition.Y, groundHeight), projectilePosition.Z)
 
-    -- Корректируем направление, чтобы попасть в предсказанную позицию
     adjustedDirection = (predictedPosition - startPos).Unit
     angleAdjustment = math.clamp(distance / 20, 0, 1) * 0.2
     adjustedDirection = (adjustedDirection + Vector3.new(0, angleAdjustment, 0)).Unit
 
-    -- Визуализация
     if ThrowSilent.Settings.PredictVisualisation.Value then
-        -- Визуализация предсказанной позиции цели (зеленый шар)
         if not ThrowSilent.State.PredictVisualPart then
             local part = Instance.new("Part")
             part.Size = Vector3.new(0.5, 0.5, 0.5)
@@ -673,7 +651,6 @@ local function predictTargetPositionAndRotation(target, throwSpeed)
         end
         ThrowSilent.State.PredictVisualPart.Position = predictedPosition
         
-        -- Визуализация направления броска (красный указатель)
         if not ThrowSilent.State.RotationVisualPart then
             local part = Instance.new("Part")
             part.Size = Vector3.new(0.2, 0.2, 2)
@@ -689,7 +666,6 @@ local function predictTargetPositionAndRotation(target, throwSpeed)
         ThrowSilent.State.RotationVisualPart.CFrame = CFrame.lookAt(startPosVisual, endPos)
         ThrowSilent.State.RotationVisualPart.Position = startPosVisual + (adjustedDirection * 2.5)
 
-        -- Новая визуализация траектории линиями
         visualizeTrajectory(trajectoryPoints)
     else
         if ThrowSilent.State.PredictVisualPart then ThrowSilent.State.PredictVisualPart:Destroy() ThrowSilent.State.PredictVisualPart = nil end
@@ -716,10 +692,14 @@ local function checkToolChangeThrowSilent()
             local throwSpeed = getThrowSpeed(currentTool)
             if UI and UI.Window and UI.Window.Notify then
                 UI.Window:Notify({ Title = "Throwable Silent", Description = "Equipped: " .. currentTool.Name .. " (Total Range: " .. radius .. ", Throw Speed: " .. throwSpeed .. ")", true })
+            else
+                print("[ThrowSilent Debug] Equipped: " .. currentTool.Name .. " (Total Range: " .. radius .. ", Throw Speed: " .. throwSpeed .. ")")
             end
         elseif ThrowSilent.State.LastTool and not currentTool then
             if UI and UI.Window and UI.Window.Notify then
                 UI.Window:Notify({ Title = "Throwable Silent", Description = "Unequipped: " .. ThrowSilent.State.LastTool.Name, true })
+            else
+                print("[ThrowSilent Debug] Unequipped: " .. ThrowSilent.State.LastTool.Name)
             end
             if ThrowSilent.State.PredictVisualPart then ThrowSilent.State.PredictVisualPart:Destroy() ThrowSilent.State.PredictVisualPart = nil end
             if ThrowSilent.State.RotationVisualPart then ThrowSilent.State.RotationVisualPart:Destroy() ThrowSilent.State.RotationVisualPart = nil end
@@ -731,6 +711,8 @@ local function checkToolChangeThrowSilent()
             local newThrowSpeed = getThrowSpeed(currentTool)
             if UI and UI.Window and UI.Window.Notify then
                 UI.Window:Notify({ Title = "Throwable Silent", Description = "Switched from " .. ThrowSilent.State.LastTool.Name .. " (Range: " .. oldRadius .. ", Speed: " .. oldThrowSpeed .. ") to " .. currentTool.Name .. " (Range: " .. newRadius .. ", Speed: " .. newThrowSpeed .. ")", true })
+            else
+                print("[ThrowSilent Debug] Switched from " .. ThrowSilent.State.LastTool.Name .. " (Range: " .. oldRadius .. ", Speed: " .. oldThrowSpeed .. ") to " .. currentTool.Name .. " (Range: " .. newRadius .. ", Speed: " .. newThrowSpeed .. ")")
             end
         end
         ThrowSilent.State.LastTool = currentTool
@@ -740,13 +722,13 @@ end
 local function initializeThrowSilent()
     local Remotes = ReplicatedStorage:FindFirstChild("Remotes")
     if not Remotes then
-        warn("Remotes not found in ReplicatedStorage")
+        if debugMode then print("[ThrowSilent Debug] Remotes not found in ReplicatedStorage") end
         return
     end
 
     local SendRemote = Remotes:FindFirstChild("Send")
     if not SendRemote then
-        warn("Send not found in ReplicatedStorage.Remotes")
+        if debugMode then print("[ThrowSilent Debug] Send not found in ReplicatedStorage.Remotes") end
         return
     end
 
@@ -758,37 +740,42 @@ local function initializeThrowSilent()
     end
 
     if not ThrowSilent.State.V_U_4 then
-        warn("Не удалось найти таблицу для обхода ID")
+        if debugMode then print("[ThrowSilent Debug] Не удалось найти таблицу для обхода ID") end
     end
 
     if not ThrowSilent.State.OldFireServer then
-        ThrowSilent.State.OldFireServer = hookfunction(SendRemote.FireServer, function(self, ...)
-            local args = {...}
-            if ThrowSilent.Settings.Enabled.Value and #args >= 2 and typeof(args[1]) == "number" then
-                ThrowSilent.State.LastEventId = args[1]
-                
-                local equippedTool = getEquippedToolThrowSilent()
-                if equippedTool and args[2] == "throw_item" then
-                    local throwRadius = getThrowRadius(equippedTool)
-                    local nearestPlayer = getNearestPlayer(throwRadius)
-                    if nearestPlayer then
-                        local friendsList = Core.Services.FriendsList or {}
-                        local playerName = nearestPlayer.Name:lower()
-                        if playerName and friendsList[playerName] then
-                            return ThrowSilent.State.OldFireServer(self, ...)
-                        end
+        local success, result = pcall(function()
+            ThrowSilent.State.OldFireServer = hookfunction(SendRemote.FireServer, function(self, ...)
+                local args = {...}
+                if ThrowSilent.Settings.Enabled.Value and #args >= 2 and typeof(args[1]) == "number" then
+                    ThrowSilent.State.LastEventId = args[1]
+                    
+                    local equippedTool = getEquippedToolThrowSilent()
+                    if equippedTool and args[2] == "throw_item" then
+                        local throwRadius = getThrowRadius(equippedTool)
+                        local nearestPlayer = getNearestPlayer(throwRadius)
+                        if nearestPlayer then
+                            local friendsList = Core and Core.Services and Core.Services.FriendsList or {}
+                            local playerName = nearestPlayer.Name:lower()
+                            if playerName and friendsList[playerName] then
+                                return ThrowSilent.State.OldFireServer(self, ...)
+                            end
 
-                        lookAtTargetThrowSilent(nearestPlayer)
-                        local throwSpeed = getThrowSpeed(equippedTool)
-                        local prediction = predictTargetPositionAndRotation(nearestPlayer, throwSpeed)
-                        args[3] = equippedTool
-                        args[4] = prediction.position
-                        args[5] = prediction.direction
+                            lookAtTargetThrowSilent(nearestPlayer)
+                            local throwSpeed = getThrowSpeed(equippedTool)
+                            local prediction = predictTargetPositionAndRotation(nearestPlayer, throwSpeed)
+                            args[3] = equippedTool
+                            args[4] = prediction.position
+                            args[5] = prediction.direction
+                        end
                     end
                 end
-            end
-            return ThrowSilent.State.OldFireServer(self, unpack(args))
+                return ThrowSilent.State.OldFireServer(self, unpack(args))
+            end)
         end)
+        if not success then
+            if debugMode then print("[ThrowSilent Debug] Failed to hook FireServer:", result) end
+        end
     end
 
     if ThrowSilent.State.Connection then
@@ -817,7 +804,7 @@ local function initializeThrowSilent()
                 local throwRadius = getThrowRadius(equippedTool)
                 local nearestPlayer = getNearestPlayer(throwRadius)
                 if nearestPlayer then
-                    local friendsList = Core.Services.FriendsList or {}
+                    local friendsList = Core and Core.Services and Core.Services.FriendsList or {}
                     local playerName = nearestPlayer.Name:lower()
                     if playerName and friendsList[playerName] then
                         if ThrowSilent.State.PredictVisualPart then ThrowSilent.State.PredictVisualPart:Destroy() ThrowSilent.State.PredictVisualPart = nil end
@@ -839,7 +826,12 @@ local function initializeThrowSilent()
                             prediction.position,
                             prediction.direction
                         }
-                        SendRemote:FireServer(unpack(args))
+                        local success, result = pcall(function()
+                            SendRemote:FireServer(unpack(args))
+                        end)
+                        if not success then
+                            if debugMode then print("[ThrowSilent Debug] Failed to FireServer:", result) end
+                        end
                         ThrowSilent.State.LastThrowTime = currentTime
                     end
                 else
@@ -855,64 +847,69 @@ end
 local function hookFireServer()
     local Remotes = ReplicatedStorage:FindFirstChild("Remotes")
     if not Remotes then
-        warn("Remotes not found in ReplicatedStorage")
+        if debugMode then print("[KillAura Debug] Remotes not found in ReplicatedStorage") end
         return
     end
 
     local SendRemote = Remotes:FindFirstChild("Send")
     if not SendRemote then
-        warn("Send not found in ReplicatedStorage.Remotes")
+        if debugMode then print("[KillAura Debug] Send not found in ReplicatedStorage.Remotes") end
         return
     end
 
-    local oldFireServer
-    oldFireServer = hookfunction(SendRemote.FireServer, function(self, ...)
-        local args = {...}
-        if #args >= 2 and args[2] == "melee_attack" then
-            local equippedTool = getEquippedTool()
-            if equippedTool and isMeleeWeapon(equippedTool) then
-                local attackRadius = getAttackRadius(equippedTool)
-                local nearestPlayer1, nearestPlayer2 = getNearestPlayers(attackRadius)
-                if nearestPlayer1 then
-                    local friendsList = Core.Services.FriendsList or {}
-                    local playerName1 = nearestPlayer1.Name:lower()
-                    if playerName1 and friendsList[playerName1] then
-                        return oldFireServer(self, ...)
-                    end
-                    local playerName2 = nearestPlayer2 and nearestPlayer2.Name:lower()
-                    if nearestPlayer2 and playerName2 and friendsList[playerName2] then
-                        nearestPlayer2 = nil
-                    end
+    local success, result = pcall(function()
+        local oldFireServer
+        oldFireServer = hookfunction(SendRemote.FireServer, function(self, ...)
+            local args = {...}
+            if #args >= 2 and args[2] == "melee_attack" then
+                local equippedTool = getEquippedTool()
+                if equippedTool and isMeleeWeapon(equippedTool) then
+                    local attackRadius = getAttackRadius(equippedTool)
+                    local nearestPlayer1, nearestPlayer2 = getNearestPlayers(attackRadius)
+                    if nearestPlayer1 then
+                        local friendsList = Core and Core.Services and Core.Services.FriendsList or {}
+                        local playerName1 = nearestPlayer1.Name:lower()
+                        if playerName1 and friendsList[playerName1] then
+                            return oldFireServer(self, ...)
+                        end
+                        local playerName2 = nearestPlayer2 and nearestPlayer2.Name:lower()
+                        if nearestPlayer2 and playerName2 and friendsList[playerName2] then
+                            nearestPlayer2 = nil
+                        end
 
-                    if KillAura.Settings.SendMethod.Value == "Single" then
-                        args[3] = equippedTool
-                        args[4] = {nearestPlayer1}
-                        args[5] = predictTargetPosition(nearestPlayer1, "PredictVisualPart1", "PredictBeam1")
-                        local result = oldFireServer(self, unpack(args))
-                        if KillAura.Settings.LookAtTarget.Value and KillAura.Settings.LookAtMethod.Value == "Snap" then
-                            lookAtTarget(nearestPlayer1, true)
-                        end
-                        return result
-                    elseif KillAura.Settings.SendMethod.Value == "Multi" then
-                        local targets = {nearestPlayer1}
-                        if nearestPlayer2 then
-                            table.insert(targets, nearestPlayer2)
-                            if KillAura.Settings.LookAtTarget.Value and KillAura.Settings.LookAtMethod.Value == "MultiSnapAim" then
-                                lookAtTarget(nearestPlayer1, false)
-                                lookAtTarget(nearestPlayer2, true, true)
+                        if KillAura.Settings.SendMethod.Value == "Single" then
+                            args[3] = equippedTool
+                            args[4] = {nearestPlayer1}
+                            args[5] = predictTargetPosition(nearestPlayer1, "PredictVisualPart1", "PredictBeam1")
+                            local result = oldFireServer(self, unpack(args))
+                            if KillAura.Settings.LookAtTarget.Value and KillAura.Settings.LookAtMethod.Value == "Snap" then
+                                lookAtTarget(nearestPlayer1, true)
                             end
+                            return result
+                        elseif KillAura.Settings.SendMethod.Value == "Multi" then
+                            local targets = {nearestPlayer1}
+                            if nearestPlayer2 then
+                                table.insert(targets, nearestPlayer2)
+                                if KillAura.Settings.LookAtTarget.Value and KillAura.Settings.LookAtMethod.Value == "MultiSnapAim" then
+                                    lookAtTarget(nearestPlayer1, false)
+                                    lookAtTarget(nearestPlayer2, true, true)
+                                end
+                            end
+                            args[3] = equippedTool
+                            args[4] = targets
+                            args[5] = predictTargetPosition(nearestPlayer1, "PredictVisualPart1", "PredictBeam1")
+                            local result = oldFireServer(self, unpack(args))
+                            return result
                         end
-                        args[3] = equippedTool
-                        args[4] = targets
-                        args[5] = predictTargetPosition(nearestPlayer1, "PredictVisualPart1", "PredictBeam1")
-                        local result = oldFireServer(self, unpack(args))
-                        return result
                     end
                 end
             end
-        end
-        return oldFireServer(self, unpack(args))
+            return oldFireServer(self, unpack(args))
+        end)
     end)
+    if not success then
+        if debugMode then print("[KillAura Debug] Failed to hook FireServer:", result) end
+    end
 end
 
 local lastKillAuraToolCheckTime = 0
@@ -931,12 +928,16 @@ local function checkToolChange()
                 local baseRange = currentTool:GetAttribute("Range") or KillAura.Settings.DefaultAttackRadius.Value
                 if UI and UI.Window and UI.Window.Notify then
                     UI.Window:Notify({ Title = "KillAura", Description = "Equipped: " .. currentTool.Name .. " (Base Range: " .. baseRange .. ", Total Range: " .. radius .. ")", true })
+                else
+                    print("[KillAura Debug] Equipped: " .. currentTool.Name .. " (Base Range: " .. baseRange .. ", Total Range: " .. radius .. ")")
                 end
                 KillAura.State.LastTool = currentTool
             end
         elseif KillAura.State.LastTool and not currentTool then
             if UI and UI.Window and UI.Window.Notify then
                 UI.Window:Notify({ Title = "KillAura", Description = "Unequipped: " .. KillAura.State.LastTool.Name, true })
+            else
+                print("[KillAura Debug] Unequipped: " .. KillAura.State.LastTool.Name)
             end
             if KillAura.State.PredictVisualPart1 then KillAura.State.PredictVisualPart1:Destroy() KillAura.State.PredictVisualPart1 = nil end
             if KillAura.State.PredictBeam1 then KillAura.State.PredictBeam1:Destroy() KillAura.State.PredictBeam1 = nil end
@@ -949,11 +950,15 @@ local function checkToolChange()
                 local newRadius = getAttackRadius(currentTool)
                 if UI and UI.Window and UI.Window.Notify then
                     UI.Window:Notify({ Title = "KillAura", Description = "Switched from " .. KillAura.State.LastTool.Name .. " (Range: " .. oldRadius .. ") to " .. currentTool.Name .. " (Range: " .. newRadius .. ")", true })
+                else
+                    print("[KillAura Debug] Switched from " .. KillAura.State.LastTool.Name .. " (Range: " .. oldRadius .. ") to " .. currentTool.Name .. " (Range: " .. newRadius .. ")")
                 end
                 KillAura.State.LastTool = currentTool
             else
                 if UI and UI.Window and UI.Window.Notify then
                     UI.Window:Notify({ Title = "KillAura", Description = "Unequipped: " .. KillAura.State.LastTool.Name, true })
+                else
+                    print("[KillAura Debug] Unequipped: " .. KillAura.State.LastTool.Name)
                 end
                 if KillAura.State.PredictVisualPart1 then KillAura.State.PredictVisualPart1:Destroy() KillAura.State.PredictVisualPart1 = nil end
                 if KillAura.State.PredictBeam1 then KillAura.State.PredictBeam1:Destroy() KillAura.State.PredictBeam1 = nil end
@@ -965,9 +970,11 @@ local function checkToolChange()
     end
 end
 
--- Настройка UI
 local function setupUI()
-    if not UI or not UI.Sections then return end
+    if not UI or not UI.Sections then
+        if debugMode then print("[SetupUI Debug] UI or UI.Sections is nil") end
+        return
+    end
 
     if UI.Sections.KillAura then
         UI.Sections.KillAura:Header({ Name = "KillAura" })
@@ -978,6 +985,8 @@ local function setupUI()
                 KillAura.Settings.Enabled.Value = value
                 if notify then
                     notify("KillAura", "KillAura " .. (value and "Enabled" or "Disabled"), true)
+                else
+                    print("[KillAura Debug] KillAura " .. (value and "Enabled" or "Disabled"))
                 end
             end
         })
@@ -989,6 +998,8 @@ local function setupUI()
                 KillAura.Settings.SendMethod.Value = value
                 if notify then
                     notify("KillAura", "Send Method set to: " .. value, true)
+                else
+                    print("[KillAura Debug] Send Method set to: " .. value)
                 end
             end
         })
@@ -1003,6 +1014,8 @@ local function setupUI()
                 KillAura.Settings.MultiFOV.Value = value
                 if notify then
                     notify("KillAura", "Multi FOV set to: " .. value .. " degrees")
+                else
+                    print("[KillAura Debug] Multi FOV set to: " .. value .. " degrees")
                 end
             end
         })
@@ -1013,6 +1026,8 @@ local function setupUI()
                 KillAura.Settings.VisibleCheck.Value = value
                 if notify then
                     notify("KillAura", "Visible Check " .. (value and "Enabled" or "Disabled"), true)
+                else
+                    print("[KillAura Debug] Visible Check " .. (value and "Enabled" or "Disabled"))
                 end
             end
         })
@@ -1023,6 +1038,8 @@ local function setupUI()
                 KillAura.Settings.LookAtTarget.Value = value
                 if notify then
                     notify("KillAura", "Look At Target " .. (value and "Enabled" or "Disabled"), true)
+                else
+                    print("[KillAura Debug] Look At Target " .. (value and "Enabled" or "Disabled"))
                 end
             end
         })
@@ -1034,6 +1051,8 @@ local function setupUI()
                 KillAura.Settings.LookAtMethod.Value = value
                 if notify then
                     notify("KillAura", "Look At Method set to: " .. value, true)
+                else
+                    print("[KillAura Debug] Look At Method set to: " .. value)
                 end
             end
         })
@@ -1044,6 +1063,8 @@ local function setupUI()
                 KillAura.Settings.Predict.Value = value
                 if notify then
                     notify("KillAura", "Predict " .. (value and "Enabled" or "Disabled"), true)
+                else
+                    print("[KillAura Debug] Predict " .. (value and "Enabled" or "Disabled"))
                 end
             end
         })
@@ -1054,6 +1075,8 @@ local function setupUI()
                 KillAura.Settings.PredictVisualisation.Value = value
                 if notify then
                     notify("KillAura", "Predict Visualisation " .. (value and "Enabled" or "Disabled"), true)
+                else
+                    print("[KillAura Debug] Predict Visualisation " .. (value and "Enabled" or "Disabled"))
                 end
             end
         })
@@ -1065,6 +1088,8 @@ local function setupUI()
                 initializeTargetStrafe()
                 if notify then
                     notify("KillAura", "Target Strafe " .. (value and "Enabled" or "Disabled"), true)
+                else
+                    print("[KillAura Debug] Target Strafe " .. (value and "Enabled" or "Disabled"))
                 end
             end
         })
@@ -1079,6 +1104,8 @@ local function setupUI()
                 KillAura.Settings.AttackDelay.Value = value
                 if notify then
                     notify("KillAura", "Attack Delay set to: " .. value)
+                else
+                    print("[KillAura Debug] Attack Delay set to: " .. value)
                 end
             end
         })
@@ -1093,6 +1120,8 @@ local function setupUI()
                 KillAura.Settings.RangePlus.Value = value
                 if notify then
                     notify("KillAura", "Range Plus set to: " .. value)
+                else
+                    print("[KillAura Debug] Range Plus set to: " .. value)
                 end
             end
         })
@@ -1107,6 +1136,8 @@ local function setupUI()
                 KillAura.Settings.DefaultAttackRadius.Value = tostring(value)
                 if notify then
                     notify("KillAura", "Default Attack Radius set to: " .. value)
+                else
+                    print("[KillAura Debug] Default Attack Radius set to: " .. value)
                 end
             end
         })
@@ -1121,6 +1152,8 @@ local function setupUI()
                 KillAura.Settings.SearchRange.Value = value
                 if notify then
                     notify("KillAura", "Search Range set to: " .. value)
+                else
+                    print("[KillAura Debug] Search Range set to: " .. value)
                 end
             end
         })
@@ -1135,6 +1168,8 @@ local function setupUI()
                 KillAura.Settings.StrafeRange.Value = value
                 if notify then
                     notify("KillAura", "Strafe Range set to: " .. value)
+                else
+                    print("[KillAura Debug] Strafe Range set to: " .. value)
                 end
             end
         })
@@ -1149,6 +1184,8 @@ local function setupUI()
                 KillAura.Settings.YFactor.Value = value
                 if notify then
                     notify("KillAura", "Y Factor set to: " .. value .. "%")
+                else
+                    print("[KillAura Debug] Y Factor set to: " .. value .. "%")
                 end
             end
         })
@@ -1164,6 +1201,8 @@ local function setupUI()
                 initializeThrowSilent()
                 if notify then
                     notify("Throwable Silent", "Throwable Silent " .. (value and "Enabled" or "Disabled"), true)
+                else
+                    print("[ThrowSilent Debug] Throwable Silent " .. (value and "Enabled" or "Disabled"))
                 end
             end
         })
@@ -1178,6 +1217,8 @@ local function setupUI()
                 ThrowSilent.Settings.ThrowDelay.Value = value
                 if notify then
                     notify("Throwable Silent", "Throw Delay set to: " .. value)
+                else
+                    print("[ThrowSilent Debug] Throw Delay set to: " .. value)
                 end
             end
         })
@@ -1192,6 +1233,8 @@ local function setupUI()
                 ThrowSilent.Settings.RangePlus.Value = value
                 if notify then
                     notify("Throwable Silent", "Range Plus set to: " .. value)
+                else
+                    print("[ThrowSilent Debug] Range Plus set to: " .. value)
                 end
             end
         })
@@ -1202,6 +1245,8 @@ local function setupUI()
                 ThrowSilent.Settings.LookAtTarget.Value = value
                 if notify then
                     notify("Throwable Silent", "Look At Target " .. (value and "Enabled" or "Disabled"), true)
+                else
+                    print("[ThrowSilent Debug] Look At Target " .. (value and "Enabled" or "Disabled"))
                 end
             end
         })
@@ -1212,6 +1257,8 @@ local function setupUI()
                 ThrowSilent.Settings.Predict.Value = value
                 if notify then
                     notify("Throwable Silent", "Predict " .. (value and "Enabled" or "Disabled"), true)
+                else
+                    print("[ThrowSilent Debug] Predict " .. (value and "Enabled" or "Disabled"))
                 end
             end
         })
@@ -1222,6 +1269,8 @@ local function setupUI()
                 ThrowSilent.Settings.PredictVisualisation.Value = value
                 if notify then
                     notify("Throwable Silent", "Predict Visualisation " .. (value and "Enabled" or "Disabled"), true)
+                else
+                    print("[ThrowSilent Debug] Predict Visualisation " .. (value and "Enabled" or "Disabled"))
                 end
             end
         })
@@ -1233,6 +1282,8 @@ local function setupUI()
                 initializeThrowSilent()
                 if notify then
                     notify("Throwable Silent", "Rage " .. (value and "Enabled" or "Disabled"), true)
+                else
+                    print("[ThrowSilent Debug] Rage " .. (value and "Enabled" or "Disabled"))
                 end
             end
         })
@@ -1247,6 +1298,8 @@ local function setupUI()
                 ThrowSilent.Settings.PingCompensation.Value = value
                 if notify then
                     notify("Throwable Silent", "Ping Compensation set to: " .. string.format("%.3f", value) .. " seconds")
+                else
+                    print("[ThrowSilent Debug] Ping Compensation set to: " .. string.format("%.3f", value) .. " seconds")
                 end
             end
         })
@@ -1258,29 +1311,42 @@ local function Init(ui, core, notificationFunc)
     Core = core
     notify = notificationFunc
 
+    if not Core or not Core.Services then
+        if debugMode then print("[Init Debug] Core or Core.Services is nil") end
+        return
+    end
+
     Players = Core.Services.Players
     Workspace = Core.Services.Workspace
     TweenService = Core.Services.TweenService
     RunService = Core.Services.RunService
     ReplicatedStorage = Core.Services.ReplicatedStorage
 
+    if not Players or not Workspace or not RunService or not ReplicatedStorage then
+        if debugMode then print("[Init Debug] One or more services are nil: Players:", Players, "Workspace:", Workspace, "RunService:", RunService, "ReplicatedStorage:", ReplicatedStorage) end
+        return
+    end
+
     LocalPlayer = Core.PlayerData.LocalPlayer
     if LocalPlayer then
         LocalPlayer.CharacterAdded:Connect(function(character)
             LocalCharacter = character
+            if debugMode then print("[Init Debug] LocalCharacter set:", LocalCharacter) end
         end)
         if LocalPlayer.Character then
-            LocalCharacter = character
+            LocalCharacter = LocalPlayer.Character
+            if debugMode then print("[Init Debug] LocalCharacter set from existing character:", LocalCharacter) end
         end
     else
-        warn("LocalPlayer is nil, cannot set up CharacterAdded connection")
+        if debugMode then print("[Init Debug] LocalPlayer is nil") end
     end
 
     if UI and UI.Tabs and UI.Tabs.Combat then
         UI.Sections.KillAura = UI.Tabs.Combat:Section({ Name = "KillAura", Side = "Left" })
         UI.Sections.ThrowableSilent = UI.Tabs.Combat:Section({ Name = "Throwable Silent", Side = "Right" })
+        if debugMode then print("[Init Debug] UI sections initialized") end
     else
-        warn("Failed to initialize UI sections: UI.Tabs.Combat is nil")
+        if debugMode then print("[Init Debug] Failed to initialize UI sections: UI.Tabs.Combat is nil") end
         return
     end
 
@@ -1310,7 +1376,7 @@ local function Init(ui, core, notificationFunc)
                 local attackRadius = getAttackRadius(equippedTool)
                 local nearestPlayer1, nearestPlayer2 = getNearestPlayers(attackRadius)
                 
-                local friendsList = Core.Services.FriendsList or {}
+                local friendsList = Core and Core.Services and Core.Services.FriendsList or {}
                 if KillAura.State.LastFriendsList ~= friendsList then
                     KillAura.State.LastTarget = nil
                     KillAura.State.LastFriendsList = friendsList
