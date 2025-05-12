@@ -69,6 +69,7 @@ local ThrowSilent = {
         LastTool = nil,
         PredictVisualPart = nil,
         RotationVisualPart = nil,
+        TrajectoryBeams = {}, -- Для хранения лучей траектории
         LastThrowTime = 0,
         V_U_4 = nil,
         Connection = nil,
@@ -484,7 +485,13 @@ local function lookAtTargetThrowSilent(target)
     rootPart.CFrame = CFrame.new(rootPart.Position) * CFrame.fromMatrix(Vector3.new(), lookCFrame.XVector, Vector3.new(0, 1, 0), lookCFrame.ZVector)
 end
 
--- Новая функция для расчета времени столкновения с землей (аналог u2.plane_quad_intersect)
+-- Функция для расчета позиции с учетом гравитации (аналог u2.position)
+local function calculatePosition(startPos, velocity, time)
+    local gravity = Vector3.new(0, -Workspace.Gravity, 0)
+    return startPos + velocity * time + 0.5 * gravity * time * time
+end
+
+-- Функция для расчета времени столкновения с землей (аналог u2.plane_quad_intersect)
 local function calculateGroundHitTime(startPos, velocity, groundHeight)
     local gravity = Vector3.new(0, -Workspace.Gravity, 0)
     local a = 0.5 * gravity.Y -- Коэффициент при t^2 (гравитация)
@@ -510,10 +517,58 @@ local function calculateGroundHitTime(startPos, velocity, groundHeight)
     return nil
 end
 
+-- Новая функция для очистки визуализации траектории
+local function clearTrajectoryVisuals()
+    for _, beamData in pairs(ThrowSilent.State.TrajectoryBeams) do
+        if beamData.Beam then beamData.Beam:Destroy() end
+        if beamData.Attachment0 then beamData.Attachment0:Destroy() end
+        if beamData.Attachment1 then beamData.Attachment1:Destroy() end
+    end
+    ThrowSilent.State.TrajectoryBeams = {}
+end
+
+-- Новая функция для визуализации траектории линиями
+local function visualizeTrajectory(points)
+    clearTrajectoryVisuals()
+
+    for i = 1, #points - 1 do
+        local startPoint = points[i]
+        local endPoint = points[i + 1]
+
+        -- Создаем два Attachment для каждой линии
+        local attachment0 = Instance.new("Attachment")
+        attachment0.Position = startPoint
+        attachment0.Parent = Workspace.Terrain
+
+        local attachment1 = Instance.new("Attachment")
+        attachment1.Position = endPoint
+        attachment1.Parent = Workspace.Terrain
+
+        -- Создаем Beam для соединения точек
+        local beam = Instance.new("Beam")
+        beam.FaceCamera = true
+        beam.Width0 = 0.1
+        beam.Width1 = 0.1
+        beam.Transparency = NumberSequence.new(0.5)
+        beam.Color = ColorSequence.new(Color3.fromRGB(0, 255, 255)) -- Голубой цвет для траектории
+        beam.Attachment0 = attachment0
+        beam.Attachment1 = attachment1
+        beam.Parent = Workspace.Terrain
+
+        -- Сохраняем Beam и Attachment для последующей очистки
+        table.insert(ThrowSilent.State.TrajectoryBeams, {
+            Beam = beam,
+            Attachment0 = attachment0,
+            Attachment1 = attachment1
+        })
+    end
+end
+
 local function predictTargetPositionAndRotation(target, throwSpeed)
     if not ThrowSilent.Settings.Predict.Value then
         if ThrowSilent.State.PredictVisualPart then ThrowSilent.State.PredictVisualPart:Destroy() ThrowSilent.State.PredictVisualPart = nil end
         if ThrowSilent.State.RotationVisualPart then ThrowSilent.State.RotationVisualPart:Destroy() ThrowSilent.State.RotationVisualPart = nil end
+        clearTrajectoryVisuals()
         return {position = LocalCharacter.HumanoidRootPart.Position, direction = LocalCharacter.HumanoidRootPart.CFrame.LookVector}
     end
     
@@ -521,6 +576,7 @@ local function predictTargetPositionAndRotation(target, throwSpeed)
     if not LocalCharacter or not targetChar then 
         if ThrowSilent.State.PredictVisualPart then ThrowSilent.State.PredictVisualPart:Destroy() ThrowSilent.State.PredictVisualPart = nil end
         if ThrowSilent.State.RotationVisualPart then ThrowSilent.State.RotationVisualPart:Destroy() ThrowSilent.State.RotationVisualPart = nil end
+        clearTrajectoryVisuals()
         return {position = LocalCharacter.HumanoidRootPart.Position, direction = LocalCharacter.HumanoidRootPart.CFrame.LookVector}
     end
     
@@ -530,6 +586,7 @@ local function predictTargetPositionAndRotation(target, throwSpeed)
     if not myRoot or not targetHead or not targetRoot then 
         if ThrowSilent.State.PredictVisualPart then ThrowSilent.State.PredictVisualPart:Destroy() ThrowSilent.State.PredictVisualPart = nil end
         if ThrowSilent.State.RotationVisualPart then ThrowSilent.State.RotationVisualPart:Destroy() ThrowSilent.State.RotationVisualPart = nil end
+        clearTrajectoryVisuals()
         return {position = LocalCharacter.HumanoidRootPart.Position, direction = LocalCharacter.HumanoidRootPart.CFrame.LookVector}
     end
     
@@ -565,17 +622,34 @@ local function predictTargetPositionAndRotation(target, throwSpeed)
     -- Рассчитываем время столкновения снаряда с землей
     local hitTime = calculateGroundHitTime(startPos, initialVelocity, groundHeight)
 
-    -- Если снаряд достигнет земли раньше, чем долетит до цели, корректируем позицию
+    -- Если снаряд достигнет земли раньше, чем долетит до цели, корректируем время
     if hitTime and hitTime < totalPredictionTime then
         totalPredictionTime = hitTime
         predictedPosition = targetRoot.Position + velocity * totalPredictionTime
     end
 
-    -- Рассчитываем позицию снаряда с учетом гравитации
-    local gravity = Vector3.new(0, -Workspace.Gravity, 0)
-    local projectilePosition = startPos + initialVelocity * totalPredictionTime + 0.5 * gravity * totalPredictionTime * totalPredictionTime
+    -- Рассчитываем траекторию для визуализации
+    local trajectoryPoints = {}
+    local currentTime = 0
+    local step = 0.05 -- Шаг времени (как в u2.calc_single)
+    local maxTime = math.min(totalPredictionTime, 5) -- Ограничиваем максимальное время, как в u2.calc_single
 
-    -- Ограничиваем позицию, чтобы она не уходила ниже земли
+    while currentTime <= maxTime do
+        local position = calculatePosition(startPos, initialVelocity, currentTime)
+        table.insert(trajectoryPoints, position)
+
+        -- Проверяем, не ниже ли позиция земли
+        if position.Y <= groundHeight then
+            -- Корректируем последнюю точку, чтобы она была на уровне земли
+            trajectoryPoints[#trajectoryPoints] = Vector3.new(position.X, groundHeight, position.Z)
+            break
+        end
+
+        currentTime = currentTime + step
+    end
+
+    -- Рассчитываем конечную позицию снаряда
+    local projectilePosition = calculatePosition(startPos, initialVelocity, totalPredictionTime)
     projectilePosition = Vector3.new(projectilePosition.X, math.max(projectilePosition.Y, groundHeight), projectilePosition.Z)
 
     -- Корректируем направление, чтобы попасть в предсказанную позицию
@@ -583,8 +657,9 @@ local function predictTargetPositionAndRotation(target, throwSpeed)
     angleAdjustment = math.clamp(distance / 20, 0, 1) * 0.2
     adjustedDirection = (adjustedDirection + Vector3.new(0, angleAdjustment, 0)).Unit
 
-    -- Визуализация предсказанной позиции
+    -- Визуализация
     if ThrowSilent.Settings.PredictVisualisation.Value then
+        -- Визуализация предсказанной позиции цели (зеленый шар)
         if not ThrowSilent.State.PredictVisualPart then
             local part = Instance.new("Part")
             part.Size = Vector3.new(0.5, 0.5, 0.5)
@@ -598,6 +673,7 @@ local function predictTargetPositionAndRotation(target, throwSpeed)
         end
         ThrowSilent.State.PredictVisualPart.Position = predictedPosition
         
+        -- Визуализация направления броска (красный указатель)
         if not ThrowSilent.State.RotationVisualPart then
             local part = Instance.new("Part")
             part.Size = Vector3.new(0.2, 0.2, 2)
@@ -612,9 +688,13 @@ local function predictTargetPositionAndRotation(target, throwSpeed)
         local endPos = startPos + (adjustedDirection * 5)
         ThrowSilent.State.RotationVisualPart.CFrame = CFrame.lookAt(startPosVisual, endPos)
         ThrowSilent.State.RotationVisualPart.Position = startPosVisual + (adjustedDirection * 2.5)
+
+        -- Новая визуализация траектории линиями
+        visualizeTrajectory(trajectoryPoints)
     else
         if ThrowSilent.State.PredictVisualPart then ThrowSilent.State.PredictVisualPart:Destroy() ThrowSilent.State.PredictVisualPart = nil end
         if ThrowSilent.State.RotationVisualPart then ThrowSilent.State.RotationVisualPart:Destroy() ThrowSilent.State.RotationVisualPart = nil end
+        clearTrajectoryVisuals()
     end
     
     return {position = predictedPosition, direction = adjustedDirection}
@@ -643,6 +723,7 @@ local function checkToolChangeThrowSilent()
             end
             if ThrowSilent.State.PredictVisualPart then ThrowSilent.State.PredictVisualPart:Destroy() ThrowSilent.State.PredictVisualPart = nil end
             if ThrowSilent.State.RotationVisualPart then ThrowSilent.State.RotationVisualPart:Destroy() ThrowSilent.State.RotationVisualPart = nil end
+            clearTrajectoryVisuals()
         elseif currentTool and ThrowSilent.State.LastTool then
             local oldRadius = getThrowRadius(ThrowSilent.State.LastTool)
             local newRadius = getThrowRadius(currentTool)
@@ -719,6 +800,7 @@ local function initializeThrowSilent()
         if not ThrowSilent.Settings.Enabled.Value then
             if ThrowSilent.State.PredictVisualPart then ThrowSilent.State.PredictVisualPart:Destroy() ThrowSilent.State.PredictVisualPart = nil end
             if ThrowSilent.State.RotationVisualPart then ThrowSilent.State.RotationVisualPart:Destroy() ThrowSilent.State.RotationVisualPart = nil end
+            clearTrajectoryVisuals()
             return
         end
 
@@ -740,6 +822,7 @@ local function initializeThrowSilent()
                     if playerName and friendsList[playerName] then
                         if ThrowSilent.State.PredictVisualPart then ThrowSilent.State.PredictVisualPart:Destroy() ThrowSilent.State.PredictVisualPart = nil end
                         if ThrowSilent.State.RotationVisualPart then ThrowSilent.State.RotationVisualPart:Destroy() ThrowSilent.State.RotationVisualPart = nil end
+                        clearTrajectoryVisuals()
                         return
                     end
 
@@ -762,6 +845,7 @@ local function initializeThrowSilent()
                 else
                     if ThrowSilent.State.PredictVisualPart then ThrowSilent.State.PredictVisualPart:Destroy() ThrowSilent.State.PredictVisualPart = nil end
                     if ThrowSilent.State.RotationVisualPart then ThrowSilent.State.RotationVisualPart:Destroy() ThrowSilent.State.RotationVisualPart = nil end
+                    clearTrajectoryVisuals()
                 end
             end
         end
@@ -1154,13 +1238,13 @@ local function setupUI()
         })
         UI.Sections.ThrowableSilent:Slider({
             Name = "Ping Compensation",
-            Default = ThrowSilent.Settings.PingCompensation.Default, -- Значение в секундах (0.1 = 100 мс)
+            Default = ThrowSilent.Settings.PingCompensation.Default,
             Minimum = 0,
-            Maximum = 0.5, -- Максимум 500 мс (0.5 секунд)
+            Maximum = 0.5,
             DisplayMethod = "Value",
-            Precision = 3, -- Отображение с тремя знаками после запятой (0.100)
+            Precision = 3,
             Callback = function(value)
-                ThrowSilent.Settings.PingCompensation.Value = value -- Оставляем в секундах
+                ThrowSilent.Settings.PingCompensation.Value = value
                 if notify then
                     notify("Throwable Silent", "Ping Compensation set to: " .. string.format("%.3f", value) .. " seconds")
                 end
@@ -1322,6 +1406,7 @@ local function Init(ui, core, notificationFunc)
             ThrowSilent.State.LastFriendsList = nil
             if ThrowSilent.State.PredictVisualPart then ThrowSilent.State.PredictVisualPart:Destroy() ThrowSilent.State.PredictVisualPart = nil end
             if ThrowSilent.State.RotationVisualPart then ThrowSilent.State.RotationVisualPart:Destroy() ThrowSilent.State.RotationVisualPart = nil end
+            clearTrajectoryVisuals()
         end)
     end
 end
