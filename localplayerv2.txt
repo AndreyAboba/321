@@ -159,22 +159,6 @@ local function isInputFocused()
     return Services.UserInputService:GetFocusedTextBox() ~= nil
 end
 
-local function compute_djb2(str)
-    local hash = 5381
-    for i = 1, #str do
-        hash = (hash * 33 + string.byte(str, i)) % 4294967296
-    end
-    return tostring(hash)
-end
-
-local function get_encrypted_attribute_name(attr_name)
-    local hash_key = Services.Workspace:GetAttribute("HashKey") or Services.Workspace:GetAttributeChangedSignal("HashKey"):Wait()
-    local hash = compute_djb2(attr_name)
-    local encrypted_name = hash_key .. hash
-    print("Encrypted attribute name for '" .. attr_name .. "': " .. encrypted_name) -- Логирование шифрованного имени
-    return encrypted_name
-end
-
 -- Timer Functions
 local Timer = {}
 Timer.Start = function()
@@ -591,14 +575,9 @@ FastAttack.Start = function()
         if not backpack then return end
 
         for _, item in ipairs(backpack:GetChildren()) do
-            if item.Name == "fists" or item:GetAttribute("Speed") ~= nil then
+            if item.Name == "fists" or item:GetAttribute(Services.GetEncryptedAttributeName("Speed")) ~= nil then
                 pcall(function()
-                    item:SetAttribute("Speed", 0)
-                end)
-            elseif item:GetAttribute("Speed") == nil then
-                local encrypted_speed = get_encrypted_attribute_name("speed")
-                pcall(function()
-                    item:SetAttribute(encrypted_speed, 0)
+                    item:SetAttribute(Services.GetEncryptedAttributeName("Speed"), 0)
                 end)
             end
         end
@@ -616,14 +595,9 @@ FastAttack.Stop = function()
     local backpack = LocalPlayerObj:FindFirstChild("Backpack")
     if backpack then
         for _, item in ipairs(backpack:GetChildren()) do
-            if item.Name == "fists" or item:GetAttribute("Speed") ~= nil then
+            if item.Name == "fists" or item:GetAttribute(Services.GetEncryptedAttributeName("Speed")) ~= nil then
                 pcall(function()
-                    item:SetAttribute("Speed", 1)
-                end)
-            elseif item:GetAttribute("Speed") == nil then
-                local encrypted_speed = get_encrypted_attribute_name("speed")
-                pcall(function()
-                    item:SetAttribute(encrypted_speed, 1)
+                    item:SetAttribute(Services.GetEncryptedAttributeName("Speed"), 1)
                 end)
             end
         end
