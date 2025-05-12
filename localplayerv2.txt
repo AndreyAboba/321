@@ -1,3 +1,4 @@
+
 -- Модуль LocalPlayer: Timer, Disabler, Speed, TickSpeed, HighJump, NoRagdoll, FastAttack, Invisible
 local LocalPlayer = {}
 
@@ -6,6 +7,7 @@ local Services = nil
 local PlayerData = nil
 local notify = nil
 local LocalPlayerObj = nil
+local core = nil -- Добавляем для доступа к core
 
 -- Локальная конфигурация модуля
 LocalPlayer.Config = {
@@ -575,9 +577,9 @@ FastAttack.Start = function()
         if not backpack then return end
 
         for _, item in ipairs(backpack:GetChildren()) do
-            if item.Name == "fists" or item:GetAttribute(Services.GetEncryptedAttributeName("Speed")) ~= nil then
+            if item.Name == "fists" or item:GetAttribute(core.GetEncryptedAttributeName("Speed")) ~= nil then
                 pcall(function()
-                    item:SetAttribute(Services.GetEncryptedAttributeName("Speed"), 0)
+                    item:SetAttribute(core.GetEncryptedAttributeName("Speed"), 0)
                 end)
             end
         end
@@ -595,9 +597,9 @@ FastAttack.Stop = function()
     local backpack = LocalPlayerObj:FindFirstChild("Backpack")
     if backpack then
         for _, item in ipairs(backpack:GetChildren()) do
-            if item.Name == "fists" or item:GetAttribute(Services.GetEncryptedAttributeName("Speed")) ~= nil then
+            if item.Name == "fists" or item:GetAttribute(core.GetEncryptedAttributeName("Speed")) ~= nil then
                 pcall(function()
-                    item:SetAttribute(Services.GetEncryptedAttributeName("Speed"), 1)
+                    item:SetAttribute(core.GetEncryptedAttributeName("Speed"), 1)
                 end)
             end
         end
@@ -1302,7 +1304,8 @@ local function SetupUI(UI)
     })
 end
 
-function LocalPlayer.Init(UI, core, notifyFunc)
+function LocalPlayer.Init(UI, coreParam, notifyFunc)
+    core = coreParam -- Сохраняем core для доступа к GetEncryptedAttributeName
     Services = core.Services
     PlayerData = core.PlayerData
     notify = notifyFunc
