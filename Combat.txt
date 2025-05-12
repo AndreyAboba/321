@@ -1,4 +1,3 @@
-
 -- Кэшируем часто используемые сервисы для уменьшения вызовов
 local Players
 local Workspace
@@ -158,21 +157,11 @@ local function getNearestPlayers(attackRadius)
     local allPlayers = Players:GetPlayers()
     local friendsList = Core.Services.FriendsList or {}
     
-    if debugMode then
-        local friendsArray = {}
-        for playerName, _ in pairs(friendsList) do
-            table.insert(friendsArray, playerName)
-        end
-        print("[KillAura Debug] FriendsList:", friendsArray)
-    end
-    
     local validPlayers = {}
     for _, player in pairs(allPlayers) do
         local playerName = player.Name:lower()
         if player ~= LocalPlayer and (not friendsList[playerName]) then
             table.insert(validPlayers, player)
-        elseif debugMode and player ~= LocalPlayer and friendsList[playerName] then
-            print("[KillAura Debug] Skipping player (in FriendsList):", player.Name, "| Normalized name:", playerName)
         end
     end
 
@@ -184,7 +173,7 @@ local function getNearestPlayers(attackRadius)
             
             if distance <= shortestDistance1 and targetChar.Humanoid.Health > 0 and not isSafeZoneProtected(player) and isVisible(targetRoot) then
                 rayCheck.FilterDescendantsInstances = {LocalCharacter, targetChar}
-                local raycastResult = Workspace:Raycast(rootPart.Position, (targetRoot.Position - rootRoot.Position), rayCheck)
+                local raycastResult = Workspace:Raycast(rootPart.Position, (targetRoot.Position - rootPart.Position), rayCheck)
                 if not raycastResult then
                     table.insert(nearestPlayers, { Player = player, Distance = distance })
                     shortestDistance1 = distance
@@ -234,9 +223,6 @@ local function lookAtTarget(target, isSnap, isMultiSnapSecondTarget)
     local friendsList = Core.Services.FriendsList or {}
     local targetName = target.Name:lower()
     if targetName and friendsList[targetName] then
-        if debugMode then
-            print("[KillAura Debug] lookAtTarget: Skipping player (in FriendsList):", target.Name, "| Normalized name:", targetName)
-        end
         return
     end
 
@@ -408,13 +394,23 @@ local function getThrowRadius(tool)
 end
 
 local function getThrowSpeed(tool)
-    -- Используем зашифрованный атрибут throw_speed через Core
-    if not Core or not Core.GetEncryptedAttributeName then
-        warn("Core or GetEncryptedAttributeName is not available")
+    -- Проверяем сначала зашифрованный атрибут throw_speed через Core, затем обычный ThrowSpeed
+    if not tool then
         return ThrowSilent.Constants.DEFAULT_THROW_SPEED
     end
-    local encryptedThrowSpeedAttr = Core.GetEncryptedAttributeName("throw_speed")
-    return tool and tool:GetAttribute(encryptedThrowSpeedAttr) or ThrowSilent.Constants.DEFAULT_THROW_SPEED
+
+    local throwSpeed
+    if Core and Core.GetEncryptedAttributeName then
+        local encryptedThrowSpeedAttr = Core.GetEncryptedAttributeName("throw_speed")
+        throwSpeed = tool:GetAttribute(encryptedThrowSpeedAttr)
+    end
+    
+    -- Если зашифрованный атрибут не найден, пробуем обычный ThrowSpeed
+    if not throwSpeed then
+        throwSpeed = tool:GetAttribute("ThrowSpeed")
+    end
+    
+    return throwSpeed or ThrowSilent.Constants.DEFAULT_THROW_SPEED
 end
 
 local lastTargetUpdate = 0
@@ -424,18 +420,7 @@ local function getNearestPlayer(throwRadius)
     local currentTime = tick()
     local friendsList = Core.Services.FriendsList or {}
     
-    if debugMode then
-        local friendsArray = {}
-        for playerName, _ in pairs(friendsList) do
-            table.insert(friendsArray, playerName)
-        end
-        print("[ThrowSilent Debug] FriendsList:", friendsArray)
-    end
-    
     if KillAura.State.LastFriendsList ~= friendsList then
-        if debugMode then
-            print("[ThrowSilent Debug] FriendsList changed, resetting LastTarget")
-        end
         ThrowSilent.State.LastTarget = nil
         ThrowSilent.State.LastFriendsList = friendsList
     end
@@ -443,9 +428,6 @@ local function getNearestPlayer(throwRadius)
     if currentTime - lastTargetUpdate < targetUpdateInterval and ThrowSilent.State.LastTarget and ThrowSilent.State.LastTarget.Character and ThrowSilent.State.LastTarget.Character.Humanoid and ThrowSilent.State.LastTarget.Character.Humanoid.Health > 0 then
         local targetName = ThrowSilent.State.LastTarget.Name:lower()
         if targetName and friendsList[targetName] then
-            if debugMode then
-                print("[ThrowSilent Debug] LastTarget now in FriendsList, resetting:", ThrowSilent.State.LastTarget.Name, "| Normalized name:", targetName)
-            end
             ThrowSilent.State.LastTarget = nil
             return nil
         end
@@ -474,8 +456,6 @@ local function getNearestPlayer(throwRadius)
                     nearestPlayer = player
                 end
             end
-        elseif debugMode and player ~= LocalPlayer and friendsList[playerName] then
-            print("[ThrowSilent Debug] Skipping player (in FriendsList):", player.Name, "| Normalized name:", playerName)
         end
     end
     
@@ -495,9 +475,6 @@ local function lookAtTargetThrowSilent(target)
     local friendsList = Core.Services.FriendsList or {}
     local targetName = target.Name:lower()
     if friendsList[targetName] then
-        if debugMode then
-            print("[ThrowSilent Debug] lookAtTargetThrowSilent: Skipping player (in FriendsList):", target.Name, "| Normalized name:", targetName)
-        end
         return
     end
     
@@ -675,9 +652,6 @@ local function initializeThrowSilent()
                         local friendsList = Core.Services.FriendsList or {}
                         local playerName = nearestPlayer.Name:lower()
                         if playerName and friendsList[playerName] then
-                            if debugMode then
-                                print("[ThrowSilent Debug] FireServer: Skipping player (in FriendsList):", nearestPlayer.Name, "| Normalized name:", playerName)
-                            end
                             return ThrowSilent.State.OldFireServer(self, ...)
                         end
 
@@ -722,9 +696,6 @@ local function initializeThrowSilent()
                     local friendsList = Core.Services.FriendsList or {}
                     local playerName = nearestPlayer.Name:lower()
                     if playerName and friendsList[playerName] then
-                        if debugMode then
-                            print("[ThrowSilent Debug] Heartbeat: Skipping player (in FriendsList):", playerName, "| Normalized name:", playerName)
-                        end
                         if ThrowSilent.State.PredictVisualPart then ThrowSilent.State.PredictVisualPart:Destroy() ThrowSilent.State.PredictVisualPart = nil end
                         if ThrowSilent.State.RotationVisualPart then ThrowSilent.State.RotationVisualPart:Destroy() ThrowSilent.State.RotationVisualPart = nil end
                         return
@@ -780,16 +751,10 @@ local function hookFireServer()
                     local friendsList = Core.Services.FriendsList or {}
                     local playerName1 = nearestPlayer1.Name:lower()
                     if playerName1 and friendsList[playerName1] then
-                        if debugMode then
-                            print("[KillAura Debug] FireServer: Skipping player (in FriendsList):", nearestPlayer1.Name, "| Normalized name:", playerName1)
-                        end
                         return oldFireServer(self, ...)
                     end
                     local playerName2 = nearestPlayer2 and nearestPlayer2.Name:lower()
                     if nearestPlayer2 and playerName2 and friendsList[playerName2] then
-                        if debugMode then
-                            print("[KillAura Debug] FireServer: Skipping player2 (in FriendsList):", nearestPlayer2.Name, "| Normalized name:", playerName2)
-                        end
                         nearestPlayer2 = nil
                     end
 
@@ -1222,9 +1187,6 @@ local function Init(ui, core, notificationFunc)
                 
                 local friendsList = Core.Services.FriendsList or {}
                 if KillAura.State.LastFriendsList ~= friendsList then
-                    if debugMode then
-                        print("[KillAura Debug] FriendsList changed, resetting LastTarget")
-                    end
                     KillAura.State.LastTarget = nil
                     KillAura.State.LastFriendsList = friendsList
                 end
@@ -1232,18 +1194,12 @@ local function Init(ui, core, notificationFunc)
                 if nearestPlayer1 then
                     local playerName1 = nearestPlayer1.Name:lower()
                     if playerName1 and friendsList[playerName1] then
-                        if debugMode then
-                            print("[KillAura Debug] RenderStepped: Skipping nearestPlayer1 (in FriendsList):", nearestPlayer1.Name, "| Normalized name:", playerName1)
-                        end
                         nearestPlayer1 = nil
                         if KillAura.State.PredictVisualPart1 then KillAura.State.PredictVisualPart1:Destroy() KillAura.State.PredictVisualPart1 = nil end
                         if KillAura.State.PredictBeam1 then KillAura.State.PredictBeam1:Destroy() KillAura.State.PredictBeam1 = nil end
                     end
                     local playerName2 = nearestPlayer2 and nearestPlayer2.Name:lower()
                     if nearestPlayer2 and playerName2 and friendsList[playerName2] then
-                        if debugMode then
-                            print("[KillAura Debug] RenderStepped: Skipping nearestPlayer2 (in FriendsList):", nearestPlayer2.Name, "| Normalized name:", playerName2)
-                        end
                         nearestPlayer2 = nil
                         if KillAura.State.PredictVisualPart2 then KillAura.State.PredictVisualPart2:Destroy() KillAura.State.PredictVisualPart2 = nil end
                         if KillAura.State.PredictBeam2 then KillAura.State.PredictBeam2:Destroy() KillAura.State.PredictBeam2 = nil end
