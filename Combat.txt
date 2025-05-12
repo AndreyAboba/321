@@ -506,12 +506,31 @@ local function clearTrajectoryVisuals()
     ThrowSilent.State.TrajectoryBeams = {}
 end
 
-local function visualizeTrajectory(points)
+local function visualizeTrajectory(startPos, initialVelocity, targetVelocity, targetPos)
     clearTrajectoryVisuals()
 
-    for i = 1, #points - 1 do
-        local startPoint = points[i]
-        local endPoint = points[i + 1]
+    local trajectoryPoints = {}
+    local currentTime = 0
+    local step = 0.02
+    local maxTime = 10
+    local groundHeight = Workspace.FallenPartsDestroyHeight or -500
+
+    while currentTime <= maxTime do
+        local position = calculatePosition(startPos, initialVelocity, currentTime)
+        local predictedTargetPos = targetPos + targetVelocity * currentTime
+        table.insert(trajectoryPoints, position)
+
+        if position.Y <= groundHeight then
+            trajectoryPoints[#trajectoryPoints] = Vector3.new(position.X, groundHeight, position.Z)
+            break
+        end
+
+        currentTime = currentTime + step
+    end
+
+    for i = 1, #trajectoryPoints - 1 do
+        local startPoint = trajectoryPoints[i]
+        local endPoint = trajectoryPoints[i + 1]
 
         local attachment0 = Instance.new("Attachment")
         attachment0.Position = startPoint
@@ -564,17 +583,17 @@ local function predictTargetPositionAndRotation(target, throwSpeed)
         return {position = LocalCharacter.HumanoidRootPart.Position, direction = LocalCharacter.HumanoidRootPart.CFrame.LookVector}
     end
     
-    local velocity = targetRoot.Velocity
+    local targetVelocity = targetRoot.Velocity
     local distance = (targetRoot.Position - myRoot.Position).Magnitude
     local startPos = myRoot.Position + Vector3.new(0, 1.5, 0)
     local directionToTarget = (targetRoot.Position - startPos).Unit
-    local angleAdjustment = math.clamp(distance / 15, 0, 1) * 0.3 -- Увеличиваем угол для больших дистанций
+    local angleAdjustment = math.clamp(distance / 15, 0, 1) * 0.3
     local adjustedDirection = (directionToTarget + Vector3.new(0, angleAdjustment, 0)).Unit
     local initialVelocity = adjustedDirection * throwSpeed
     local timeToTarget = distance / throwSpeed
     local pingDelay = ThrowSilent.Settings.PingCompensation.Value / 2
     local totalPredictionTime = timeToTarget + pingDelay
-    local predictedPosition = targetRoot.Position + velocity * totalPredictionTime
+    local predictedPosition = targetRoot.Position + targetVelocity * totalPredictionTime
 
     local groundRay = Workspace:Raycast(targetRoot.Position, Vector3.new(0, -1000, 0), rayCheck)
     local groundHeight = groundRay and groundRay.Position.Y or targetRoot.Position.Y - 3
@@ -582,31 +601,11 @@ local function predictTargetPositionAndRotation(target, throwSpeed)
 
     if hitTime and hitTime < totalPredictionTime then
         totalPredictionTime = hitTime
-        predictedPosition = targetRoot.Position + velocity * totalPredictionTime
+        predictedPosition = targetRoot.Position + targetVelocity * totalPredictionTime
     end
-
-    local trajectoryPoints = {}
-    local currentTime = 0
-    local step = 0.02 -- Уменьшаем шаг для более точной траектории
-    local maxTime = math.min(totalPredictionTime + 2, 10) -- Увеличиваем maxTime для больших дистанций
-
-    while currentTime <= maxTime do
-        local position = calculatePosition(startPos, initialVelocity, currentTime)
-        table.insert(trajectoryPoints, position)
-
-        if position.Y <= groundHeight then
-            trajectoryPoints[#trajectoryPoints] = Vector3.new(position.X, groundHeight, position.Z)
-            break
-        end
-
-        currentTime = currentTime + step
-    end
-
-    local projectilePosition = calculatePosition(startPos, initialVelocity, totalPredictionTime)
-    projectilePosition = Vector3.new(projectilePosition.X, math.max(projectilePosition.Y, groundHeight), projectilePosition.Z)
 
     adjustedDirection = (predictedPosition - startPos).Unit
-    angleAdjustment = math.clamp(distance / 15, 0, 1) * 0.3 -- Повторно корректируем угол
+    angleAdjustment = math.clamp(distance / 15, 0, 1) * 0.3
     adjustedDirection = (adjustedDirection + Vector3.new(0, angleAdjustment, 0)).Unit
 
     if ThrowSilent.Settings.PredictVisualisation.Value then
@@ -638,7 +637,7 @@ local function predictTargetPositionAndRotation(target, throwSpeed)
         ThrowSilent.State.RotationVisualPart.CFrame = CFrame.lookAt(startPosVisual, endPos)
         ThrowSilent.State.RotationVisualPart.Position = startPosVisual + (adjustedDirection * 2.5)
 
-        visualizeTrajectory(trajectoryPoints)
+        visualizeTrajectory(startPos, initialVelocity, targetVelocity, targetRoot.Position)
     else
         if ThrowSilent.State.PredictVisualPart then ThrowSilent.State.PredictVisualPart:Destroy() ThrowSilent.State.PredictVisualPart = nil end
         if ThrowSilent.State.RotationVisualPart then ThrowSilent.State.RotationVisualPart:Destroy() ThrowSilent.State.RotationVisualPart = nil end
@@ -720,7 +719,7 @@ local function initializeThrowSilent()
                             local throwSpeed = getThrowSpeed(equippedTool)
                             local prediction = predictTargetPositionAndRotation(nearestPlayer, throwSpeed)
                             args[3] = equippedTool
-                            args[4] = prediction.position
+                            args[4] = prediction.position + Vector3.new(0, 1.5, 0) -- Смещение вверх для точности
                             args[5] = prediction.direction
                         end
                     end
@@ -774,7 +773,7 @@ local function initializeThrowSilent()
                             ThrowSilent.State.V_U_4.event,
                             "throw_item",
                             equippedTool,
-                            prediction.position,
+                            prediction.position + Vector3.new(0, 1.5, 0), -- Смещение вверх для точности
                             prediction.direction
                         }
                         local success, result = pcall(function()
