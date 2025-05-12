@@ -112,7 +112,15 @@ local function isMeleeWeapon(tool)
 end
 
 local function getAttackRadius(tool)
-    local baseRadius = tool and tool:GetAttribute("Range") or KillAura.Settings.DefaultAttackRadius.Value
+    local baseRadius = KillAura.Settings.DefaultAttackRadius.Value
+    if tool then
+        if Core and Core.GetEncryptedAttributeName then
+            local encryptedRangeAttr = Core.GetEncryptedAttributeName("range")
+            baseRadius = tool:GetAttribute(encryptedRangeAttr) or tool:GetAttribute("Range") or baseRadius
+        else
+            baseRadius = tool:GetAttribute("Range") or baseRadius
+        end
+    end
     return baseRadius + KillAura.Settings.RangePlus.Value
 end
 
@@ -427,7 +435,7 @@ local function getNearestPlayer()
     local rootPart = LocalCharacter.HumanoidRootPart
     local nearestPlayer = nil
     local shortestDistance = math.huge
-    local throwRadius = getThrowRadius(getEquippedToolThrowSilent()) -- Восстановили ограничение
+    local throwRadius = getThrowRadius(getEquippedToolThrowSilent())
     
     for _, player in pairs(Players:GetPlayers()) do
         local playerName = player.Name:lower()
@@ -512,11 +520,11 @@ local function visualizeTrajectory(startPos, initialVelocity, targetVelocity, ta
 
     local trajectoryPoints = {}
     local currentTime = 0
-    local step = 0.05 -- Увеличил шаг для оптимизации
-    local maxPoints = 50 -- Ограничил количество точек
+    local step = 0.05
+    local maxPoints = 50
     local groundHeight = Workspace.FallenPartsDestroyHeight or -500
 
-    while currentTime <= 5 and #trajectoryPoints < maxPoints do -- Ограничил время и количество точек
+    while currentTime <= 5 and #trajectoryPoints < maxPoints do
         local position = calculatePosition(startPos, initialVelocity, currentTime)
         local predictedTargetPos = targetPos + targetVelocity * currentTime
         table.insert(trajectoryPoints, position)
@@ -529,7 +537,7 @@ local function visualizeTrajectory(startPos, initialVelocity, targetVelocity, ta
         currentTime = currentTime + step
     end
 
-    for i = 1, #trajectoryPoints - 1, 2 do -- Уменьшил частоту лучей для оптимизации
+    for i = 1, #trajectoryPoints - 1, 2 do
         local startPoint = trajectoryPoints[i]
         local endPoint = trajectoryPoints[math.min(i + 1, #trajectoryPoints)]
 
@@ -545,7 +553,7 @@ local function visualizeTrajectory(startPos, initialVelocity, targetVelocity, ta
         beam.FaceCamera = true
         beam.Width0 = 0.1
         beam.Width1 = 0.1
-        beam.Transparency = NumberSequence.new(0.7) -- Увеличил прозрачность
+        beam.Transparency = NumberSequence.new(0.7)
         beam.Color = ColorSequence.new(Color3.fromRGB(0, 255, 255))
         beam.Attachment0 = attachment0
         beam.Attachment1 = attachment1
@@ -864,7 +872,7 @@ local function checkToolChange()
         if currentTool and not KillAura.State.LastTool then
             if isMeleeWeapon(currentTool) then
                 local radius = getAttackRadius(currentTool)
-                local baseRange = currentTool:GetAttribute("Range") or KillAura.Settings.DefaultAttackRadius.Value
+                local baseRange = getAttackRadius(currentTool) - KillAura.Settings.RangePlus.Value -- Получаем базовый range
                 if UI and UI.Window and UI.Window.Notify then
                     UI.Window:Notify({ Title = "KillAura", Description = "Equipped: " .. currentTool.Name .. " (Base Range: " .. baseRange .. ", Total Range: " .. radius .. ")", true })
                 end
@@ -883,8 +891,10 @@ local function checkToolChange()
             if isMeleeWeapon(currentTool) then
                 local oldRadius = getAttackRadius(KillAura.State.LastTool)
                 local newRadius = getAttackRadius(currentTool)
+                local oldBaseRange = getAttackRadius(KillAura.State.LastTool) - KillAura.Settings.RangePlus.Value
+                local newBaseRange = getAttackRadius(currentTool) - KillAura.Settings.RangePlus.Value
                 if UI and UI.Window and UI.Window.Notify then
-                    UI.Window:Notify({ Title = "KillAura", Description = "Switched from " .. KillAura.State.LastTool.Name .. " (Range: " .. oldRadius .. ") to " .. currentTool.Name .. " (Range: " .. newRadius .. ")", true })
+                    UI.Window:Notify({ Title = "KillAura", Description = "Switched from " .. KillAura.State.LastTool.Name .. " (Base Range: " .. oldBaseRange .. ", Range: " .. oldRadius .. ") to " .. currentTool.Name .. " (Base Range: " .. newBaseRange .. ", Range: " .. newRadius .. ")", true })
                 end
                 KillAura.State.LastTool = currentTool
             else
