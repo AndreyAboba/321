@@ -1,4 +1,4 @@
-```lua
+
 -- Кэшируем часто используемые сервисы для уменьшения вызовов
 local Players
 local Workspace
@@ -1332,4 +1332,3 @@ end
 return {
     Init = Init
 }
-```
