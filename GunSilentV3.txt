@@ -80,6 +80,7 @@ local function safeCreateInstance(className, properties)
     if success then
         return result
     else
+        warn(string.format("[GunSilent] Failed to create %s: %s", className, result))
         return nil
     end
 end
@@ -449,7 +450,7 @@ end
 
 local function updateVisualsGun(target)
     local currentTime = tick()
-    if currentTime - GunSilent.State.LastVisualUpdateTime < 0.016 then return end
+    if currentTime - GunSilent.State.LastVisualUpdateTime < 0.0345 then return end -- ~29 FPS (1/29 ≈ 0.0345)
     GunSilent.State.LastVisualUpdateTime = currentTime
 
     local localRoot = GunSilent.State.LocalRoot
@@ -513,9 +514,9 @@ local function updateVisualsGun(target)
         if not trajectoryBeam or not trajectoryBeam.Parent then
             trajectoryBeam = safeCreateInstance("Beam", {
                 FaceCamera = true,
-                Width0 = 0.2,
-                Width1 = 0.2,
-                Transparency = NumberSequence.new(0.5),
+                Width0 = 0.15,
+                Width1 = 0.15,
+                Transparency = NumberSequence.new(0.4),
                 Color = ColorSequence.new(Color3.fromRGB(147, 112, 219)),
                 Parent = Workspace
             })
@@ -1106,6 +1107,7 @@ local function Init(UI, Core, notify)
                 CombatElements.BulletSpeed.callback(CombatElements.BulletSpeed.element:GetValue())
                 VisualsElements.BulletTrailsEnabled.callback(VisualsElements.BulletTrailsEnabled.element:GetState())
                 VisualsElements.BulletTrailsFadeTime.callback(VisualsElements.BulletTrailsFadeTime.element:GetValue())
+                VisualsElements.BulletTrailsColor.callback(VisualsElements.BulletTrailsColor.element:GetValue())
                 safeNotify(GunSilent.notify, "GunSilent", "Settings synchronized with UI!", true)
             end
         }, 'SyncSettings')
