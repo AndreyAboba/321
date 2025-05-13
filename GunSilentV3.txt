@@ -101,24 +101,24 @@ end
 
 local function getGunRange(tool)
     if not tool or typeof(tool) ~= "Instance" or not tool:IsA("Tool") then
-        return GunSilent.Settings.RangePlus.Value
+        return 0
     end
     if GunSilent.Core and GunSilent.Core.GetEncryptedAttributeName then
         local encryptedRangeAttr = GunSilent.Core.GetEncryptedAttributeName("range")
         if encryptedRangeAttr then
             local attrValue = tool:GetAttribute(encryptedRangeAttr)
             if type(attrValue) == "number" then
-                return attrValue + GunSilent.Settings.RangePlus.Value
+                return attrValue
             else
-                safeNotify(GunSilent.notify, "GunSilent", "Error: Range attribute is not a number, using RangePlus", true)
+                safeNotify(GunSilent.notify, "GunSilent", "Error: Range attribute is not a number, using 0", true)
             end
         else
-            safeNotify(GunSilent.notify, "GunSilent", "Error: Encrypted attribute name for 'range' is nil, using RangePlus", true)
+            safeNotify(GunSilent.notify, "GunSilent", "Error: Encrypted attribute name for 'range' is nil, using 0", true)
         end
     else
-        safeNotify(GunSilent.notify, "GunSilent", "Error: GunSilent.Core or GetEncryptedAttributeName is not available, using RangePlus", true)
+        safeNotify(GunSilent.notify, "GunSilent", "Error: GunSilent.Core or GetEncryptedAttributeName is not available, using 0", true)
     end
-    return GunSilent.Settings.RangePlus.Value
+    return 0
 end
 
 local function getEquippedGunTool(character)
@@ -157,10 +157,13 @@ local function updateFovCircle()
 
     local newRadius = math.tan(math.rad(GunSilent.Settings.FOV.Value) / 2) * camera.ViewportSize.X / 2
     local circlePos = GunSilent.Settings.CircleMethod.Value == "Cursor" and UserInputService:GetMouseLocation() or camera.ViewportSize / 2
+    local lastUpdate = GunSilent.State.LastVisualUpdateTime or 0
+    if tick() - lastUpdate < 1/30 then return end -- Ограничение до 30 FPS
 
     fovCircle.Radius = newRadius
     fovCircle.Position = circlePos
     fovCircle.Visible = true
+    GunSilent.State.LastVisualUpdateTime = tick()
 end
 
 local function isInFov(targetPos, camera)
@@ -470,16 +473,22 @@ end
 
 local function updateVisualsGun(target)
     local currentTime = tick()
-    if currentTime - GunSilent.State.LastVisualUpdateTime < 0.0345 then return end
+    if currentTime - GunSilent.State.LastVisualUpdateTime < 1/30 then return end -- Ограничение до 30 FPS
     GunSilent.State.LastVisualUpdateTime = currentTime
 
     local localRoot = GunSilent.State.LocalRoot
     if not GunSilent.Settings.Enabled.Value or not localRoot then
         if GunSilent.State.PredictVisualPart then
             GunSilent.State.PredictVisualPart.Transparency = 1
+            if not GunSilent.State.PredictVisualPart.Parent then
+                GunSilent.State.PredictVisualPart = nil
+            end
         end
         if GunSilent.State.TrajectoryBeam then
             GunSilent.State.TrajectoryBeam.Enabled = false
+            if not GunSilent.State.TrajectoryBeam.Parent then
+                GunSilent.State.TrajectoryBeam = nil
+            end
         end
         return
     end
@@ -491,9 +500,15 @@ local function updateVisualsGun(target)
     if not target or not target.Character or not predictionPos or not prediction.direction then
         if GunSilent.State.PredictVisualPart then
             GunSilent.State.PredictVisualPart.Transparency = 1
+            if not GunSilent.State.PredictVisualPart.Parent then
+                GunSilent.State.PredictVisualPart = nil
+            end
         end
         if GunSilent.State.TrajectoryBeam then
             GunSilent.State.TrajectoryBeam.Enabled = false
+            if not GunSilent.State.TrajectoryBeam.Parent then
+                GunSilent.State.TrajectoryBeam = nil
+            end
         end
         return
     end
@@ -527,6 +542,9 @@ local function updateVisualsGun(target)
         end
     elseif GunSilent.State.PredictVisualPart then
         GunSilent.State.PredictVisualPart.Transparency = 1
+        if not GunSilent.State.PredictVisualPart.Parent then
+            GunSilent.State.PredictVisualPart = nil
+        end
     end
 
     if GunSilent.Settings.TrajectoryBeam.Value and GunSilent.Settings.PredictVisual.Value then
@@ -563,6 +581,9 @@ local function updateVisualsGun(target)
         end
     elseif GunSilent.State.TrajectoryBeam then
         GunSilent.State.TrajectoryBeam.Enabled = false
+        if not GunSilent.State.TrajectoryBeam.Parent then
+            GunSilent.State.TrajectoryBeam = nil
+        end
     end
 end
 
@@ -623,11 +644,11 @@ local function initializeGunSilent()
         local currentTool = getEquippedGunTool(character)
         if currentTool ~= GunSilent.State.LastTool then
             if currentTool and not GunSilent.State.LastTool then
-                safeNotify(GunSilent.notify, "GunSilent", "Equipped: " .. currentTool.Name .. " (RangePlus: " .. getGunRange(currentTool) .. ")", true)
+                safeNotify(GunSilent.notify, "GunSilent", "Equipped: " .. currentTool.Name .. " (Range: " .. getGunRange(currentTool) .. ")", true)
             elseif GunSilent.State.LastTool and not currentTool then
                 safeNotify(GunSilent.notify, "GunSilent", "Unequipped: " .. GunSilent.State.LastTool.Name, true)
             elseif currentTool and GunSilent.State.LastTool then
-                safeNotify(GunSilent.notify, "GunSilent", "Switched to " .. currentTool.Name .. " (RangePlus: " .. getGunRange(currentTool) .. ")", true)
+                safeNotify(GunSilent.notify, "GunSilent", "Switched to " .. currentTool.Name .. " (Range: " .. getGunRange(currentTool) .. ")", true)
             end
             GunSilent.State.LastTool = currentTool
         end
