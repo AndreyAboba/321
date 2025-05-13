@@ -17,8 +17,9 @@ local GunSilent = {
         TrajectoryBeam = { Value = true, Default = true },
         BulletTrailsEnabled = { Value = false, Default = false },
         BulletTrailsColor = { Value = Color3.fromRGB(147, 112, 219), Default = Color3.fromRGB(147, 112, 219) },
-        BulletTrailsTexture = { Value = "", Default = "", Options = {"", "rbxassetid://12345678", "rbxassetid://87654321"} }, -- Текстуры (замените на реальные ID)
-        BulletTrailsFadeTime = { Value = 1, Default = 1 }, -- Время исчезновения в секундах
+        BulletTrailsTexture = { Value = "None", Default = "None", Options = {"None", "rbxassetid://366502375", "rbxassetid://87654321"} },
+        BulletTrailsCustomTexture = { Value = "", Default = "" }, -- Для кастомной текстуры
+        BulletTrailsFadeTime = { Value = 1, Default = 1 },
         HitChance = { Value = 100, Default = 100 },
         PredictionStrength = { Value = 1.5, Default = 1.5 },
         PingCompensation = { Value = 0.1, Default = 0.1 },
@@ -36,6 +37,8 @@ local GunSilent = {
         LastTool = nil,
         PredictVisualPart = nil,
         TrajectoryBeam = nil,
+        TrajectoryAttachment0 = nil,
+        TrajectoryAttachment1 = nil,
         FovCircle = nil,
         V_U_4 = nil,
         Connection = nil,
@@ -394,13 +397,17 @@ local function createHitDataGun(target)
     -- Создание Bullet Trails при выстреле
     if GunSilent.Settings.BulletTrailsEnabled.Value and localRoot and prediction.position then
         local startPos = localRoot.Position + Vector3.new(0, 1.5, 0)
+        local texture = GunSilent.Settings.BulletTrailsTexture.Value == "None" and "" or GunSilent.Settings.BulletTrailsTexture.Value
+        if GunSilent.Settings.BulletTrailsCustomTexture.Value ~= "" then
+            texture = GunSilent.Settings.BulletTrailsCustomTexture.Value
+        end
         local trail = safeCreateInstance("Beam", {
             FaceCamera = true,
             Width0 = 0.1,
             Width1 = 0.1,
             Transparency = NumberSequence.new(0),
             Color = ColorSequence.new(GunSilent.Settings.BulletTrailsColor.Value),
-            Texture = GunSilent.Settings.BulletTrailsTexture.Value,
+            Texture = texture,
             Parent = Workspace
         })
         if trail then
@@ -512,9 +519,9 @@ local function updateVisualsGun(target)
     end
 
     if GunSilent.Settings.TrajectoryBeam.Value and GunSilent.Settings.PredictVisual.Value then
-        local trajectoryBeam = GunSilent.State.TrajectoryBeam
-        if not trajectoryBeam or not trajectoryBeam.Parent then
-            trajectoryBeam = safeCreateInstance("Beam", {
+        -- Пересоздаем TrajectoryBeam, если он отсутствует или его Parent потерян
+        if not GunSilent.State.TrajectoryBeam or not GunSilent.State.TrajectoryBeam.Parent then
+            local newBeam = safeCreateInstance("Beam", {
                 FaceCamera = true,
                 Width0 = 0.15,
                 Width1 = 0.15,
@@ -522,9 +529,12 @@ local function updateVisualsGun(target)
                 Color = ColorSequence.new(Color3.fromRGB(147, 112, 219)),
                 Parent = Workspace
             })
-            GunSilent.State.TrajectoryBeam = trajectoryBeam
+            GunSilent.State.TrajectoryBeam = newBeam
+            GunSilent.State.TrajectoryAttachment0 = nil
+            GunSilent.State.TrajectoryAttachment1 = nil
         end
 
+        -- Пересоздаем аттачменты, если они отсутствуют или потеряли Parent
         if not GunSilent.State.TrajectoryAttachment0 or not GunSilent.State.TrajectoryAttachment0.Parent then
             GunSilent.State.TrajectoryAttachment0 = safeCreateInstance("Attachment", { Parent = localRoot })
         end
@@ -532,6 +542,7 @@ local function updateVisualsGun(target)
             GunSilent.State.TrajectoryAttachment1 = safeCreateInstance("Attachment", { Parent = GunSilent.State.PredictVisualPart })
         end
 
+        local trajectoryBeam = GunSilent.State.TrajectoryBeam
         if trajectoryBeam and GunSilent.State.TrajectoryAttachment0 and GunSilent.State.TrajectoryAttachment1 then
             trajectoryBeam.Attachment0 = GunSilent.State.TrajectoryAttachment0
             trajectoryBeam.Attachment1 = GunSilent.State.TrajectoryAttachment1
@@ -641,6 +652,7 @@ local function Init(UI, Core, notify)
             character:WaitForChild("HumanoidRootPart")
             GunSilent.State.LocalCharacter = character
             GunSilent.State.LocalRoot = character.HumanoidRootPart
+            -- Пересоздаем аттачменты при возрождении
             if GunSilent.State.TrajectoryBeam then
                 if not GunSilent.State.TrajectoryAttachment0 or not GunSilent.State.TrajectoryAttachment0.Parent then
                     GunSilent.State.TrajectoryAttachment0 = safeCreateInstance("Attachment", { Parent = GunSilent.State.LocalRoot })
@@ -660,6 +672,7 @@ local function Init(UI, Core, notify)
         end
     end
 
+    -- Таб Combat
     if UI.Tabs.Combat then
         UI.Sections.GunSilent = UI.Tabs.Combat:Section({ Side = "Right", Name = "GunSilent" })
         if UI.Sections.GunSilent then
@@ -863,102 +876,6 @@ local function Init(UI, Core, notify)
                     safeNotify(GunSilent.notify, "GunSilent", "Trajectory Beam " .. (value and "Enabled" or "Disabled"), true)
                 end
             }
-            uiElements.BulletTrailsEnabled = {
-                element = UI.Sections.GunSilent:Toggle({
-                    Name = "Bullet Trails Enabled",
-                    Default = GunSilent.Settings.BulletTrailsEnabled.Value,
-                    Callback = function(value)
-                        GunSilent.Settings.BulletTrailsEnabled.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails " .. (value and "Enabled" or "Disabled"), true)
-                        if not value then
-                            for _, trailData in ipairs(GunSilent.State.BulletTrails) do
-                                if trailData.beam then
-                                    trailData.beam:Destroy()
-                                end
-                                if trailData.attachment0 then
-                                    trailData.attachment0:Destroy()
-                                end
-                                if trailData.attachment1 then
-                                    trailData.attachment1:Destroy()
-                                end
-                            end
-                            GunSilent.State.BulletTrails = {}
-                            for _, conn in ipairs(GunSilent.State.TrailFadeConnections) do
-                                if conn then conn:Disconnect() end
-                            end
-                            GunSilent.State.TrailFadeConnections = {}
-                        end
-                    end
-                }, 'BulletTrailsEnabled'),
-                callback = function(value)
-                    GunSilent.Settings.BulletTrailsEnabled.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails " .. (value and "Enabled" or "Disabled"), true)
-                    if not value then
-                        for _, trailData in ipairs(GunSilent.State.BulletTrails) do
-                            if trailData.beam then
-                                trailData.beam:Destroy()
-                            end
-                            if trailData.attachment0 then
-                                trailData.attachment0:Destroy()
-                            end
-                            if trailData.attachment1 then
-                                trailData.attachment1:Destroy()
-                            end
-                        end
-                        GunSilent.State.BulletTrails = {}
-                        for _, conn in ipairs(GunSilent.State.TrailFadeConnections) do
-                            if conn then conn:Disconnect() end
-                        end
-                        GunSilent.State.TrailFadeConnections = {}
-                    end
-                end
-            }
-            uiElements.BulletTrailsColor = {
-                element = UI.Sections.GunSilent:Colorpicker({
-                    Name = "Bullet Trails Color",
-                    Default = GunSilent.Settings.BulletTrailsColor.Value,
-                    Callback = function(value)
-                        GunSilent.Settings.BulletTrailsColor.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails Color updated", false)
-                    end
-                }, 'BulletTrailsColor'),
-                callback = function(value)
-                    GunSilent.Settings.BulletTrailsColor.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails Color updated", false)
-                end
-            }
-            uiElements.BulletTrailsTexture = {
-                element = UI.Sections.GunSilent:Dropdown({
-                    Name = "Bullet Trails Texture",
-                    Default = GunSilent.Settings.BulletTrailsTexture.Value,
-                    Options = GunSilent.Settings.BulletTrailsTexture.Options,
-                    Callback = function(value)
-                        GunSilent.Settings.BulletTrailsTexture.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails Texture updated", false)
-                    end
-                }, 'BulletTrailsTexture'),
-                callback = function(value)
-                    GunSilent.Settings.BulletTrailsTexture.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails Texture updated", false)
-                end
-            }
-            uiElements.BulletTrailsFadeTime = {
-                element = UI.Sections.GunSilent:Slider({
-                    Name = "Bullet Trails Fade Time",
-                    Default = GunSilent.Settings.BulletTrailsFadeTime.Value,
-                    Minimum = 0.5,
-                    Maximum = 3,
-                    Precision = 1,
-                    Callback = function(value)
-                        GunSilent.Settings.BulletTrailsFadeTime.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails Fade Time set to: " .. value .. "s", false)
-                    end
-                }, 'BulletTrailsFadeTime'),
-                callback = function(value)
-                    GunSilent.Settings.BulletTrailsFadeTime.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails Fade Time set to: " .. value .. "s", false)
-                end
-            }
             uiElements.HitChance = {
                 element = UI.Sections.GunSilent:Slider({
                     Name = "Hit Chance",
@@ -1076,76 +993,215 @@ local function Init(UI, Core, notify)
                     safeNotify(GunSilent.notify, "GunSilent", "Bullet Speed set to: " .. value, false)
                 end
             }
-
-            local gunconfigSection
-            if UI.Tabs.Config then
-                gunconfigSection = UI.Tabs.Config:Section({ Name = "GunSilent Sync", Side = "Right" })
-            end
-
-            if gunconfigSection then
-                gunconfigSection:Header({ Name = "GunSilent Settings Sync" })
-                gunconfigSection:Button({
-                    Name = "Sync Settings",
-                    Callback = function()
-                        if uiElements.RangePlus then
-                            uiElements.RangePlus.callback(uiElements.RangePlus.element:GetValue())
-                        end
-                        if uiElements.HitPart then
-                            local hitPartOptions = uiElements.HitPart.element:GetOptions()
-                            for option, selected in pairs(hitPartOptions) do
-                                if selected then
-                                    uiElements.HitPart.callback(option)
-                                    break
-                                end
-                            end
-                        end
-                        if uiElements.GenerateBullets then
-                            uiElements.GenerateBullets.callback(uiElements.GenerateBullets.element:GetValue())
-                        end
-                        if uiElements.SortMethod then
-                            local sortMethodOptions = uiElements.SortMethod.element:GetOptions()
-                            for option, selected in pairs(sortMethodOptions) do
-                                if selected then
-                                    uiElements.SortMethod.callback(option)
-                                    break
-                                end
-                            end
-                        end
-                        if uiElements.FOV then
-                            uiElements.FOV.callback(uiElements.FOV.element:GetValue())
-                        end
-                        if uiElements.CircleMethod then
-                            local circleMethodOptions = uiElements.CircleMethod.element:GetOptions()
-                            for option, selected in pairs(circleMethodOptions) do
-                                if selected then
-                                    uiElements.CircleMethod.callback(option)
-                                    break
-                                end
-                            end
-                        end
-                        if uiElements.HitChance then
-                            uiElements.HitChance.callback(uiElements.HitChance.element:GetValue())
-                        end
-                        if uiElements.PredictionStrength then
-                            uiElements.PredictionStrength.callback(uiElements.PredictionStrength.element:GetValue())
-                        end
-                        if uiElements.PingCompensation then
-                            uiElements.PingCompensation.callback(uiElements.PingCompensation.element:GetValue())
-                        end
-                        if uiElements.SmoothingFactor then
-                            uiElements.SmoothingFactor.callback(uiElements.SmoothingFactor.element:GetValue())
-                        end
-                        if uiElements.ResolverThreshold then
-                            uiElements.ResolverThreshold.callback(uiElements.ResolverThreshold.element:GetValue())
-                        end
-                        if uiElements.BulletSpeed then
-                            uiElements.BulletSpeed.callback(uiElements.BulletSpeed.element:GetValue())
-                        end
-                        safeNotify(GunSilent.notify, "GunSilent", "Settings synchronized with UI!", true)
-                    end
-                }, 'SyncSettings')
-            end
         end
+    end
+
+    -- Таб Visuals
+    if UI.Tabs.Visuals then
+        UI.Sections.BulletTrails = UI.Tabs.Visuals:Section({ Side = "Right", Name = "Bullet Trails" })
+        if UI.Sections.BulletTrails then
+            local uiElementsVisuals = {}
+
+            UI.Sections.BulletTrails:Header({ Name = "Bullet Trails Settings" })
+            uiElementsVisuals.BulletTrailsEnabled = {
+                element = UI.Sections.BulletTrails:Toggle({
+                    Name = "Bullet Trails Enabled",
+                    Default = GunSilent.Settings.BulletTrailsEnabled.Value,
+                    Callback = function(value)
+                        GunSilent.Settings.BulletTrailsEnabled.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails " .. (value and "Enabled" or "Disabled"), true)
+                        if not value then
+                            for _, trailData in ipairs(GunSilent.State.BulletTrails) do
+                                if trailData.beam then
+                                    trailData.beam:Destroy()
+                                end
+                                if trailData.attachment0 then
+                                    trailData.attachment0:Destroy()
+                                end
+                                if trailData.attachment1 then
+                                    trailData.attachment1:Destroy()
+                                end
+                            end
+                            GunSilent.State.BulletTrails = {}
+                            for _, conn in ipairs(GunSilent.State.TrailFadeConnections) do
+                                if conn then conn:Disconnect() end
+                            end
+                            GunSilent.State.TrailFadeConnections = {}
+                        end
+                    end
+                }, 'BulletTrailsEnabled'),
+                callback = function(value)
+                    GunSilent.Settings.BulletTrailsEnabled.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails " .. (value and "Enabled" or "Disabled"), true)
+                    if not value then
+                        for _, trailData in ipairs(GunSilent.State.BulletTrails) do
+                            if trailData.beam then
+                                trailData.beam:Destroy()
+                            end
+                            if trailData.attachment0 then
+                                trailData.attachment0:Destroy()
+                            end
+                            if trailData.attachment1 then
+                                trailData.attachment1:Destroy()
+                            end
+                        end
+                        GunSilent.State.BulletTrails = {}
+                        for _, conn in ipairs(GunSilent.State.TrailFadeConnections) do
+                            if conn then conn:Disconnect() end
+                        end
+                        GunSilent.State.TrailFadeConnections = {}
+                    end
+                end
+            }
+            uiElementsVisuals.BulletTrailsColor = {
+                element = UI.Sections.BulletTrails:Colorpicker({
+                    Name = "Bullet Trails Color",
+                    Default = GunSilent.Settings.BulletTrailsColor.Value,
+                    Callback = function(value)
+                        GunSilent.Settings.BulletTrailsColor.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails Color updated", false)
+                    end
+                }, 'BulletTrailsColor'),
+                callback = function(value)
+                    GunSilent.Settings.BulletTrailsColor.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails Color updated", false)
+                end
+            }
+            uiElementsVisuals.BulletTrailsTexture = {
+                element = UI.Sections.BulletTrails:Dropdown({
+                    Name = "Bullet Trails Texture",
+                    Default = GunSilent.Settings.BulletTrailsTexture.Value,
+                    Options = GunSilent.Settings.BulletTrailsTexture.Options,
+                    Callback = function(value)
+                        GunSilent.Settings.BulletTrailsTexture.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails Texture updated", false)
+                    end
+                }, 'BulletTrailsTexture'),
+                callback = function(value)
+                    GunSilent.Settings.BulletTrailsTexture.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails Texture updated", false)
+                end
+            }
+            uiElementsVisuals.BulletTrailsCustomTexture = {
+                element = UI.Sections.BulletTrails:Textbox({
+                    Name = "Custom Texture ID",
+                    Default = GunSilent.Settings.BulletTrailsCustomTexture.Value,
+                    Callback = function(value)
+                        GunSilent.Settings.BulletTrailsCustomTexture.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails Custom Texture updated", false)
+                    end
+                }, 'BulletTrailsCustomTexture'),
+                callback = function(value)
+                    GunSilent.Settings.BulletTrailsCustomTexture.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails Custom Texture updated", false)
+                end
+            }
+            uiElementsVisuals.BulletTrailsFadeTime = {
+                element = UI.Sections.BulletTrails:Slider({
+                    Name = "Fade Time",
+                    Default = GunSilent.Settings.BulletTrailsFadeTime.Value,
+                    Minimum = 0.5,
+                    Maximum = 3,
+                    Precision = 1,
+                    Callback = function(value)
+                        GunSilent.Settings.BulletTrailsFadeTime.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Fade Time set to: " .. value .. "s", false)
+                    end
+                }, 'BulletTrailsFadeTime'),
+                callback = function(value)
+                    GunSilent.Settings.BulletTrailsFadeTime.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Fade Time set to: " .. value .. "s", false)
+                end
+            }
+        end
+    end
+
+    -- Синхронизация настроек
+    local gunconfigSection
+    if UI.Tabs.Config then
+        gunconfigSection = UI.Tabs.Config:Section({ Name = "GunSilent Sync", Side = "Right" })
+    end
+
+    if gunconfigSection then
+        local uiElements = UI.Sections.GunSilent and UI.Sections.GunSilent.uiElements or {}
+        local uiElementsVisuals = UI.Sections.BulletTrails and UI.Sections.BulletTrails.uiElements or {}
+
+        gunconfigSection:Header({ Name = "GunSilent Settings Sync" })
+        gunconfigSection:Button({
+            Name = "Sync Settings",
+            Callback = function()
+                if uiElements.RangePlus then
+                    uiElements.RangePlus.callback(uiElements.RangePlus.element:GetValue())
+                end
+                if uiElements.HitPart then
+                    local hitPartOptions = uiElements.HitPart.element:GetOptions()
+                    for option, selected in pairs(hitPartOptions) do
+                        if selected then
+                            uiElements.HitPart.callback(option)
+                            break
+                        end
+                    end
+                end
+                if uiElements.GenerateBullets then
+                    uiElements.GenerateBullets.callback(uiElements.GenerateBullets.element:GetValue())
+                end
+                if uiElements.SortMethod then
+                    local sortMethodOptions = uiElements.SortMethod.element:GetOptions()
+                    for option, selected in pairs(sortMethodOptions) do
+                        if selected then
+                            uiElements.SortMethod.callback(option)
+                            break
+                        end
+                    end
+                end
+                if uiElements.FOV then
+                    uiElements.FOV.callback(uiElements.FOV.element:GetValue())
+                end
+                if uiElements.CircleMethod then
+                    local circleMethodOptions = uiElements.CircleMethod.element:GetOptions()
+                    for option, selected in pairs(circleMethodOptions) do
+                        if selected then
+                            uiElements.CircleMethod.callback(option)
+                            break
+                        end
+                    end
+                end
+                if uiElements.HitChance then
+                    uiElements.HitChance.callback(uiElements.HitChance.element:GetValue())
+                end
+                if uiElements.PredictionStrength then
+                    uiElements.PredictionStrength.callback(uiElements.PredictionStrength.element:GetValue())
+                end
+                if uiElements.PingCompensation then
+                    uiElements.PingCompensation.callback(uiElements.PingCompensation.element:GetValue())
+                end
+                if uiElements.SmoothingFactor then
+                    uiElements.SmoothingFactor.callback(uiElements.SmoothingFactor.element:GetValue())
+                end
+                if uiElements.ResolverThreshold then
+                    uiElements.ResolverThreshold.callback(uiElements.ResolverThreshold.element:GetValue())
+                end
+                if uiElements.BulletSpeed then
+                    uiElements.BulletSpeed.callback(uiElements.BulletSpeed.element:GetValue())
+                end
+                if uiElementsVisuals.BulletTrailsFadeTime then
+                    uiElementsVisuals.BulletTrailsFadeTime.callback(uiElementsVisuals.BulletTrailsFadeTime.element:GetValue())
+                end
+                if uiElementsVisuals.BulletTrailsTexture then
+                    local textureOptions = uiElementsVisuals.BulletTrailsTexture.element:GetOptions()
+                    for option, selected in pairs(textureOptions) do
+                        if selected then
+                            uiElementsVisuals.BulletTrailsTexture.callback(option)
+                            break
+                        end
+                    end
+                end
+                if uiElementsVisuals.BulletTrailsCustomTexture then
+                    uiElementsVisuals.BulletTrailsCustomTexture.callback(uiElementsVisuals.BulletTrailsCustomTexture.element:GetValue())
+                end
+                safeNotify(GunSilent.notify, "GunSilent", "Settings synchronized with UI!", true)
+            end
+        }, 'SyncSettings')
     end
 
     initializeGunSilent()
