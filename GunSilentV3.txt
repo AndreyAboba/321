@@ -19,9 +19,9 @@ local GunSilent = {
         BulletTrailsFadeTime = { Value = 1, Default = 1 },
         BulletTrailsColor = { Value = Color3.fromRGB(147, 112, 219), Default = Color3.fromRGB(147, 112, 219) },
         HitChance = { Value = 100, Default = 100 },
-        PredictionStrength = { Value = 1.5, Default = 1.5 },
+        PredictionStrength = { Value = 1.0, Default = 1.0 }, -- Уменьшено для стабильности
         PingCompensation = { Value = 0.1, Default = 0.1 },
-        SmoothingFactor = { Value = 0.1, Default = 0.1 },
+        SmoothingFactor = { Value = 0.05, Default = 0.05 }, -- Уменьшено для более плавного предикта
         ResolverEnabled = { Value = true, Default = true },
         ResolverThreshold = { Value = 0.3, Default = 0.3 },
         PositionHistorySize = { Value = 30, Default = 30 },
@@ -53,8 +53,8 @@ local GunSilent = {
         LastFriendsList = nil,
         BulletTrails = {},
         TrailFadeConnections = {},
-        CurrentToolRangeApplied = nil, -- Флаг для отслеживания инструмента, для которого применен range
-        BaseRangeCache = {} -- Кэш для хранения базовых значений range
+        CurrentToolRangeApplied = nil,
+        BaseRangeCache = {}
     }
 }
 
@@ -103,16 +103,22 @@ end
 
 local function getEquippedGunTool()
     local localPlayer = Players.LocalPlayer
-    if not localPlayer then return nil end
+    if not localPlayer or not localPlayer.Character then return nil end
 
+    -- Проверяем сначала в папке игрока в Workspace
     local playerName = localPlayer.Name
     local playerFolder = Workspace:FindFirstChild(playerName)
-    if not playerFolder then
-        -- safeNotify(GunSilent.notify, "GunSilent", "Player folder not found in Workspace", false)
-        return nil
+    if playerFolder then
+        for _, child in pairs(playerFolder:GetChildren()) do
+            if child.ClassName == "Tool" and isGunTool(child) then
+                return child
+            end
+        end
     end
 
-    for _, child in pairs(playerFolder:GetChildren()) do
+    -- Если не нашли в папке игрока, проверяем в character
+    local character = localPlayer.Character
+    for _, child in pairs(character:GetChildren()) do
         if child.ClassName == "Tool" and isGunTool(child) then
             return child
         end
@@ -125,16 +131,12 @@ local function getGunRange(tool)
         return GunSilent.Settings.RangePlus.Value
     end
 
-    -- Проверяем, является ли инструмент экипированным
     local equippedTool = getEquippedGunTool()
     if tool ~= equippedTool then
-        return GunSilent.Settings.RangePlus.Value -- Возвращаем только RangePlus, если инструмент не экипирован
+        return GunSilent.Settings.RangePlus.Value
     end
 
-    -- Получаем зашифрованное имя атрибута 'range'
-    local encryptedRangeAttr = GunSilent.Core.GetEncryptedAttributeName("range")
-
-    -- Получаем базовое значение range из кэша или инструмента
+    local encryptedRangeAttr = GunSilent.Core.GetEncryptedAttributeName and GunSilent.Core.GetEncryptedAttributeName("range") or "range"
     local toolId = tostring(tool)
     local baseRange = GunSilent.State.BaseRangeCache[toolId]
     if not baseRange then
@@ -143,10 +145,7 @@ local function getGunRange(tool)
         safeNotify(GunSilent.notify, "GunSilent", "Cached base range for " .. tool.Name .. ": " .. baseRange, false)
     end
 
-    -- Вычисляем итоговое значение
     local totalRange = baseRange + GunSilent.Settings.RangePlus.Value
-
-    -- Применяем значение только один раз, если еще не применялось
     if GunSilent.State.CurrentToolRangeApplied ~= tool then
         pcall(function()
             tool:SetAttribute(encryptedRangeAttr, totalRange)
@@ -275,7 +274,7 @@ local function isInVehicle(targetChar)
 end
 
 local function resolveVelocity(target, positionHistory, clientVelocity, targetChar)
-    if not GunSilent.Settings.ResolverEnabled.Value or not positionHistory or #positionHistory < 3 then
+    if not GunSilent.Settings.ResolverEnabled.Value or not positionHistory or #positionHistory < 5 then -- Увеличено до 5 для точности
         return clientVelocity
     end
 
@@ -451,42 +450,44 @@ local function createHitDataGun(target)
         if trail then
             local attachment0 = safeCreateInstance("Attachment", { Parent = Workspace.Terrain })
             local attachment1 = safeCreateInstance("Attachment", { Parent = Workspace.Terrain })
-            attachment0.Position = startPos
-            attachment1.Position = prediction.position
-            trail.Attachment0 = attachment0
-            trail.Attachment1 = attachment1
+            if attachment0 and attachment1 then
+                attachment0.Position = startPos
+                attachment1.Position = prediction.position
+                trail.Attachment0 = attachment0
+                trail.Attachment1 = attachment1
 
-            table.insert(GunSilent.State.BulletTrails, { beam = trail, attachment0 = attachment0, attachment1 = attachment1 })
+                table.insert(GunSilent.State.BulletTrails, { beam = trail, attachment0 = attachment0, attachment1 = attachment1 })
 
-            local fadeTime = GunSilent.Settings.BulletTrailsFadeTime.Value
-            local startTime = tick()
-            local fadeConnection
-            fadeConnection = RunService.RenderStepped:Connect(function()
-                local elapsed = tick() - startTime
-                local t = math.clamp(elapsed / fadeTime, 0, 1)
-                if trail and trail.Parent then
-                    trail.Transparency = NumberSequence.new(t)
-                end
-                if t >= 1 then
-                    if trail then trail:Destroy() end
-                    if attachment0 then attachment0:Destroy() end
-                    if attachment1 then attachment1:Destroy() end
-                    if fadeConnection then fadeConnection:Disconnect() end
-                    for i, v in ipairs(GunSilent.State.BulletTrails) do
-                        if v.beam == trail then
-                            table.remove(GunSilent.State.BulletTrails, i)
-                            break
+                local fadeTime = GunSilent.Settings.BulletTrailsFadeTime.Value
+                local startTime = tick()
+                local fadeConnection
+                fadeConnection = RunService.RenderStepped:Connect(function()
+                    local elapsed = tick() - startTime
+                    local t = math.clamp(elapsed / fadeTime, 0, 1)
+                    if trail and trail.Parent then
+                        trail.Transparency = NumberSequence.new(t)
+                    end
+                    if t >= 1 then
+                        if trail then trail:Destroy() end
+                        if attachment0 then attachment0:Destroy() end
+                        if attachment1 then attachment1:Destroy() end
+                        if fadeConnection then fadeConnection:Disconnect() end
+                        for i, v in ipairs(GunSilent.State.BulletTrails) do
+                            if v.beam == trail then
+                                table.remove(GunSilent.State.BulletTrails, i)
+                                break
+                            end
+                        end
+                        for i, conn in ipairs(GunSilent.State.TrailFadeConnections) do
+                            if conn == fadeConnection then
+                                table.remove(GunSilent.State.TrailFadeConnections, i)
+                                break
+                            end
                         end
                     end
-                    for i, conn in ipairs(GunSilent.State.TrailFadeConnections) do
-                        if conn == fadeConnection then
-                            table.remove(GunSilent.State.TrailFadeConnections, i)
-                            break
-                        end
-                    end
-                end
-            end)
-            table.insert(GunSilent.State.TrailFadeConnections, fadeConnection)
+                end)
+                table.insert(GunSilent.State.TrailFadeConnections, fadeConnection)
+            end
         end
     end
 
@@ -495,7 +496,7 @@ end
 
 local function updateVisualsGun(target)
     local currentTime = tick()
-    if currentTime - GunSilent.State.LastVisualUpdateTime < 0.0345 then return end -- ~29 FPS (1/29 ≈ 0.0345)
+    if currentTime - GunSilent.State.LastVisualUpdateTime < 0.0345 then return end -- ~29 FPS
     GunSilent.State.LastVisualUpdateTime = currentTime
 
     local localRoot = GunSilent.State.LocalRoot
@@ -565,26 +566,37 @@ local function updateVisualsGun(target)
                 Color = ColorSequence.new(Color3.fromRGB(147, 112, 219)),
                 Parent = Workspace
             })
-            local attachment0 = safeCreateInstance("Attachment")
-            local attachment1 = safeCreateInstance("Attachment")
-            trajectoryBeam.Attachment0 = attachment0
-            trajectoryBeam.Attachment1 = attachment1
             GunSilent.State.TrajectoryBeam = trajectoryBeam
-            GunSilent.State.TrajectoryAttachment0 = attachment0
-            GunSilent.State.TrajectoryAttachment1 = attachment1
+            GunSilent.State.TrajectoryAttachment0 = safeCreateInstance("Attachment")
+            GunSilent.State.TrajectoryAttachment1 = safeCreateInstance("Attachment")
+            trajectoryBeam.Attachment0 = GunSilent.State.TrajectoryAttachment0
+            trajectoryBeam.Attachment1 = GunSilent.State.TrajectoryAttachment1
         end
 
-        if GunSilent.State.TrajectoryAttachment0 and GunSilent.State.TrajectoryAttachment1 then
-            GunSilent.State.TrajectoryAttachment0.Parent = localRoot
-            GunSilent.State.TrajectoryAttachment0.Position = Vector3.new(0, 1.5, 0)
+        if trajectoryBeam and GunSilent.State.TrajectoryAttachment0 and GunSilent.State.TrajectoryAttachment1 then
+            if GunSilent.State.TrajectoryAttachment0.Parent ~= localRoot then
+                pcall(function() GunSilent.State.TrajectoryAttachment0.Parent = nil end)
+                GunSilent.State.TrajectoryAttachment0.Parent = localRoot
+                GunSilent.State.TrajectoryAttachment0.Position = Vector3.new(0, 1.5, 0)
+            end
             if GunSilent.State.PredictVisualPart and GunSilent.State.PredictVisualPart.Parent then
-                GunSilent.State.TrajectoryAttachment1.Parent = GunSilent.State.PredictVisualPart
-                GunSilent.State.TrajectoryAttachment1.Position = Vector3.new(0, 0, 0)
+                if GunSilent.State.TrajectoryAttachment1.Parent ~= GunSilent.State.PredictVisualPart then
+                    pcall(function() GunSilent.State.TrajectoryAttachment1.Parent = nil end)
+                    GunSilent.State.TrajectoryAttachment1.Parent = GunSilent.State.PredictVisualPart
+                    GunSilent.State.TrajectoryAttachment1.Position = Vector3.new(0, 0, 0)
+                end
             else
-                GunSilent.State.TrajectoryAttachment1.Parent = Workspace.Terrain
-                GunSilent.State.TrajectoryAttachment1.Position = prediction.position
+                if GunSilent.State.TrajectoryAttachment1.Parent ~= Workspace.Terrain then
+                    pcall(function() GunSilent.State.TrajectoryAttachment1.Parent = nil end)
+                    GunSilent.State.TrajectoryAttachment1.Parent = Workspace.Terrain
+                    GunSilent.State.TrajectoryAttachment1.Position = prediction.position
+                end
             end
             trajectoryBeam.Enabled = true
+        else
+            if GunSilent.State.TrajectoryBeam then
+                GunSilent.State.TrajectoryBeam.Enabled = false
+            end
         end
     elseif GunSilent.State.TrajectoryBeam then
         GunSilent.State.TrajectoryBeam.Enabled = false
@@ -647,6 +659,7 @@ local function initializeGunSilent()
 
         local currentTool = getEquippedGunTool()
         if currentTool ~= GunSilent.State.LastTool then
+            GunSilent.State.PositionHistory = {} -- Очистка истории позиций при смене инструмента
             if currentTool and not GunSilent.State.LastTool then
                 safeNotify(GunSilent.notify, "GunSilent", "Equipped: " .. currentTool.Name .. " (Range: " .. getGunRange(currentTool) .. ")", true)
             elseif GunSilent.State.LastTool and not currentTool then
@@ -667,6 +680,9 @@ local function initializeGunSilent()
 
         local gunRange = getGunRange(currentTool)
         local nearestPlayer = getNearestPlayerGun(gunRange)
+        if nearestPlayer ~= GunSilent.Core.GunSilentTarget.CurrentTarget then
+            GunSilent.State.PositionHistory[nearestPlayer] = nil -- Очистка истории для новой цели
+        end
         updateVisualsGun(nearestPlayer)
     end)
 end
@@ -681,14 +697,9 @@ local function Init(UI, Core, notify)
             character:WaitForChild("HumanoidRootPart")
             GunSilent.State.LocalCharacter = character
             GunSilent.State.LocalRoot = character.HumanoidRootPart
-            if GunSilent.State.TrajectoryBeam then
-                if GunSilent.State.TrajectoryAttachment0 then
-                    GunSilent.State.TrajectoryAttachment0.Parent = GunSilent.State.LocalRoot
-                    GunSilent.State.TrajectoryAttachment0.Position = Vector3.new(0, 1.5, 0)
-                end
-            end
             GunSilent.State.CurrentToolRangeApplied = nil
             GunSilent.State.BaseRangeCache = {}
+            GunSilent.State.PositionHistory = {} -- Очистка истории при респавне
         end)
         if LocalPlayer.Character then
             GunSilent.State.LocalCharacter = LocalPlayer.Character
@@ -1043,15 +1054,9 @@ local function Init(UI, Core, notify)
                         safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails " .. (value and "Enabled" or "Disabled"), true)
                         if not value then
                             for _, trailData in ipairs(GunSilent.State.BulletTrails) do
-                                if trailData.beam then
-                                    trailData.beam:Destroy()
-                                end
-                                if trailData.attachment0 then
-                                    trailData.attachment0:Destroy()
-                                end
-                                if trailData.attachment1 then
-                                    trailData.attachment1:Destroy()
-                                end
+                                if trailData.beam then trailData.beam:Destroy() end
+                                if trailData.attachment0 then trailData.attachment0:Destroy() end
+                                if trailData.attachment1 then trailData.attachment1:Destroy() end
                             end
                             GunSilent.State.BulletTrails = {}
                             for _, conn in ipairs(GunSilent.State.TrailFadeConnections) do
@@ -1066,15 +1071,9 @@ local function Init(UI, Core, notify)
                     safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails " .. (value and "Enabled" or "Disabled"), true)
                     if not value then
                         for _, trailData in ipairs(GunSilent.State.BulletTrails) do
-                            if trailData.beam then
-                                trailData.beam:Destroy()
-                            end
-                            if trailData.attachment0 then
-                                trailData.attachment0:Destroy()
-                            end
-                            if trailData.attachment1 then
-                                trailData.attachment1:Destroy()
-                            end
+                            if trailData.beam then trailData.beam:Destroy() end
+                            if trailData.attachment0 then trailData.attachment0:Destroy() end
+                            if trailData.attachment1 then trailData.attachment1:Destroy() end
                         end
                         GunSilent.State.BulletTrails = {}
                         for _, conn in ipairs(GunSilent.State.TrailFadeConnections) do
