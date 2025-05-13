@@ -524,8 +524,7 @@ local function updateVisualsGun(target)
         end
 
         if not GunSilent.State.TrajectoryAttachment0 or not GunSilent.State.TrajectoryAttachment0.Parent then
-            GunSilent.State.TrajectoryAttachment0 = safeCreateInstance("Attachment", { Parent = Workspace.Terrain })
-            GunSilent.State.TrajectoryAttachment0.Position = startPos
+            GunSilent.State.TrajectoryAttachment0 = safeCreateInstance("Attachment", { Parent = localRoot })
         end
         if not GunSilent.State.TrajectoryAttachment1 or not GunSilent.State.TrajectoryAttachment1.Parent then
             if GunSilent.State.PredictVisualPart then
@@ -596,21 +595,19 @@ local function initializeGunSilent()
         end
 
         local character = GunSilent.State.LocalCharacter
-        if not character or not character:FindFirstChild("HumanoidRootPart") then
-            if character then
-                GunSilent.State.LocalRoot = nil
-                if GunSilent.State.TrajectoryAttachment0 then
-                    GunSilent.State.TrajectoryAttachment0.Parent = Workspace.Terrain
-                    GunSilent.State.TrajectoryAttachment0.Position = Vector3.new(0, 1000, 0)
-                end
-                if GunSilent.State.TrajectoryAttachment1 and GunSilent.State.PredictVisualPart then
-                    GunSilent.State.TrajectoryAttachment1.Parent = GunSilent.State.PredictVisualPart
-                end
-            end
-        else
+        if character and character:FindFirstChild("HumanoidRootPart") then
             GunSilent.State.LocalRoot = character.HumanoidRootPart
-            if GunSilent.State.TrajectoryAttachment0 and not GunSilent.State.TrajectoryAttachment0.Parent then
-                GunSilent.State.TrajectoryAttachment0.Parent = GunSilent.State.LocalRoot
+        elseif not character or not character:FindFirstChild("HumanoidRootPart") then
+            GunSilent.State.LocalRoot = nil
+            if GunSilent.State.TrajectoryAttachment0 and GunSilent.State.TrajectoryBeam then
+                if not GunSilent.State.TrajectoryAttachment0.Parent then
+                    GunSilent.State.TrajectoryAttachment0 = safeCreateInstance("Attachment", { Parent = Workspace.Terrain })
+                end
+                GunSilent.State.TrajectoryBeam.Attachment0 = GunSilent.State.TrajectoryAttachment0
+            end
+            if GunSilent.State.TrajectoryAttachment1 and GunSilent.State.PredictVisualPart and not GunSilent.State.TrajectoryAttachment1.Parent then
+                GunSilent.State.TrajectoryAttachment1 = safeCreateInstance("Attachment", { Parent = GunSilent.State.PredictVisualPart })
+                GunSilent.State.TrajectoryBeam.Attachment1 = GunSilent.State.TrajectoryAttachment1
             end
         end
 
