@@ -389,13 +389,19 @@ function HSCR.Init(UI, Core, notify)
             end
 
             if CrosshairSettings.Enabled then
+                u27.pulse(CrosshairSettings.ExpandDistance.Value)
+                u27.pulse_red()
                 table.insert(hitQueue, { isHeadshot = isHeadshot, isKill = isKill })
             end
         end
 
         local originalU27 = require(game.ReplicatedStorage.Modules.Game.UI.Crosshair)
-        if originalU27 and originalU27.hitmarker then
-            originalU27.hitmarker = u27.hitmarker
+        if originalU27 then
+            originalU27.pulse = u27.pulse
+            originalU27.pulse_red = u27.pulse_red
+            if originalU27.hitmarker then
+                originalU27.hitmarker = u27.hitmarker
+            end
         end
         u6.hook("hit_confirmed", u27.hitmarker)
     end
@@ -684,7 +690,6 @@ function HSCR.Init(UI, Core, notify)
                 uiElements.ExpandDistance.callback(uiElements.ExpandDistance.element:GetValue())
                 uiElements.ExpandDuration.callback(uiElements.ExpandDuration.element:GetValue())
                 uiElements.ShrinkDuration.callback(uiElements.ShrinkDuration.element:GetValue())
-                uiElements.GradientColor.callback(uiElements.GradientColor.element:GetValue())
 
                 uiElements.HeadshotSoundEnabled.callback(uiElements.HeadshotSoundEnabled.element:GetState())
 
