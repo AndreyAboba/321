@@ -1081,9 +1081,8 @@ local function Init(UI, Core, notify)
     end
 
     -- Синхронизация настроек
-    local gunconfigSection
     if UI.Tabs.Config then
-        gunconfigSection = UI.Tabs.Config:Section({ Name = "GunSilent Sync", Side = "Right" })
+        local gunconfigSection = UI.Tabs.Config:Section({ Name = "GunSilent Sync", Side = "Right" })
     end
 
     if gunconfigSection then
@@ -1150,9 +1149,6 @@ local function Init(UI, Core, notify)
                 end
                 if uiElementsVisuals.BulletTrailsFadeTime then
                     uiElementsVisuals.BulletTrailsFadeTime.callback(uiElementsVisuals.BulletTrailsFadeTime.element:GetValue())
-                end
-                if uiElementsVisuals.BulletTrailsColor then
-                    uiElementsVisuals.BulletTrailsColor.callback(uiElementsVisuals.BulletTrailsColor.element:GetValue())
                 end
                 safeNotify(GunSilent.notify, "GunSilent", "Settings synchronized with UI!", true)
             end
