@@ -74,7 +74,7 @@ function HSCR.Init(UI, Core, notify)
         while not crosshairFrame and attempts < 10 do
             task.wait(1)
             crosshairFrame = u5.get("CrosshairFrame")
-            attempts += 1
+            attempts = attempts + 1
         end
         if not crosshairFrame then
             error("Failed to initialize: CrosshairFrame not found after 10 seconds")
