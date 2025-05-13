@@ -53,6 +53,7 @@ local GunSilent = {
         LastFriendsList = nil,
         BulletTrails = {},
         TrailFadeConnections = {},
+        CurrentToolRangeApplied = nil, -- Флаг для отслеживания инструмента, для которого применен range
         BaseRangeCache = {} -- Кэш для хранения базовых значений range
     }
 }
@@ -101,22 +102,20 @@ local function isShotgun(tool)
 end
 
 local function getGunRange(tool)
-    if not tool then
+    if not tool or not isGunTool(tool) then
         return GunSilent.Settings.RangePlus.Value
+    end
+
+    -- Проверяем, является ли инструмент экипированным
+    local equippedTool = getEquippedGunTool(GunSilent.State.LocalCharacter)
+    if tool ~= equippedTool then
+        return GunSilent.Settings.RangePlus.Value -- Возвращаем только RangePlus, если инструмент не экипирован
     end
 
     -- Получаем зашифрованное имя атрибута 'range'
     local encryptedRangeAttr = GunSilent.Core.GetEncryptedAttributeName("range")
-    
-    -- Проверяем, является ли инструмент экипированным
-    local localPlayer = GunSilent.Core.PlayerData.LocalPlayer
-    local equippedTool = getEquippedGunTool(localPlayer.Character)
-    if tool ~= equippedTool then
-        -- Если инструмент не экипирован, возвращаем текущее значение атрибута или RangePlus
-        return tool:GetAttribute(encryptedRangeAttr) or GunSilent.Settings.RangePlus.Value
-    end
 
-    -- Получаем базовое значение range из кэша или атрибута
+    -- Получаем базовое значение range из кэша или инструмента
     local toolId = tostring(tool)
     local baseRange = GunSilent.State.BaseRangeCache[toolId]
     if not baseRange then
@@ -125,15 +124,16 @@ local function getGunRange(tool)
         safeNotify(GunSilent.notify, "GunSilent", "Cached base range for " .. tool.Name .. ": " .. baseRange, false)
     end
 
-    -- Вычисляем новое значение range (baseRange + RangePlus)
+    -- Вычисляем итоговое значение
     local totalRange = baseRange + GunSilent.Settings.RangePlus.Value
 
-    -- Обновляем зашифрованный атрибут range только один раз при экипировке
-    if tool:GetAttribute(encryptedRangeAttr) ~= totalRange then
+    -- Применяем значение только один раз, если еще не применялось
+    if GunSilent.State.CurrentToolRangeApplied ~= tool then
         pcall(function()
             tool:SetAttribute(encryptedRangeAttr, totalRange)
-            safeNotify(GunSilent.notify, "GunSilent", "Updated range for " .. tool.Name .. " to: " .. totalRange, false)
+            safeNotify(GunSilent.notify, "GunSilent", "Set range for " .. tool.Name .. " to: " .. totalRange, true)
         end)
+        GunSilent.State.CurrentToolRangeApplied = tool
     end
 
     return totalRange
@@ -141,13 +141,12 @@ end
 
 local function getEquippedGunTool(character)
     if not character then return nil end
-    local localPlayer = GunSilent.Core.PlayerData.LocalPlayer
-    local playerWorkspace = Workspace:FindFirstChild(localPlayer.Name)
-    if playerWorkspace then
-        for _, child in pairs(playerWorkspace:GetChildren()) do
-            if child.ClassName == "Tool" and isGunTool(child) then
-                return child
-            end
+    local playerName = Players.LocalPlayer.Name
+    local playerFolder = Workspace:FindFirstChild(playerName)
+    if not playerFolder then return nil end
+    for _, child in pairs(playerFolder:GetChildren()) do
+        if child.ClassName == "Tool" and isGunTool(child) then
+            return child
         end
     end
     return nil
@@ -219,7 +218,7 @@ local function getNearestPlayerGun(gunRange)
     end
 
     local nearestPlayer, shortestDistance, closestToCursor, bestScore = nil, gunRange, math.huge, math.huge
-    local sortMethod = GunSilent.Settings.SortMethod.Value
+    local sort Suprema = GunSilent.Settings.SortMethod.Value
 
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= Players.LocalPlayer and not friendsHash[player.Name:lower()] then
@@ -628,7 +627,7 @@ local function initializeGunSilent()
     GunSilent.State.Connection = RunService.RenderStepped:Connect(function(deltaTime)
         if not GunSilent.Settings.Enabled.Value then
             if GunSilent.State.FovCircle then GunSilent.State.FovCircle.Visible = false end
-            GunSilent.Core.GunSilentTarget fiercely = nil
+            GunSilent.Core.GunSilentTarget.CurrentTarget = nil
             updateVisualsGun(nil)
             return
         end
@@ -643,34 +642,13 @@ local function initializeGunSilent()
         local currentTool = getEquippedGunTool(character)
         if currentTool ~= GunSilent.State.LastTool then
             if currentTool and not GunSilent.State.LastTool then
-                -- Инструмент только что экипирован
-                local gunRange = getGunRange(currentTool) -- Вызовет обновление range
-                safeNotify(GunSilent.notify, "GunSilent", "Equipped: " .. currentTool.Name .. " (Range: " .. gunRange .. ")", true)
+                safeNotify(GunSilent.notify, "GunSilent", "Equipped: " .. currentTool.Name .. " (Range: " .. getGunRange(currentTool) .. ")", true)
             elseif GunSilent.State.LastTool and not currentTool then
-                -- Инструмент снят, восстанавливаем базовое значение range
-                local lastToolId = tostring(GunSilent.State.LastTool)
-                local baseRange = GunSilent.State.BaseRangeCache[lastToolId]
-                if baseRange then
-                    local encryptedRangeAttr = GunSilent.Core.GetEncryptedAttributeName("range")
-                    pcall(function()
-                        GunSilent.State.LastTool:SetAttribute(encryptedRangeAttr, baseRange)
-                        safeNotify(GunSilent.notify, "GunSilent", "Restored base range for " .. GunSilent.State.LastTool.Name .. ": " .. baseRange, false)
-                    end)
-                end
                 safeNotify(GunSilent.notify, "GunSilent", "Unequipped: " .. GunSilent.State.LastTool.Name, true)
+                -- Сбрасываем флаг при снятии экипировки
+                GunSilent.State.CurrentToolRangeApplied = nil
             elseif currentTool and GunSilent.State.LastTool then
-                -- Смена инструмента
-                local lastToolId = tostring(GunSilent.State.LastTool)
-                local baseRange = GunSilent.State.BaseRangeCache[lastToolId]
-                if baseRange then
-                    local encryptedRangeAttr = GunSilent.Core.GetEncryptedAttributeName("range")
-                    pcall(function()
-                        GunSilent.State.LastTool:SetAttribute(encryptedRangeAttr, baseRange)
-                        safeNotify(GunSilent.notify, "GunSilent", "Restored base range for " .. GunSilent.State.LastTool.Name .. ": " .. baseRange, false)
-                    end)
-                end
-                local gunRange = getGunRange(currentTool) -- Вызовет обновление range для нового инструмента
-                safeNotify(GunSilent.notify, "GunSilent", "Switched to " .. currentTool.Name .. " (Range: " .. gunRange .. ")", true)
+                safeNotify(GunSilent.notify, "GunSilent", "Switched to " .. currentTool.Name .. " (Range: " .. getGunRange(currentTool) .. ")", true)
             end
             GunSilent.State.LastTool = currentTool
         end
@@ -704,6 +682,9 @@ local function Init(UI, Core, notify)
                     GunSilent.State.TrajectoryAttachment0.Position = Vector3.new(0, 1.5, 0)
                 end
             end
+            -- Сбрасываем флаг и кэш при появлении нового персонажа
+            GunSilent.State.CurrentToolRangeApplied = nil
+            GunSilent.State.BaseRangeCache = {}
         end)
         if LocalPlayer.Character then
             GunSilent.State.LocalCharacter = LocalPlayer.Character
@@ -743,24 +724,22 @@ local function Init(UI, Core, notify)
                     Precision = 0,
                     Callback = function(value)
                         GunSilent.Settings.RangePlus.Value = value
-                        -- При изменении RangePlus обновляем range для экипированного инструмента
+                        safeNotify(GunSilent.notify, "GunSilent", "Range Plus set to: " .. value, false)
+                        -- При изменении RangePlus обновляем range для текущего экипированного инструмента
                         local currentTool = getEquippedGunTool(GunSilent.State.LocalCharacter)
                         if currentTool then
-                            local gunRange = getGunRange(currentTool)
-                            safeNotify(GunSilent.notify, "GunSilent", "Range Plus updated to: " .. value .. " (New range: " .. gunRange .. ")", false)
-                        else
-                            safeNotify(GunSilent.notify, "GunSilent", "Range Plus set to: " .. value, false)
+                            GunSilent.State.CurrentToolRangeApplied = nil -- Сбрасываем флаг, чтобы применить новое значение
+                            getGunRange(currentTool)
                         end
                     end
                 }, 'RangePlus'),
                 callback = function(value)
                     GunSilent.Settings.RangePlus.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Range Plus set to: " .. value, false)
                     local currentTool = getEquippedGunTool(GunSilent.State.LocalCharacter)
                     if currentTool then
-                        local gunRange = getGunRange(currentTool)
-                        safeNotify(GunSilent.notify, "GunSilent", "Range Plus updated to: " .. value .. " (New range: " .. gunRange .. ")", false)
-                    else
-                        safeNotify(GunSilent.notify, "GunSilent", "Range Plus set to: " .. value, false)
+                        GunSilent.State.CurrentToolRangeApplied = nil
+                        getGunRange(currentTool)
                     end
                 end
             }
@@ -819,7 +798,7 @@ local function Init(UI, Core, notify)
                         safeNotify(GunSilent.notify, "GunSilent", "Test Generate Bullets " .. (value and "Enabled" or "Disabled"), true)
                     end
                 }, 'TestGenerateBullets'),
-                callback = function(value
+                callback = function(value)
                     GunSilent.Settings.TestGenBullet.Value = value
                     safeNotify(GunSilent.notify, "GunSilent", "Test Generate Bullets " .. (value and "Enabled" or "Disabled"), true)
                 end
@@ -1177,7 +1156,7 @@ local function Init(UI, Core, notify)
                 CombatElements.HitChance.callback(CombatElements.HitChance.element:GetValue())
                 CombatElements.PredictionStrength.callback(CombatElements.PredictionStrength.element:GetValue())
                 CombatElements.PingCompensation.callback(CombatElements.PingCompensation.element:GetValue())
-                CombatElements.SmoothingFactor.callback(CombatElements.PredictionStrength.element:GetValue())
+                CombatElements.SmoothingFactor.callback(CombatElements.SmoothingFactor.element:GetValue())
                 CombatElements.ResolverEnabled.callback(CombatElements.ResolverEnabled.element:GetState())
                 CombatElements.ResolverThreshold.callback(CombatElements.ResolverThreshold.element:GetValue())
                 CombatElements.BulletSpeed.callback(CombatElements.BulletSpeed.element:GetValue())
