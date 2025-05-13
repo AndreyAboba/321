@@ -93,14 +93,14 @@ local function isShotgun(tool)
 end
 
 local function getGunRange(tool)
-    local baseRange = GunSilent.Settings.RangePlus.Value
+    local baseRange = 0
     if tool and GunSilent.Core and GunSilent.Core.GetEncryptedAttributeName then
         local encryptedRangeAttr = GunSilent.Core.GetEncryptedAttributeName("range")
-        baseRange = tool:GetAttribute(encryptedRangeAttr) or tool:GetAttribute("Range") or baseRange
+        baseRange = tool:GetAttribute(encryptedRangeAttr) or tool:GetAttribute("Range") or 0
     elseif tool then
-        baseRange = tool:GetAttribute("Range") or baseRange
+        baseRange = tool:GetAttribute("Range") or 0
     end
-    return baseRange
+    return baseRange + GunSilent.Settings.RangePlus.Value
 end
 
 local function getEquippedGunTool(character)
@@ -194,7 +194,7 @@ local function getNearestPlayerGun(gunRange)
                         if sortMethod == "Mouse&Distance" then
                             local screenPos = camera:WorldToViewportPoint(targetRoot.Position)
                             local cursorDistance = (Vector2.new(screenPos.X, screenPos.Y) - UserInputService:GetMouseLocation()).Magnitude
-                            local score = (cursorDistance / camera.ViewportSize.X) * 0.7 + (distance / (GunSilent.Settings.RangePlus.Value + 50)) * 0.3
+                            local score = (cursorDistance / camera.ViewportSize.X) * 0.7 + (distance / (gunRange + 50)) * 0.3
                             if score < bestScore then
                                 bestScore = score
                                 nearestPlayer = player
@@ -718,7 +718,7 @@ local function Init(UI, Core, notify)
                 }, 'SortMethod'),
                 callback = function(value)
                     GunSilent.Settings.SortMethod.Value = value
-                    safeNotify(GunSilent.notify, "Sort Method set to: " .. value, true)
+                    safeNotify(GunSilent.notify, "GunSilent", "Sort Method set to: " .. value, true)
                 end
             }
             uiElements.UseFOV = {
