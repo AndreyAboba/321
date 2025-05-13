@@ -103,8 +103,11 @@ local function getGunRange(tool)
     if not tool then
         return GunSilent.Settings.RangePlus.Value
     end
-    local encryptedRangeAttr = Core.GetEncryptedAttributeName("range")
-    local rangeValue = tool:GetAttribute(encryptedRangeAttr) or 0
+    local rangeValue = 0
+    if Core.GetEncryptedAttributeName then
+        local encryptedRangeAttr = Core.GetEncryptedAttributeName("range")
+        rangeValue = tool:GetAttribute(encryptedRangeAttr) or 0
+    end
     return rangeValue + GunSilent.Settings.RangePlus.Value
 end
 
@@ -149,7 +152,6 @@ local function updateFovCircle()
 end
 
 local function isInFov(targetPos, camera)
-    if not GunSilent.Settings.UseFOV.Value then return true end
     local screenPos, onScreen = camera:WorldToViewportPoint(targetPos)
     if not onScreen then return false end
     local referencePos = GunSilent.Settings.CircleMethod.Value == "Cursor" and UserInputService:GetMouseLocation() or camera.ViewportSize / 2
@@ -194,12 +196,12 @@ local function getNearestPlayerGun(gunRange)
                 local targetHumanoid = targetChar:FindFirstChild("Humanoid")
                 if targetRoot and targetHumanoid and targetHumanoid.Health > 0 then
                     local distance = (rootPos - targetRoot.Position).Magnitude
-                    local inFov = isInFov(targetRoot.Position, camera)
-                    if inFov then
+                    local inFov = GunSilent.Settings.UseFOV.Value and isInFov(targetRoot.Position, camera) or not GunSilent.Settings.UseFOV.Value
+                    if inFov and distance <= gunRange then
                         if sortMethod == "Mouse&Distance" then
                             local screenPos = camera:WorldToViewportPoint(targetRoot.Position)
                             local cursorDistance = (Vector2.new(screenPos.X, screenPos.Y) - UserInputService:GetMouseLocation()).Magnitude
-                            local score = (cursorDistance / camera.ViewportSize.X) * 0.7 + (distance / (GunSilent.Settings.RangePlus.Value + 50)) * 0.3
+                            local score = (cursorDistance / camera.ViewportSize.X) * 0.7 + (distance / gunRange) * 0.3
                             if score < bestScore then
                                 bestScore = score
                                 nearestPlayer = player
@@ -271,10 +273,11 @@ local function resolveVelocity(target, positionHistory, clientVelocity, targetCh
         calculatedVelocity = offset / GunSilent.Settings.PingCompensation.Value
     else
         for i = #filteredHistory - 1, math.max(1, #filteredHistory - 10), -1 do
+            local cfg = GunSilent.Settings
             local currEntry = filteredHistory[i + 1]
             local prevEntry = filteredHistory[i]
             local timeDelta = currEntry.time - prevEntry.time
-            if timeDelta > 0 and timeDelta < 0.2 then
+            if timeDelta > 0 and timeDelta < cfg.ResolverThreshold.Value then
                 local velocity = (currEntry.pos - prevEntry.pos) / timeDelta
                 if velocity.Magnitude <= maxSpeedLimit * 1.5 then
                     local weight = 1 / (1 + (currentTime - currEntry.time) * 5)
@@ -455,7 +458,7 @@ end
 
 local function updateVisualsGun(target)
     local currentTime = tick()
-    if currentTime - GunSilent.State.LastVisualUpdateTime < 0.0345 then return end -- ~29 FPS (1/29 ≈ 0.0345)
+    if currentTime - GunSilent.State.LastVisualUpdateTime < 0.0345 then return end
     GunSilent.State.LastVisualUpdateTime = currentTime
 
     local localRoot = GunSilent.State.LocalRoot
@@ -825,7 +828,7 @@ local function Init(UI, Core, notify)
                 }, 'CircleMethod'),
                 callback = function(value)
                     GunSilent.Settings.CircleMethod.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Circle Method set to: " .. value, true)
+                    safeNotify(GunSilent.notify, "GunSilent", "Circle Method set to: " .. tostring(value), true)
                 end
             }
             combatSection:Header({ Name = "Visuals" })
@@ -920,7 +923,23 @@ local function Init(UI, Core, notify)
                         GunSilent.Settings.SmoothingFactor.Value = value
                         safeNotify(GunSilent.notify, "GunSilent", "Smoothing Factor set to: " .. value, false)
                     end
-                }, 'SmoothingFactor'),
+                landing = {
+                    element = combatSection:Slider({
+                        Name = "Landing Prediction",
+                        Minimum = 0,
+                        Maximum = 1,
+                        Default = GunSilent.Settings.LandingPrediction.Value,
+                        Precision = 2,
+                        Callback = function(value)
+                            GunSilent.Settings.LandingPrediction.Value = value
+                            safeNotify(GunSilent.notify, "GunSilent", "Landing Prediction set to: " .. value, false)
+                        end
+                    }, 'LandingPrediction'),
+                    callback = function(value)
+                        GunSilent.Settings.LandingPrediction.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Landing Prediction set to: " .. value, false)
+                    end
+                },
                 callback = function(value)
                     GunSilent.Settings.SmoothingFactor.Value = value
                     safeNotify(GunSilent.notify, "GunSilent", "Smoothing Factor set to: " .. value, false)
@@ -999,6 +1018,7 @@ local function Init(UI, Core, notify)
                                 if trailData.attachment1 then
                                     trailData.attachment1:Destroy()
                                 end
+-versus
                             end
                             GunSilent.State.BulletTrails = {}
                             for _, conn in ipairs(GunSilent.State.TrailFadeConnections) do
@@ -1065,57 +1085,58 @@ local function Init(UI, Core, notify)
         end
     end
 
-    local gunconfigSection
     if UI.Tabs.Config then
-        gunconfigSection = UI.Tabs.Config:Section({ Name = "GunSilent Sync", Side = "Right" })
-        gunconfigSection:Header({ Name = "GunSilent Settings Sync" })
-        gunconfigSection:Button({
-            Name = "Sync Settings",
-            Callback = function()
-                CombatElements.GSEnabled.callback(CombatElements.GSEnabled.element:GetState())
-                CombatElements.RangePlus.callback(CombatElements.RangePlus.element:GetValue())
-                local hitPartOptions = CombatElements.HitPart.element:GetOptions()
-                for option, selected in pairs(hitPartOptions) do
-                    if selected then
-                        CombatElements.HitPart.callback(option)
-                        break
+        local gunconfigSection = UI.Tabs.Config:Section({ Name = "GunSilent Sync", Side = "Right" })
+        if gunconfigSection then
+            gunconfigSection:Header({ Name = "GunSilent Settings Sync" })
+            gunconfigSection:Button({
+                Name = "Sync Settings",
+                Callback = function()
+                    CombatElements.GSEnabled.callback(CombatElements.GSEnabled.element:GetState())
+                    CombatElements.RangePlus.callback(CombatElements.RangePlus.element:GetValue())
+                    local hitPartOptions = CombatElements.HitPart.element:GetOptions()
+                    for option, selected in pairs(hitPartOptions) do
+                        if selected then
+                            CombatElements.HitPart.callback(option)
+                            break
+                        end
                     end
-                end
-                CombatElements.ShotgunSupport.callback(CombatElements.ShotgunSupport.element:GetState())
-                CombatElements.GenerateBullets.callback(CombatElements.GenerateBullets.element:GetValue())
-                CombatElements.TestGenerateBullets.callback(CombatElements.TestGenerateBullets.element:GetState())
-                local sortMethodOptions = CombatElements.SortMethod.element:GetOptions()
-                for option, selected in pairs(sortMethodOptions) do
-                    if selected then
-                        CombatElements.SortMethod.callback(option)
-                        break
+                    CombatElements.ShotgunSupport.callback(CombatElements.ShotgunSupport.element:GetState())
+                    CombatElements.GenerateBullets.callback(CombatElements.GenerateBullets.element:GetValue())
+                    CombatElements.TestGenerateBullets.callback(CombatElements.TestGenerateBullets.element:GetState())
+                    local sortMethodOptions = CombatElements.SortMethod.element:GetOptions()
+                    for option, selected in pairs(sortMethodOptions) do
+                        if selected then
+                            CombatElements.SortMethod.callback(option)
+                            break
+                        end
                     end
-                end
-                CombatElements.UseFOV.callback(CombatElements.UseFOV.element:GetState())
-                CombatElements.FOV.callback(CombatElements.FOV.element:GetValue())
-                CombatElements.ShowCircle.callback(CombatElements.ShowCircle.element:GetState())
-                local circleMethodOptions = CombatElements.CircleMethod.element:GetOptions()
-                for option, selected in pairs(circleMethodOptions) do
-                    if selected then
-                        CombatElements.CircleMethod.callback(option)
-                        break
+                    CombatElements.UseFOV.callback(CombatElements.UseFOV.element:GetState())
+                    CombatElements.FOV.callback(CombatElements.FOV.element:GetValue())
+                    CombatElements.ShowCircle.callback(CombatElements.ShowCircle.element:GetState())
+                    local circleMethodOptions = CombatElements.CircleMethod.element:GetOptions()
+                    for option, selected in pairs(circleMethodOptions) do
+                        if selected then
+                            CombatElements.CircleMethod.callback(option)
+                            break
+                        end
                     end
+                    CombatElements.PredictVisual.callback(CombatElements.PredictVisual.element:GetState())
+                    CombatElements.TrajectoryBeam.callback(CombatElements.TrajectoryBeam.element:GetState())
+                    CombatElements.HitChance.callback(CombatElements.HitChance.element:GetValue())
+                    CombatElements.PredictionStrength.callback(CombatElements.PredictionStrength.element:GetValue())
+                    CombatElements.PingCompensation.callback(CombatElements.PingCompensation.element:GetValue())
+                    CombatElements.SmoothingFactor.callback(CombatElements.SmoothingFactor.element:GetValue())
+                    CombatElements.ResolverEnabled.callback(CombatElements.ResolverEnabled.element:GetState())
+                    CombatElements.ResolverThreshold.callback(CombatElements.ResolverThreshold.element:GetValue())
+                    CombatElements.BulletSpeed.callback(CombatElements.BulletSpeed.element:GetValue())
+                    VisualsElements.BulletTrailsEnabled.callback(VisualsElements.BulletTrailsEnabled.element:GetState())
+                    VisualsElements.BulletTrailsFadeTime.callback(VisualsElements.BulletTrailsFadeTime.element:GetValue())
+                    VisualsElements.BulletTrailsColor.callback(VisualsElements.BulletTrailsColor.element:GetValue())
+                    safeNotify(GunSilent.notify, "GunSilent", "Settings synchronized with UI!", true)
                 end
-                CombatElements.PredictVisual.callback(CombatElements.PredictVisual.element:GetState())
-                CombatElements.TrajectoryBeam.callback(CombatElements.TrajectoryBeam.element:GetState())
-                CombatElements.HitChance.callback(CombatElements.HitChance.element:GetValue())
-                CombatElements.PredictionStrength.callback(CombatElements.PredictionStrength.element:GetValue())
-                CombatElements.PingCompensation.callback(CombatElements.PingCompensation.element:GetValue())
-                CombatElements.SmoothingFactor.callback(CombatElements.SmoothingFactor.element:GetValue())
-                CombatElements.ResolverEnabled.callback(CombatElements.ResolverEnabled.element:GetState())
-                CombatElements.ResolverThreshold.callback(CombatElements.ResolverThreshold.element:GetValue())
-                CombatElements.BulletSpeed.callback(CombatElements.BulletSpeed.element:GetValue())
-                VisualsElements.BulletTrailsEnabled.callback(VisualsElements.BulletTrailsEnabled.element:GetState())
-                VisualsElements.BulletTrailsFadeTime.callback(VisualsElements.BulletTrailsFadeTime.element:GetValue())
-                VisualsElements.BulletTrailsColor.callback(VisualsElements.BulletTrailsColor.element:GetValue())
-                safeNotify(GunSilent.notify, "GunSilent", "Settings synchronized with UI!", true)
-            end
-        }, 'SyncSettings')
+            }, 'SyncSettings')
+        end
     end
 
     initializeGunSilent()
