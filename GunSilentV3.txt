@@ -18,9 +18,9 @@ local GunSilent = {
         BulletTrailsEnabled = { Value = false, Default = false },
         BulletTrailsFadeTime = { Value = 1, Default = 1 },
         BulletTrailsColor = { Value = Color3.fromRGB(147, 112, 219), Default = Color3.fromRGB(147, 112, 219) },
-        HitEffectEnabled = { Value = true, Default = true }, -- Новая настройка для HitEffect
-        HitEffectDuration = { Value = 1.5, Default = 1.5 }, -- Длительность эффекта
-        HitEffectCount = { Value = 5, Default = 5 }, -- Количество орбит
+        HitEffectEnabled = { Value = true, Default = true },
+        HitEffectDuration = { Value = 1.5, Default = 1.5 },
+        HitEffectCount = { Value = 5, Default = 5 },
         HitChance = { Value = 100, Default = 100 },
         PredictionStrength = { Value = 1.0, Default = 1.0 },
         PingCompensation = { Value = 0.1, Default = 0.1 },
@@ -58,7 +58,7 @@ local GunSilent = {
         TrailFadeConnections = {},
         CurrentToolRangeApplied = nil,
         BaseRangeCache = {},
-        LastTargetHealth = {} -- Для отслеживания здоровья цели
+        LastTargetHealth = {}
     }
 }
 
@@ -445,7 +445,7 @@ local function createHitDataGun(target)
         local targetId = tostring(target.UserId)
         local prevHealth = GunSilent.State.LastTargetHealth[targetId] or targetHumanoid.Health
         local currentHealth = targetHumanoid.Health
-        if prevHealth and currentHealth < prevHealth then -- Урон нанесён
+        if prevHealth and currentHealth < prevHealth then
             createHitEffect(prediction.position, target)
             GunSilent.State.LastTargetHealth[targetId] = currentHealth
         end
@@ -527,29 +527,27 @@ local function createHitEffect(position, target)
             Parent = Workspace
         })
 
-        -- Создаём градиент
+        -- Устанавливаем градиентный цвет с анимацией
         local gradient = Instance.new("UIGradient")
-        gradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, color1),
-            ColorSequenceKeypoint.new(1, color2)
-        })
-        gradient.Rotation = math.random(0, 360)
         gradient.Parent = orb
+        local startTime = tick()
 
-        -- Случайное направление и скорость
+        -- Анимация цвета и движения
         local direction = Vector3.new(
             math.random(-1, 1),
             math.random(0, 1),
             math.random(-1, 1)
         ).Unit * math.random(5, 15)
-        local startTime = tick()
-
-        -- Анимация
         local connection
         connection = RunService.RenderStepped:Connect(function()
             local elapsed = tick() - startTime
             local t = math.min(elapsed / duration, 1)
             local progress = math.sin(t * math.pi) -- Плавное движение
+            local colorProgress = math.sin(elapsed * 2) * 0.5 + 0.5 -- Перелив от 0 до 1
+
+            -- Интерполяция цвета между color1 и color2
+            local currentColor = color1:Lerp(color2, colorProgress)
+            orb.Color = currentColor
 
             orb.Position = position + direction * progress * 5
             orb.Transparency = t
