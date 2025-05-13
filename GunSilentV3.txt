@@ -2,7 +2,6 @@ local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
 
 local GunSilent = {
     Settings = {
@@ -49,7 +48,8 @@ local GunSilent = {
         LastTargetUpdate = 0,
         TargetUpdateInterval = 0.2,
         LastFriendsList = nil,
-        BulletTrails = {} -- Для хранения активных трасс
+        BulletTrails = {}, -- Для хранения активных трасс
+        TrailFadeConnections = {} -- Для хранения соединений Fade
     }
 }
 
@@ -411,19 +411,22 @@ local function createHitDataGun(target)
             -- Добавляем трассу в список
             table.insert(GunSilent.State.BulletTrails, { beam = trail, attachment0 = attachment0, attachment1 = attachment1 })
 
-            -- Плавное исчезновение через TweenService
-            local tweenInfo = TweenInfo.new(
-                1, -- Длительность исчезновения (1 секунда)
-                Enum.EasingStyle.Linear,
-                Enum.EasingDirection.InOut
-            )
-            local tween = TweenService:Create(trail, tweenInfo, { Transparency = NumberSequence.new(1) })
-            tween:Play()
-            tween.Completed:Connect(function()
+            -- Плавное исчезновение через постепенное обновление
+            local fadeTime = 1 -- Длительность исчезновения в секундах
+            local fadeConnection
+            fadeConnection = RunService.RenderStepped:Connect(function(dt)
+                local elapsed = 0
+                while elapsed < fadeTime do
+                    elapsed = elapsed + dt
+                    local t = math.clamp(elapsed / fadeTime, 0, 1)
+                    trail.Transparency = NumberSequence.new(t)
+                    RunService.RenderStepped:Wait()
+                end
                 trail:Destroy()
                 attachment0:Destroy()
                 attachment1:Destroy()
-                -- Удаляем трассу из списка
+                -- Удаляем соединение и трассу из списка
+                if fadeConnection then fadeConnection:Disconnect() end
                 for i, v in ipairs(GunSilent.State.BulletTrails) do
                     if v.beam == trail then
                         table.remove(GunSilent.State.BulletTrails, i)
@@ -431,6 +434,7 @@ local function createHitDataGun(target)
                     end
                 end
             end)
+            table.insert(GunSilent.State.TrailFadeConnections, fadeConnection)
         end
     end
 
@@ -823,6 +827,7 @@ local function Init(UI, Core, notify)
                     safeNotify(GunSilent.notify, "GunSilent", "Circle Method set to: " .. value, true)
                 end
             }
+            UI.Sections.GunSilent:Header({ Name = "Visuals" })
             uiElements.PredictVisual = {
                 element = UI.Sections.GunSilent:Toggle({
                     Name = "Predict Visual",
@@ -851,7 +856,6 @@ local function Init(UI, Core, notify)
                     safeNotify(GunSilent.notify, "GunSilent", "Trajectory Beam " .. (value and "Enabled" or "Disabled"), true)
                 end
             }
-            UI.Sections.GunSilent:Header({ Name = "Bullet Trails" })
             uiElements.BulletTrailsEnabled = {
                 element = UI.Sections.GunSilent:Toggle({
                     Name = "Bullet Trails Enabled",
@@ -860,7 +864,6 @@ local function Init(UI, Core, notify)
                         GunSilent.Settings.BulletTrailsEnabled.Value = value
                         safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails " .. (value and "Enabled" or "Disabled"), true)
                         if not value then
-                            -- Очищаем все существующие трассы при отключении
                             for _, trailData in ipairs(GunSilent.State.BulletTrails) do
                                 if trailData.beam then
                                     trailData.beam:Destroy()
@@ -873,6 +876,10 @@ local function Init(UI, Core, notify)
                                 end
                             end
                             GunSilent.State.BulletTrails = {}
+                            for _, conn in ipairs(GunSilent.State.TrailFadeConnections) do
+                                if conn then conn:Disconnect() end
+                            end
+                            GunSilent.State.TrailFadeConnections = {}
                         end
                     end
                 }, 'BulletTrailsEnabled'),
@@ -892,6 +899,10 @@ local function Init(UI, Core, notify)
                             end
                         end
                         GunSilent.State.BulletTrails = {}
+                        for _, conn in ipairs(GunSilent.State.TrailFadeConnections) do
+                            if conn then conn:Disconnect() end
+                        end
+                        GunSilent.State.TrailFadeConnections = {}
                     end
                 end
             }
