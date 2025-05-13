@@ -86,13 +86,18 @@ function HSCR.Init(UI, Core, notify)
 
     crosshairFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 
+    -- Преобразуем SoundId в формат ContentID
+    local function formatContentId(soundId)
+        return "rbxassetid://" .. tostring(soundId)
+    end
+
     local soundsToPreload = {
-        CrosshairSettings.OriginalSounds.headshotSound,
-        CrosshairSettings.OriginalSounds.headshotNormalSound,
-        CrosshairSettings.OriginalSounds.hitSound
+        formatContentId(CrosshairSettings.OriginalSounds.headshotSound),
+        formatContentId(CrosshairSettings.OriginalSounds.headshotNormalSound),
+        formatContentId(CrosshairSettings.OriginalSounds.hitSound)
     }
     for _, soundData in ipairs(CrosshairSettings.SoundData) do
-        table.insert(soundsToPreload, tostring(soundData.SoundId))
+        table.insert(soundsToPreload, formatContentId(soundData.SoundId))
     end
     ContentProvider:PreloadAsync(soundsToPreload)
 
@@ -356,12 +361,12 @@ function HSCR.Init(UI, Core, notify)
         u27.hitmarker = function(isHeadshot, isKill)
             if isKill then
                 local selectedSoundId = CrosshairSettings.SoundIds[CrosshairSettings.SelectedSound.Value] or CrosshairSettings.OriginalSounds.headshotSound
-                local soundId = CrosshairSettings.HeadshotSoundEnabled and selectedSoundId or CrosshairSettings.OriginalSounds.headshotSound
+                local soundId = CrosshairSettings.HeadshotSoundEnabled and formatContentId(selectedSoundId) or formatContentId(CrosshairSettings.OriginalSounds.headshotSound)
                 pcall(function() u1.play(soundId, 2.5) end)
             elseif isHeadshot then
-                pcall(function() u1.play(CrosshairSettings.OriginalSounds.headshotNormalSound, 1) end)
+                pcall(function() u1.play(formatContentId(CrosshairSettings.OriginalSounds.headshotNormalSound), 1) end)
             else
-                pcall(function() u1.play(CrosshairSettings.OriginalSounds.hitSound, 1) end)
+                pcall(function() u1.play(formatContentId(CrosshairSettings.OriginalSounds.hitSound), 1) end)
             end
 
             table.insert(hitQueue, { isHeadshot = isHeadshot, isKill = isKill })
@@ -610,7 +615,7 @@ function HSCR.Init(UI, Core, notify)
                         for _, sound in ipairs(CrosshairSettings.SoundData) do
                             if sound.Label == value then
                                 CrosshairSettings.SelectedSound.Value = value
-                                CrosshairSettings.SoundIds[value] = sound.SoundId
+                                CrosshairSettings.SoundIds[value] = formatContentId(sound.SoundId)
                                 break
                             end
                         end
@@ -622,7 +627,7 @@ function HSCR.Init(UI, Core, notify)
                     for _, sound in ipairs(CrosshairSettings.SoundData) do
                         if sound.Label == value then
                             CrosshairSettings.SelectedSound.Value = value
-                            CrosshairSettings.SoundIds[value] = sound.SoundId
+                            CrosshairSettings.SoundIds[value] = formatContentId(sound.SoundId)
                             break
                         end
                     end
