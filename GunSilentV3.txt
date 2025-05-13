@@ -101,13 +101,32 @@ local function isShotgun(tool)
     return ammoType and ammoType:lower() == "shotgun"
 end
 
+local function getEquippedGunTool()
+    local localPlayer = Players.LocalPlayer
+    if not localPlayer then return nil end
+
+    local playerName = localPlayer.Name
+    local playerFolder = Workspace:FindFirstChild(playerName)
+    if not playerFolder then
+        -- safeNotify(GunSilent.notify, "GunSilent", "Player folder not found in Workspace", false)
+        return nil
+    end
+
+    for _, child in pairs(playerFolder:GetChildren()) do
+        if child.ClassName == "Tool" and isGunTool(child) then
+            return child
+        end
+    end
+    return nil
+end
+
 local function getGunRange(tool)
     if not tool or not isGunTool(tool) then
         return GunSilent.Settings.RangePlus.Value
     end
 
     -- Проверяем, является ли инструмент экипированным
-    local equippedTool = getEquippedGunTool(GunSilent.State.LocalCharacter)
+    local equippedTool = getEquippedGunTool()
     if tool ~= equippedTool then
         return GunSilent.Settings.RangePlus.Value -- Возвращаем только RangePlus, если инструмент не экипирован
     end
@@ -137,19 +156,6 @@ local function getGunRange(tool)
     end
 
     return totalRange
-end
-
-local function getEquippedGunTool(character)
-    if not character then return nil end
-    local playerName = Players.LocalPlayer.Name
-    local playerFolder = Workspace:FindFirstChild(playerName)
-    if not playerFolder then return nil end
-    for _, child in pairs(playerFolder:GetChildren()) do
-        if child.ClassName == "Tool" and isGunTool(child) then
-            return child
-        end
-    end
-    return nil
 end
 
 local function updateFovCircle()
@@ -218,7 +224,7 @@ local function getNearestPlayerGun(gunRange)
     end
 
     local nearestPlayer, shortestDistance, closestToCursor, bestScore = nil, gunRange, math.huge, math.huge
-    local sort Suprema = GunSilent.Settings.SortMethod.Value
+    local sortMethod = GunSilent.Settings.SortMethod.Value
 
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= Players.LocalPlayer and not friendsHash[player.Name:lower()] then
@@ -340,7 +346,7 @@ local function predictTargetPositionGun(target)
     local myPos = localRoot.Position
     local hitPart = targetChar:FindFirstChild(GunSilent.Settings.HitPart.Value) or targetChar:FindFirstChild("HumanoidRootPart")
     local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
-    local equippedTool = getEquippedGunTool(GunSilent.State.LocalCharacter)
+    local equippedTool = getEquippedGunTool()
     if not hitPart or not targetRoot or not equippedTool then
         return { position = nil, direction = nil, timeToTarget = 0, clientPosition = nil }
     end
@@ -418,7 +424,7 @@ local function createHitDataGun(target)
     local hitPart = targetChar:FindFirstChild(GunSilent.Settings.HitPart.Value) or targetChar:FindFirstChild("HumanoidRootPart")
     if not hitPart then return nil end
 
-    local equippedTool = getEquippedGunTool(GunSilent.State.LocalCharacter)
+    local equippedTool = getEquippedGunTool()
     local isShotgunWeapon = GunSilent.Settings.ShotgunSupport.Value and equippedTool and isShotgun(equippedTool)
     local useMultiBullets = isShotgunWeapon or GunSilent.Settings.TestGenBullet.Value
     local numBullets = useMultiBullets and (isShotgunWeapon and GunSilent.Settings.GenBullet.Value or 4) or 1
@@ -602,7 +608,7 @@ local function initializeGunSilent()
             local modifiedArgs = args
             if GunSilent.Settings.Enabled.Value and #args >= 2 and typeof(args[1]) == "number" and math.random(100) <= GunSilent.Settings.HitChance.Value then
                 GunSilent.State.LastEventId = args[1]
-                local equippedTool = getEquippedGunTool(GunSilent.State.LocalCharacter)
+                local equippedTool = getEquippedGunTool()
                 if equippedTool and args[2] == "shoot_gun" then
                     local gunRange = getGunRange(equippedTool)
                     local nearestPlayer = getNearestPlayerGun(gunRange)
@@ -639,13 +645,12 @@ local function initializeGunSilent()
             GunSilent.State.LocalRoot = nil
         end
 
-        local currentTool = getEquippedGunTool(character)
+        local currentTool = getEquippedGunTool()
         if currentTool ~= GunSilent.State.LastTool then
             if currentTool and not GunSilent.State.LastTool then
                 safeNotify(GunSilent.notify, "GunSilent", "Equipped: " .. currentTool.Name .. " (Range: " .. getGunRange(currentTool) .. ")", true)
             elseif GunSilent.State.LastTool and not currentTool then
                 safeNotify(GunSilent.notify, "GunSilent", "Unequipped: " .. GunSilent.State.LastTool.Name, true)
-                -- Сбрасываем флаг при снятии экипировки
                 GunSilent.State.CurrentToolRangeApplied = nil
             elseif currentTool and GunSilent.State.LastTool then
                 safeNotify(GunSilent.notify, "GunSilent", "Switched to " .. currentTool.Name .. " (Range: " .. getGunRange(currentTool) .. ")", true)
@@ -682,7 +687,6 @@ local function Init(UI, Core, notify)
                     GunSilent.State.TrajectoryAttachment0.Position = Vector3.new(0, 1.5, 0)
                 end
             end
-            -- Сбрасываем флаг и кэш при появлении нового персонажа
             GunSilent.State.CurrentToolRangeApplied = nil
             GunSilent.State.BaseRangeCache = {}
         end)
@@ -725,10 +729,9 @@ local function Init(UI, Core, notify)
                     Callback = function(value)
                         GunSilent.Settings.RangePlus.Value = value
                         safeNotify(GunSilent.notify, "GunSilent", "Range Plus set to: " .. value, false)
-                        -- При изменении RangePlus обновляем range для текущего экипированного инструмента
-                        local currentTool = getEquippedGunTool(GunSilent.State.LocalCharacter)
+                        local currentTool = getEquippedGunTool()
                         if currentTool then
-                            GunSilent.State.CurrentToolRangeApplied = nil -- Сбрасываем флаг, чтобы применить новое значение
+                            GunSilent.State.CurrentToolRangeApplied = nil
                             getGunRange(currentTool)
                         end
                     end
@@ -736,7 +739,7 @@ local function Init(UI, Core, notify)
                 callback = function(value)
                     GunSilent.Settings.RangePlus.Value = value
                     safeNotify(GunSilent.notify, "GunSilent", "Range Plus set to: " .. value, false)
-                    local currentTool = getEquippedGunTool(GunSilent.State.LocalCharacter)
+                    local currentTool = getEquippedGunTool()
                     if currentTool then
                         GunSilent.State.CurrentToolRangeApplied = nil
                         getGunRange(currentTool)
