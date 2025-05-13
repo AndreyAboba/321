@@ -17,8 +17,6 @@ local GunSilent = {
         TrajectoryBeam = { Value = true, Default = true },
         BulletTrailsEnabled = { Value = false, Default = false },
         BulletTrailsColor = { Value = Color3.fromRGB(147, 112, 219), Default = Color3.fromRGB(147, 112, 219) },
-        BulletTrailsTexture = { Value = "None", Default = "None", Options = {"None", "rbxassetid://366502375", "rbxassetid://87654321"} },
-        BulletTrailsCustomTexture = { Value = "", Default = "" }, -- Для кастомной текстуры
         BulletTrailsFadeTime = { Value = 1, Default = 1 },
         HitChance = { Value = 100, Default = 100 },
         PredictionStrength = { Value = 1.5, Default = 1.5 },
@@ -394,20 +392,15 @@ local function createHitDataGun(target)
         hitData[1] = {{Normal = prediction.direction, Instance = hitPart, Position = prediction.position}}
     end
 
-    -- Создание Bullet Trails при выстреле
+    -- Создание Bullet Trails при выстреле (без текстур)
     if GunSilent.Settings.BulletTrailsEnabled.Value and localRoot and prediction.position then
         local startPos = localRoot.Position + Vector3.new(0, 1.5, 0)
-        local texture = GunSilent.Settings.BulletTrailsTexture.Value == "None" and "" or GunSilent.Settings.BulletTrailsTexture.Value
-        if GunSilent.Settings.BulletTrailsCustomTexture.Value ~= "" then
-            texture = GunSilent.Settings.BulletTrailsCustomTexture.Value
-        end
         local trail = safeCreateInstance("Beam", {
             FaceCamera = true,
             Width0 = 0.1,
             Width1 = 0.1,
             Transparency = NumberSequence.new(0),
             Color = ColorSequence.new(GunSilent.Settings.BulletTrailsColor.Value),
-            Texture = texture,
             Parent = Workspace
         })
         if trail then
@@ -1067,35 +1060,6 @@ local function Init(UI, Core, notify)
                     safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails Color updated", false)
                 end
             }
-            uiElementsVisuals.BulletTrailsTexture = {
-                element = UI.Sections.BulletTrails:Dropdown({
-                    Name = "Bullet Trails Texture",
-                    Default = GunSilent.Settings.BulletTrailsTexture.Value,
-                    Options = GunSilent.Settings.BulletTrailsTexture.Options,
-                    Callback = function(value)
-                        GunSilent.Settings.BulletTrailsTexture.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails Texture updated", false)
-                    end
-                }, 'BulletTrailsTexture'),
-                callback = function(value)
-                    GunSilent.Settings.BulletTrailsTexture.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails Texture updated", false)
-                end
-            }
-            uiElementsVisuals.BulletTrailsCustomTexture = {
-                element = UI.Sections.BulletTrails:Input({
-                    Name = "Custom Texture ID",
-                    Default = GunSilent.Settings.BulletTrailsCustomTexture.Value,
-                    Callback = function(value)
-                        GunSilent.Settings.BulletTrailsCustomTexture.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails Custom Texture updated", false)
-                    end
-                }, 'BulletTrailsCustomTexture'),
-                callback = function(value)
-                    GunSilent.Settings.BulletTrailsCustomTexture.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails Custom Texture updated", false)
-                end
-            }
             uiElementsVisuals.BulletTrailsFadeTime = {
                 element = UI.Sections.BulletTrails:Slider({
                     Name = "Fade Time",
@@ -1187,17 +1151,8 @@ local function Init(UI, Core, notify)
                 if uiElementsVisuals.BulletTrailsFadeTime then
                     uiElementsVisuals.BulletTrailsFadeTime.callback(uiElementsVisuals.BulletTrailsFadeTime.element:GetValue())
                 end
-                if uiElementsVisuals.BulletTrailsTexture then
-                    local textureOptions = uiElementsVisuals.BulletTrailsTexture.element:GetOptions()
-                    for option, selected in pairs(textureOptions) do
-                        if selected then
-                            uiElementsVisuals.BulletTrailsTexture.callback(option)
-                            break
-                        end
-                    end
-                end
-                if uiElementsVisuals.BulletTrailsCustomTexture then
-                    uiElementsVisuals.BulletTrailsCustomTexture.callback(uiElementsVisuals.BulletTrailsCustomTexture.element:GetValue())
+                if uiElementsVisuals.BulletTrailsColor then
+                    uiElementsVisuals.BulletTrailsColor.callback(uiElementsVisuals.BulletTrailsColor.element:GetValue())
                 end
                 safeNotify(GunSilent.notify, "GunSilent", "Settings synchronized with UI!", true)
             end
