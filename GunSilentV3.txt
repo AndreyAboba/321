@@ -96,13 +96,16 @@ local function getGunRange(tool)
     local baseRange = 0
     if tool and GunSilent.Core and GunSilent.Core.GetEncryptedAttributeName then
         local encryptedRangeAttr = GunSilent.Core.GetEncryptedAttributeName("range")
-        baseRange = tool:GetAttribute(encryptedRangeAttr) or tool:GetAttribute("Range") or 0
+        local encryptedRange = tool:GetAttribute(encryptedRangeAttr)
+        if encryptedRange then
+            baseRange = encryptedRange
+        else
+            baseRange = tool:GetAttribute("Range") or 0
+        end
     elseif tool then
         baseRange = tool:GetAttribute("Range") or 0
     end
-    -- Ограничиваем RangePlus, чтобы не превышал базовый range более чем в 2 раза (или минимальное значение 50)
-    local adjustedRangePlus = math.min(GunSilent.Settings.RangePlus.Value, math.max(baseRange > 0 and baseRange * 2 or 50, 50))
-    return baseRange + adjustedRangePlus
+    return baseRange + GunSilent.Settings.RangePlus.Value
 end
 
 local function getEquippedGunTool(character)
@@ -344,9 +347,7 @@ local function predictTargetPositionGun(target)
         else
             local speedFactor = 0.8 + (targetSpeed / (isInVehicle and 150 or 50)) * 0.5
             local ping = GunSilent.Settings.PingCompensation.Value * math.clamp(distance / 50, 0.5, 1.0)
-            local baseRange = equippedTool:GetAttribute(GunSilent.Core and GunSilent.Core.GetEncryptedAttributeName("range") or "Range") or 0
-            local totalRange = getGunRange(equippedTool)
-            local accuracyFactor = math.clamp(baseRange / distance, 0.5, 1.0) -- Используем базовый range для точности
+            local accuracyFactor = math.clamp(getGunRange(equippedTool) / distance, 0.5, 1.0)
             local totalPredictionTime = (timeToTarget + ping) * predictionStrength * speedFactor * accuracyFactor
             predictedPos = clientPos + resolvedVelocity * totalPredictionTime
 
