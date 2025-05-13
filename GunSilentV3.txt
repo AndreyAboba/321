@@ -534,6 +534,7 @@ local function updateVisualsGun(target)
 
         local trajectoryBeam = GunSilent.State.TrajectoryBeam
         if trajectoryBeam and GunSilent.State.TrajectoryAttachment0 and GunSilent.State.TrajectoryAttachment1 then
+            GunSilent.State.TrajectoryAttachment0.Position = startPos - localRoot.Position
             trajectoryBeam.Attachment0 = GunSilent.State.TrajectoryAttachment0
             trajectoryBeam.Attachment1 = GunSilent.State.TrajectoryAttachment1
             trajectoryBeam.Enabled = true
@@ -597,18 +598,8 @@ local function initializeGunSilent()
         local character = GunSilent.State.LocalCharacter
         if character and character:FindFirstChild("HumanoidRootPart") then
             GunSilent.State.LocalRoot = character.HumanoidRootPart
-        elseif not character or not character:FindFirstChild("HumanoidRootPart") then
+        else
             GunSilent.State.LocalRoot = nil
-            if GunSilent.State.TrajectoryAttachment0 and GunSilent.State.TrajectoryBeam then
-                if not GunSilent.State.TrajectoryAttachment0.Parent then
-                    GunSilent.State.TrajectoryAttachment0 = safeCreateInstance("Attachment", { Parent = Workspace.Terrain })
-                end
-                GunSilent.State.TrajectoryBeam.Attachment0 = GunSilent.State.TrajectoryAttachment0
-            end
-            if GunSilent.State.TrajectoryAttachment1 and GunSilent.State.PredictVisualPart and not GunSilent.State.TrajectoryAttachment1.Parent then
-                GunSilent.State.TrajectoryAttachment1 = safeCreateInstance("Attachment", { Parent = GunSilent.State.PredictVisualPart })
-                GunSilent.State.TrajectoryBeam.Attachment1 = GunSilent.State.TrajectoryAttachment1
-            end
         end
 
         local currentTool = getEquippedGunTool(character)
