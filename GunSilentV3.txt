@@ -2,6 +2,7 @@ local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 
 local GunSilent = {
     Settings = {
@@ -15,6 +16,8 @@ local GunSilent = {
         CircleMethod = { Value = "Center", Default = "Center", Options = {"Center", "Cursor"} },
         PredictVisual = { Value = true, Default = true },
         TrajectoryBeam = { Value = true, Default = true },
+        BulletTrailsEnabled = { Value = false, Default = false },
+        BulletTrailsColor = { Value = Color3.fromRGB(147, 112, 219), Default = Color3.fromRGB(147, 112, 219) },
         HitChance = { Value = 100, Default = 100 },
         PredictionStrength = { Value = 1.5, Default = 1.5 },
         PingCompensation = { Value = 0.1, Default = 0.1 },
@@ -45,7 +48,8 @@ local GunSilent = {
         LastPredictionPos = nil,
         LastTargetUpdate = 0,
         TargetUpdateInterval = 0.2,
-        LastFriendsList = nil
+        LastFriendsList = nil,
+        BulletTrails = {} -- Для хранения активных трасс
     }
 }
 
@@ -73,7 +77,6 @@ local function safeCreateInstance(className, properties)
     if success then
         return result
     else
-        warn(string.format("[GunSilent] Failed to create %s: %s", className, result))
         return nil
     end
 end
@@ -385,6 +388,52 @@ local function createHitDataGun(target)
     else
         hitData[1] = {{Normal = prediction.direction, Instance = hitPart, Position = prediction.position}}
     end
+
+    -- Создание Bullet Trails при выстреле
+    if GunSilent.Settings.BulletTrailsEnabled.Value and localRoot and prediction.position then
+        local startPos = localRoot.Position + Vector3.new(0, 1.5, 0)
+        local trail = safeCreateInstance("Beam", {
+            FaceCamera = true,
+            Width0 = 0.1,
+            Width1 = 0.1,
+            Transparency = NumberSequence.new(0),
+            Color = ColorSequence.new(GunSilent.Settings.BulletTrailsColor.Value),
+            Parent = Workspace
+        })
+        if trail then
+            local attachment0 = safeCreateInstance("Attachment", { Parent = Workspace.Terrain })
+            local attachment1 = safeCreateInstance("Attachment", { Parent = Workspace.Terrain })
+            attachment0.Position = startPos
+            attachment1.Position = prediction.position
+            trail.Attachment0 = attachment0
+            trail.Attachment1 = attachment1
+
+            -- Добавляем трассу в список
+            table.insert(GunSilent.State.BulletTrails, { beam = trail, attachment0 = attachment0, attachment1 = attachment1 })
+
+            -- Плавное исчезновение через TweenService
+            local tweenInfo = TweenInfo.new(
+                1, -- Длительность исчезновения (1 секунда)
+                Enum.EasingStyle.Linear,
+                Enum.EasingDirection.InOut
+            )
+            local tween = TweenService:Create(trail, tweenInfo, { Transparency = NumberSequence.new(1) })
+            tween:Play()
+            tween.Completed:Connect(function()
+                trail:Destroy()
+                attachment0:Destroy()
+                attachment1:Destroy()
+                -- Удаляем трассу из списка
+                for i, v in ipairs(GunSilent.State.BulletTrails) do
+                    if v.beam == trail then
+                        table.remove(GunSilent.State.BulletTrails, i)
+                        break
+                    end
+                end
+            end)
+        end
+    end
+
     return hitData
 end
 
@@ -802,6 +851,64 @@ local function Init(UI, Core, notify)
                     safeNotify(GunSilent.notify, "GunSilent", "Trajectory Beam " .. (value and "Enabled" or "Disabled"), true)
                 end
             }
+            UI.Sections.GunSilent:Header({ Name = "Bullet Trails" })
+            uiElements.BulletTrailsEnabled = {
+                element = UI.Sections.GunSilent:Toggle({
+                    Name = "Bullet Trails Enabled",
+                    Default = GunSilent.Settings.BulletTrailsEnabled.Value,
+                    Callback = function(value)
+                        GunSilent.Settings.BulletTrailsEnabled.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails " .. (value and "Enabled" or "Disabled"), true)
+                        if not value then
+                            -- Очищаем все существующие трассы при отключении
+                            for _, trailData in ipairs(GunSilent.State.BulletTrails) do
+                                if trailData.beam then
+                                    trailData.beam:Destroy()
+                                end
+                                if trailData.attachment0 then
+                                    trailData.attachment0:Destroy()
+                                end
+                                if trailData.attachment1 then
+                                    trailData.attachment1:Destroy()
+                                end
+                            end
+                            GunSilent.State.BulletTrails = {}
+                        end
+                    end
+                }, 'BulletTrailsEnabled'),
+                callback = function(value)
+                    GunSilent.Settings.BulletTrailsEnabled.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails " .. (value and "Enabled" or "Disabled"), true)
+                    if not value then
+                        for _, trailData in ipairs(GunSilent.State.BulletTrails) do
+                            if trailData.beam then
+                                trailData.beam:Destroy()
+                            end
+                            if trailData.attachment0 then
+                                trailData.attachment0:Destroy()
+                            end
+                            if trailData.attachment1 then
+                                trailData.attachment1:Destroy()
+                            end
+                        end
+                        GunSilent.State.BulletTrails = {}
+                    end
+                end
+            }
+            uiElements.BulletTrailsColor = {
+                element = UI.Sections.GunSilent:Colorpicker({
+                    Name = "Bullet Trails Color",
+                    Default = GunSilent.Settings.BulletTrailsColor.Value,
+                    Callback = function(value)
+                        GunSilent.Settings.BulletTrailsColor.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails Color updated", false)
+                    end
+                }, 'BulletTrailsColor'),
+                callback = function(value)
+                    GunSilent.Settings.BulletTrailsColor.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails Color updated", false)
+                end
+            }
             uiElements.HitChance = {
                 element = UI.Sections.GunSilent:Slider({
                     Name = "Hit Chance",
@@ -923,9 +1030,6 @@ local function Init(UI, Core, notify)
             local gunconfigSection
             if UI.Tabs.Config then
                 gunconfigSection = UI.Tabs.Config:Section({ Name = "GunSilent Sync", Side = "Right" })
-            else
-                warn("[GunSilent] Config tab not found, cannot create Sync section")
-                return
             end
 
             if gunconfigSection then
@@ -933,7 +1037,6 @@ local function Init(UI, Core, notify)
                 gunconfigSection:Button({
                     Name = "Sync Settings",
                     Callback = function()
-                        -- Только Slider и Dropdown
                         if uiElements.RangePlus then
                             uiElements.RangePlus.callback(uiElements.RangePlus.element:GetValue())
                         end
@@ -991,14 +1094,8 @@ local function Init(UI, Core, notify)
                         safeNotify(GunSilent.notify, "GunSilent", "Settings synchronized with UI!", true)
                     end
                 }, 'SyncSettings')
-            else
-                warn("[GunSilent] Failed to create GunSilent Sync section in Config tab")
             end
-        else
-            warn("[GunSilent] Failed to create GunSilent section in Combat tab")
         end
-    else
-        warn("[GunSilent] Combat tab not found")
     end
 
     initializeGunSilent()
