@@ -77,6 +77,7 @@ function HSCR.Init(UI, Core, notify)
             task.wait(1)
             crosshairFrame = u5.get("CrosshairFrame")
             attempts = attempts + 1
+            warn("Attempt " .. attempts .. " to find crosshairFrame")
         end
         if not crosshairFrame then
             warn("Failed to initialize: CrosshairFrame not found after 10 seconds")
@@ -110,14 +111,20 @@ function HSCR.Init(UI, Core, notify)
     local isAnimating = false
 
     local function processHitQueue()
-        if #hitQueue == 0 or isAnimating then return end
+        if #hitQueue == 0 or isAnimating then
+            warn("HitQueue empty or animating: count=" .. #hitQueue .. ", isAnimating=" .. tostring(isAnimating))
+            return
+        end
         warn("Processing hitQueue, count: " .. #hitQueue)
 
         local hit = table.remove(hitQueue, 1)
 
         if not crosshairFrame or not crosshairFrame.Parent then
             crosshairFrame = u5.get("CrosshairFrame")
-            if not crosshairFrame then return end
+            if not crosshairFrame then
+                warn("crosshairFrame not found during processHitQueue")
+                return
+            end
             frame1 = crosshairFrame:FindFirstChild("Frame1") and crosshairFrame.Frame1:FindFirstChild("ImageLabel")
             frame2 = crosshairFrame:FindFirstChild("Frame2") and crosshairFrame.Frame2:FindFirstChild("ImageLabel")
             radial = u7.new(crosshairFrame)
@@ -372,32 +379,11 @@ function HSCR.Init(UI, Core, notify)
             if isKill then
                 local selectedSoundId = CrosshairSettings.SoundIds[CrosshairSettings.SelectedSound.Value] or CrosshairSettings.OriginalSounds.headshotSound
                 local soundId = CrosshairSettings.HeadshotSoundEnabled and selectedSoundId or CrosshairSettings.OriginalSounds.headshotSound
-                local sound = Instance.new("Sound")
-                sound.SoundId = soundId
-                sound.Volume = 2.5
-                sound.Parent = SoundService
-                sound:Play()
-                sound.Ended:Connect(function()
-                    sound:Destroy()
-                end)
+                u1.play(soundId, 2.5, 1, SoundService) -- Используем u11.play из модуля Audio
             elseif isHeadshot then
-                local sound = Instance.new("Sound")
-                sound.SoundId = CrosshairSettings.OriginalSounds.headshotNormalSound
-                sound.Volume = 1
-                sound.Parent = SoundService
-                sound:Play()
-                sound.Ended:Connect(function()
-                    sound:Destroy()
-                end)
+                u1.play(CrosshairSettings.OriginalSounds.headshotNormalSound, 1, 1, SoundService)
             else
-                local sound = Instance.new("Sound")
-                sound.SoundId = CrosshairSettings.OriginalSounds.hitSound
-                sound.Volume = 1
-                sound.Parent = SoundService
-                sound:Play()
-                sound.Ended:Connect(function()
-                    sound:Destroy()
-                end)
+                u1.play(CrosshairSettings.OriginalSounds.hitSound, 1, 1, SoundService)
             end
 
             table.insert(hitQueue, { isHeadshot = isHeadshot, isKill = isKill })
