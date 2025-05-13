@@ -974,10 +974,10 @@ local function Init(UI, Core, notify)
     if UI.Tabs.Visuals then
         local visualsSection = UI.Tabs.Visuals:Section({ Side = "Right", Name = "Bullet Trails" })
         if visualsSection then
-            visualsSection:Header({ Name = "Bullet Trails Settings" })
+            visualsSection:Header({ Name = "Bullet Trails" })
             VisualsElements.BulletTrailsEnabled = {
                 element = visualsSection:Toggle({
-                    Name = "Bullet Trails Enabled",
+                    Name = "Enabled",
                     Default = GunSilent.Settings.BulletTrailsEnabled.Value,
                     Callback = function(value)
                         GunSilent.Settings.BulletTrailsEnabled.Value = value
@@ -1106,7 +1106,6 @@ local function Init(UI, Core, notify)
                 CombatElements.BulletSpeed.callback(CombatElements.BulletSpeed.element:GetValue())
                 VisualsElements.BulletTrailsEnabled.callback(VisualsElements.BulletTrailsEnabled.element:GetState())
                 VisualsElements.BulletTrailsFadeTime.callback(VisualsElements.BulletTrailsFadeTime.element:GetValue())
-                VisualsElements.BulletTrailsColor.callback(VisualsElements.BulletTrailsColor.element:GetValue())
                 safeNotify(GunSilent.notify, "GunSilent", "Settings synchronized with UI!", true)
             end
         }, 'SyncSettings')
