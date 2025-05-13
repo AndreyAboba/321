@@ -100,7 +100,12 @@ local function isShotgun(tool)
 end
 
 local function getGunRange(tool)
-    return GunSilent.Settings.RangePlus.Value
+    if not tool then
+        return GunSilent.Settings.RangePlus.Value
+    end
+    local encryptedRangeAttr = Core.GetEncryptedAttributeName("range")
+    local rangeValue = tool:GetAttribute(encryptedRangeAttr) or 0
+    return rangeValue + GunSilent.Settings.RangePlus.Value
 end
 
 local function getEquippedGunTool(character)
