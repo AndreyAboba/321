@@ -11,8 +11,8 @@ local CrosshairSettings = {
     DotOutlineThickness = { Value = 2, Default = 2 },
     GradientColor = Color3.fromRGB(0, 0, 255),
     ExpandDistance = { Value = 0.8, Default = 0.8 },
-    ExpandDuration = { Value = 0.08, Default = 0.08 }, -- Синхронизировано с Crosshair.lua
-    ShrinkDuration = { Value = 0.05, Default = 0.05 }, -- Синхронизировано с Crosshair.lua
+    ExpandDuration = { Value = 0.08, Default = 0.08 },
+    ShrinkDuration = { Value = 0.05, Default = 0.05 },
     HeadshotSoundEnabled = false,
     SelectedSound = { Value = "Default", Default = "Default" },
     SoundData = {
