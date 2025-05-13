@@ -111,10 +111,7 @@ function HSCR.Init(UI, Core, notify)
     local isAnimating = false
 
     local function processHitQueue()
-        if #hitQueue == 0 or isAnimating then
-            warn("HitQueue empty or animating: count=" .. #hitQueue .. ", isAnimating=" .. tostring(isAnimating))
-            return
-        end
+        if #hitQueue == 0 or isAnimating then return end
         warn("Processing hitQueue, count: " .. #hitQueue)
 
         local hit = table.remove(hitQueue, 1)
@@ -376,19 +373,31 @@ function HSCR.Init(UI, Core, notify)
 
         u27.hitmarker = function(isHeadshot, isKill)
             warn("Hitmarker triggered: isHeadshot=" .. tostring(isHeadshot) .. ", isKill=" .. tostring(isKill))
-            if isKill then
+            if isKill and CrosshairSettings.HeadshotSoundEnabled then
                 local selectedSoundId = CrosshairSettings.SoundIds[CrosshairSettings.SelectedSound.Value] or CrosshairSettings.OriginalSounds.headshotSound
-                local soundId = CrosshairSettings.HeadshotSoundEnabled and selectedSoundId or CrosshairSettings.OriginalSounds.headshotSound
-                u1.play(soundId, 2.5, 1, SoundService) -- Используем u11.play из модуля Audio
-            elseif isHeadshot then
+                u1.play(selectedSoundId, 2.5, 1, SoundService)
+            elseif isHeadshot and CrosshairSettings.HeadshotSoundEnabled then
                 u1.play(CrosshairSettings.OriginalSounds.headshotNormalSound, 1, 1, SoundService)
-            else
-                u1.play(CrosshairSettings.OriginalSounds.hitSound, 1, 1, SoundService)
+            elseif not CrosshairSettings.HeadshotSoundEnabled then
+                if isHeadshot then
+                    u1.play(CrosshairSettings.OriginalSounds.headshotNormalSound, 1, 1, SoundService)
+                elseif isKill then
+                    u1.play(CrosshairSettings.OriginalSounds.headshotSound, 2.5, 1, SoundService)
+                else
+                    u1.play(CrosshairSettings.OriginalSounds.hitSound, 1, 1, SoundService)
+                end
             end
 
-            table.insert(hitQueue, { isHeadshot = isHeadshot, isKill = isKill })
+            if CrosshairSettings.Enabled then
+                table.insert(hitQueue, { isHeadshot = isHeadshot, isKill = isKill })
+            end
         end
 
+        -- Перехватываем стандартный u27
+        local originalU27 = require(game.ReplicatedStorage.Modules.Game.UI.Crosshair)
+        if originalU27 and originalU27.hitmarker then
+            originalU27.hitmarker = u27.hitmarker
+        end
         u6.hook("hit_confirmed", u27.hitmarker)
     end
 
