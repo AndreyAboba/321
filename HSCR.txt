@@ -11,48 +11,47 @@ local CrosshairSettings = {
     DotOutlineThickness = { Value = 2, Default = 2 },
     GradientColor = Color3.fromRGB(0, 0, 255),
     ExpandDistance = { Value = 0.8, Default = 0.8 },
-    ExpandDuration = { Value = 0.3, Default = 0.3 },
-    ShrinkDuration = { Value = 0.2, Default = 0.2 },
+    ExpandDuration = { Value = 0.08, Default = 0.08 }, -- Синхронизировано с Crosshair.lua
+    ShrinkDuration = { Value = 0.05, Default = 0.05 }, -- Синхронизировано с Crosshair.lua
     HeadshotSoundEnabled = false,
     SelectedSound = { Value = "Default", Default = "Default" },
     SoundData = {
-        { Label = "Default", SoundId = "rbxassetid://138464116325809" },
-        { Label = "KillSound", SoundId = "rbxassetid://132390332380260" },
-        { Label = "Bubble2", SoundId = "rbxassetid://9086370184" },
-        { Label = "KillSound2", SoundId = "rbxassetid://121311089745141" },
-        { Label = "KillSound3", SoundId = "rbxassetid://104467173440576" },
-        { Label = "OUH", SoundId = "rbxassetid://7246809481" },
-        { Label = "Fart", SoundId = "rbxassetid://5622443597" },
-        { Label = "PUI", SoundId = "rbxassetid://105190141089785" },
-        { Label = "minecraftEXP", SoundId = "rbxassetid://1053296915" },
-        { Label = "Minecraft2", SoundId = "rbxassetid://135478009117226" },
-        { Label = "TF2 HS", SoundId = "rbxassetid://90342360691837" },
-        { Label = "CriminalityHS", SoundId = "rbxassetid://83773429281082" },
-        { Label = "neverlose", SoundId = "rbxassetid://97643101798871" },
-        { Label = "bameware", SoundId = "rbxassetid://92614567965693" },
-        { Label = "fatality", SoundId = "rbxassetid://115982072912004" },
-        { Label = "csgoHS", SoundId = "rbxassetid://6937353691" },
-        { Label = "PopHS", SoundId = "rbxassetid://105543133746827" },
-        { Label = "BubblePop", SoundId = "rbxassetid://119697580657161" },
-        { Label = "NiggaHS", SoundId = "rbxassetid://4868633804" },
-        { Label = "IdkHS", SoundId = "rbxassetid://102911066745395" },
+        { Label = "Default", SoundId = 138464116325809 },
+        { Label = "KillSound", SoundId = 132390332380260 },
+        { Label = "Bubble2", SoundId = 9086370184 },
+        { Label = "KillSound2", SoundId = 121311089745141 },
+        { Label = "KillSound3", SoundId = 104467173440576 },
+        { Label = "OUH", SoundId = 7246809481 },
+        { Label = "Fart", SoundId = 5622443597 },
+        { Label = "PUI", SoundId = 105190141089785 },
+        { Label = "minecraftEXP", SoundId = 1053296915 },
+        { Label = "Minecraft2", SoundId = 135478009117226 },
+        { Label = "TF2 HS", SoundId = 90342360691837 },
+        { Label = "CriminalityHS", SoundId = 83773429281082 },
+        { Label = "neverlose", SoundId = 97643101798871 },
+        { Label = "bameware", SoundId = 92614567965693 },
+        { Label = "fatality", SoundId = 115982072912004 },
+        { Label = "csgoHS", SoundId = 6937353691 },
+        { Label = "PopHS", SoundId = 105543133746827 },
+        { Label = "BubblePop", SoundId = 119697580657161 },
+        { Label = "NiggaHS", SoundId = 4868633804 },
+        { Label = "IdkHS", SoundId = 102911066745395 },
     },
     SoundIds = {},
     OriginalSounds = {
-        headshotSound = "rbxassetid://138464116325809",
-        headshotNormalSound = "rbxassetid://135358980250767",
-        hitSound = "rbxassetid://100758444127105"
+        headshotSound = 138464116325809,
+        headshotNormalSound = 135358980250767,
+        hitSound = 100758444127105
     },
     OriginalElements = {},
     OriginalBulletsColor = nil
 }
 
 function HSCR.Init(UI, Core, notify)
-    local TweenService = game:GetService("TweenService")
-    local SoundService = game:GetService("SoundService")
     local RunService = game:GetService("RunService")
     local ContentProvider = game:GetService("ContentProvider")
 
+    local u1 = require(game.ReplicatedStorage.Modules.Core.Audio)
     local u5 = require(game.ReplicatedStorage.Modules.Core.UI)
     local u4 = require(game.ReplicatedStorage.Modules.Core.Util)
     local u6 = require(game.ReplicatedStorage.Modules.Core.Net)
@@ -87,31 +86,13 @@ function HSCR.Init(UI, Core, notify)
 
     crosshairFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 
-    local headshotSound = Instance.new("Sound")
-    headshotSound.Name = "CustomHeadshotSound"
-    headshotSound.SoundId = CrosshairSettings.OriginalSounds.headshotSound
-    headshotSound.Volume = 2.5
-    headshotSound.Parent = SoundService
-
-    local headshotNormalSound = Instance.new("Sound")
-    headshotNormalSound.Name = "CustomHeadshotNormalSound"
-    headshotNormalSound.SoundId = CrosshairSettings.OriginalSounds.headshotNormalSound
-    headshotNormalSound.Volume = 1
-    headshotNormalSound.Parent = SoundService
-
-    local hitSound = Instance.new("Sound")
-    hitSound.Name = "CustomHitSound"
-    hitSound.SoundId = CrosshairSettings.OriginalSounds.hitSound
-    hitSound.Volume = 1
-    hitSound.Parent = SoundService
-
     local soundsToPreload = {
         CrosshairSettings.OriginalSounds.headshotSound,
         CrosshairSettings.OriginalSounds.headshotNormalSound,
         CrosshairSettings.OriginalSounds.hitSound
     }
     for _, soundData in ipairs(CrosshairSettings.SoundData) do
-        table.insert(soundsToPreload, soundData.SoundId)
+        table.insert(soundsToPreload, tostring(soundData.SoundId))
     end
     ContentProvider:PreloadAsync(soundsToPreload)
 
@@ -178,7 +159,7 @@ function HSCR.Init(UI, Core, notify)
             if frame2 then frame2.Visible = CrosshairSettings.OriginalElements.Frame2Visible or true end
             crosshairFrame.Size = CrosshairSettings.OriginalElements.Size or UDim2.fromOffset(18, 18)
             if bulletsLabel then
-                bulletsLabel.TextColor3 = CrosshairSettings.OriginalBulletsColor or CrosshairSettings.GradientColor
+                bulletsLabel.TextColor3 = CrosshairSettings.OriginalBulletsColor or Color3.fromRGB(255, 255, 255)
             end
             return
         end
@@ -264,111 +245,18 @@ function HSCR.Init(UI, Core, notify)
     local function pulse(scale)
         if not CrosshairSettings.Enabled or not crosshairFrame or not crosshairFrame.Parent then return end
 
-        local tweenInfoExpand = TweenInfo.new(CrosshairSettings.ExpandDuration.Value, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
-        local tweenInfoShrink = TweenInfo.new(CrosshairSettings.ShrinkDuration.Value, Enum.EasingStyle.Sine, Enum.EasingDirection.In)
-
-        if CrosshairSettings.Style.Value == "Dot" then
-            local dot = crosshairFrame:FindFirstChild("Dot")
-            local innerDot = dot and dot:FindFirstChild("InnerDot")
-            if not dot or not innerDot then return end
-
-            local newDotSize = CrosshairSettings.DotSize.Value * (1 + scale)
-            local newInnerDotSize = CrosshairSettings.DotInnerSize.Value * (1 + scale)
-
-            local tweenDotExpand = TweenService:Create(dot, tweenInfoExpand, {
-                Size = UDim2.fromOffset(newDotSize, newDotSize),
-                Position = UDim2.new(0.5, -newDotSize / 2, 0.5, -newDotSize / 2),
-            })
-            local tweenInnerDotExpand = TweenService:Create(innerDot, tweenInfoExpand, {
-                Size = UDim2.fromOffset(newInnerDotSize, newInnerDotSize),
-                Position = UDim2.new(0.5, -newInnerDotSize / 2, 0.5, -newInnerDotSize / 2),
-            })
-
-            tweenDotExpand:Play()
-            tweenInnerDotExpand:Play()
-
-            task.delay(CrosshairSettings.ExpandDuration.Value, function()
-                if not crosshairFrame or not crosshairFrame.Parent then return end
-                local tweenDotShrink = TweenService:Create(dot, tweenInfoShrink, {
-                    Size = UDim2.fromOffset(CrosshairSettings.DotSize.Value, CrosshairSettings.DotSize.Value),
-                    Position = UDim2.new(0.5, -CrosshairSettings.DotSize.Value / 2, 0.5, -CrosshairSettings.DotSize.Value / 2),
-                })
-                local tweenInnerDotShrink = TweenService:Create(innerDot, tweenInfoShrink, {
-                    Size = UDim2.fromOffset(CrosshairSettings.DotInnerSize.Value, CrosshairSettings.DotInnerSize.Value),
-                    Position = UDim2.new(0.5, -CrosshairSettings.DotInnerSize.Value / 2, 0.5, -CrosshairSettings.DotInnerSize.Value / 2),
-                })
-                tweenDotShrink:Play()
-                tweenInnerDotShrink:Play()
-            end)
-        elseif CrosshairSettings.Style.Value == "Default" then
-            local top = crosshairFrame:FindFirstChild("Top")
-            local right = crosshairFrame:FindFirstChild("Right")
-            local bottom = crosshairFrame:FindFirstChild("Bottom")
-            local left = crosshairFrame:FindFirstChild("Left")
-            if not top or not right or not bottom or not left then return end
-
-            local gap = CrosshairSettings.Gap.Value
-            local length = CrosshairSettings.Length.Value
-            local thickness = 2
-            local newGap = gap * (1 + scale)
-
-            local tweenFrameExpand = TweenService:Create(crosshairFrame, tweenInfoExpand, {
-                Size = UDim2.fromOffset(CrosshairSettings.Size.Value * (1 + scale), CrosshairSettings.Size.Value * (1 + scale)),
-            })
-            tweenFrameExpand:Play()
-
-            local tweenTopExpand = TweenService:Create(top, tweenInfoExpand, {
-                Position = UDim2.new(0.5, -thickness / 2, 0.5, -newGap - length),
-            })
-            local tweenRightExpand = TweenService:Create(right, tweenInfoExpand, {
-                Position = UDim2.new(0.5, newGap, 0.5, -thickness / 2),
-            })
-            local tweenBottomExpand = TweenService:Create(bottom, tweenInfoExpand, {
-                Position = UDim2.new(0.5, -thickness / 2, 0.5, newGap),
-            })
-            local tweenLeftExpand = TweenService:Create(left, tweenInfoExpand, {
-                Position = UDim2.new(0.5, -newGap - length, 0.5, -thickness / 2),
-            })
-
-            tweenTopExpand:Play()
-            tweenRightExpand:Play()
-            tweenBottomExpand:Play()
-            tweenLeftExpand:Play()
-
-            task.delay(CrosshairSettings.ExpandDuration.Value, function()
-                if not crosshairFrame or not crosshairFrame.Parent then return end
-                local tweenFrameShrink = TweenService:Create(crosshairFrame, tweenInfoShrink, {
-                    Size = UDim2.fromOffset(CrosshairSettings.Size.Value, CrosshairSettings.Size.Value),
-                })
-                tweenFrameShrink:Play()
-
-                local tweenTopShrink = TweenService:Create(top, tweenInfoShrink, {
-                    Position = UDim2.new(0.5, -thickness / 2, 0.5, -gap - length),
-                })
-                local tweenRightShrink = TweenService:Create(right, tweenInfoShrink, {
-                    Position = UDim2.new(0.5, gap, 0.5, -thickness / 2),
-                })
-                local tweenBottomShrink = TweenService:Create(bottom, tweenInfoShrink, {
-                    Position = UDim2.new(0.5, -thickness / 2, 0.5, gap),
-                })
-                local tweenLeftShrink = TweenService:Create(left, tweenInfoShrink, {
-                    Position = UDim2.new(0.5, -gap - length, 0.5, -thickness / 2),
-                })
-
-                tweenTopShrink:Play()
-                tweenRightShrink:Play()
-                tweenBottomShrink:Play()
-                tweenLeftShrink:Play()
-            end)
-        end
+        u4.tween(crosshairFrame, TweenInfo.new(CrosshairSettings.ExpandDuration.Value, Enum.EasingStyle.Quad), {
+            Size = UDim2.fromOffset(CrosshairSettings.Size.Value * (1 + scale), CrosshairSettings.Size.Value * (1 + scale))
+        }).Completed:Wait()
+        u4.tween(crosshairFrame, TweenInfo.new(CrosshairSettings.ShrinkDuration.Value, Enum.EasingStyle.Quad), {
+            Size = UDim2.fromOffset(CrosshairSettings.Size.Value, CrosshairSettings.Size.Value)
+        })
     end
 
     local function pulseRed()
         if not CrosshairSettings.Enabled or not crosshairFrame or not crosshairFrame.Parent then return end
 
         local secondaryColor = Color3.fromRGB(255, 0, 0)
-        local tweenInfoFast = TweenInfo.new(0.08, Enum.EasingStyle.Quad)
-        local tweenInfoRevert = TweenInfo.new(0.05, Enum.EasingStyle.Quad)
 
         if CrosshairSettings.Style.Value == "Dot" then
             local dot = crosshairFrame:FindFirstChild("Dot")
@@ -377,44 +265,44 @@ function HSCR.Init(UI, Core, notify)
             local innerDot = dot:FindFirstChild("InnerDot")
             if not stroke or not innerDot then return end
 
-            local tweenStroke = TweenService:Create(stroke, tweenInfoFast, { Color = secondaryColor })
-            local tweenInnerDot = TweenService:Create(innerDot, tweenInfoFast, { BackgroundColor3 = secondaryColor })
-            tweenStroke:Play()
-            tweenInnerDot:Play()
-
-            task.delay(0.08, function()
-                if not crosshairFrame or not crosshairFrame.Parent then return end
-                local tweenStrokeRevert = TweenService:Create(stroke, tweenInfoRevert, { Color = CrosshairSettings.GradientColor })
-                local tweenInnerDotRevert = TweenService:Create(innerDot, tweenInfoRevert, { BackgroundColor3 = CrosshairSettings.GradientColor })
-                tweenStrokeRevert:Play()
-                tweenInnerDotRevert:Play()
-            end)
+            u4.tween(stroke, TweenInfo.new(0.08, Enum.EasingStyle.Quad), { Color = secondaryColor })
+            u4.tween(innerDot, TweenInfo.new(0.08, Enum.EasingStyle.Quad), { BackgroundColor3 = secondaryColor })
         elseif CrosshairSettings.Style.Value == "Default" then
             for _, child in pairs(crosshairFrame:GetChildren()) do
                 if child:IsA("Frame") and child.Name ~= "Frame1" and child.Name ~= "Frame2" then
-                    local tween = TweenService:Create(child, tweenInfoFast, { BackgroundColor3 = secondaryColor })
-                    tween:Play()
+                    u4.tween(child, TweenInfo.new(0.08, Enum.EasingStyle.Quad), { BackgroundColor3 = secondaryColor })
                 end
             end
-            if bulletsLabel and bulletsLabel.Parent then
-                local tweenBullets = TweenService:Create(bulletsLabel, tweenInfoFast, { TextColor3 = secondaryColor })
-                tweenBullets:Play()
-            end
+        end
 
-            task.delay(0.08, function()
-                if not crosshairFrame or not crosshairFrame.Parent then return end
+        if bulletsLabel and bulletsLabel.Parent then
+            u4.tween(bulletsLabel, TweenInfo.new(0.08, Enum.EasingStyle.Quad), { TextColor3 = secondaryColor })
+        end
+
+        task.delay(0.08, function()
+            if not crosshairFrame or not crosshairFrame.Parent then return end
+
+            if CrosshairSettings.Style.Value == "Dot" then
+                local dot = crosshairFrame:FindFirstChild("Dot")
+                if not dot then return end
+                local stroke = dot:FindFirstChild("UIStroke")
+                local innerDot = dot:FindFirstChild("InnerDot")
+                if not stroke or not innerDot then return end
+
+                u4.tween(stroke, TweenInfo.new(0.05, Enum.EasingStyle.Quad), { Color = CrosshairSettings.GradientColor })
+                u4.tween(innerDot, TweenInfo.new(0.05, Enum.EasingStyle.Quad), { BackgroundColor3 = CrosshairSettings.GradientColor })
+            elseif CrosshairSettings.Style.Value == "Default" then
                 for _, child in pairs(crosshairFrame:GetChildren()) do
                     if child:IsA("Frame") and child.Name ~= "Frame1" and child.Name ~= "Frame2" then
-                        local tween = TweenService:Create(child, tweenInfoRevert, { BackgroundColor3 = CrosshairSettings.GradientColor })
-                        tween:Play()
+                        u4.tween(child, TweenInfo.new(0.05, Enum.EasingStyle.Quad), { BackgroundColor3 = CrosshairSettings.GradientColor })
                     end
                 end
-                if bulletsLabel and bulletsLabel.Parent then
-                    local tweenBulletsRevert = TweenService:Create(bulletsLabel, tweenInfoRevert, { TextColor3 = CrosshairSettings.GradientColor })
-                    tweenBulletsRevert:Play()
-                end
-            end)
-        end
+            end
+
+            if bulletsLabel and bulletsLabel.Parent then
+                u4.tween(bulletsLabel, TweenInfo.new(0.05, Enum.EasingStyle.Quad), { TextColor3 = CrosshairSettings.GradientColor })
+            end
+        end)
     end
 
     AnimationFunctions.updateCrosshairDesign = updateCrosshairDesign
@@ -468,14 +356,12 @@ function HSCR.Init(UI, Core, notify)
         u27.hitmarker = function(isHeadshot, isKill)
             if isKill then
                 local selectedSoundId = CrosshairSettings.SoundIds[CrosshairSettings.SelectedSound.Value] or CrosshairSettings.OriginalSounds.headshotSound
-                headshotSound.SoundId = CrosshairSettings.HeadshotSoundEnabled and selectedSoundId or CrosshairSettings.OriginalSounds.headshotSound
-                pcall(function() headshotSound:Play() end)
+                local soundId = CrosshairSettings.HeadshotSoundEnabled and selectedSoundId or CrosshairSettings.OriginalSounds.headshotSound
+                pcall(function() u1.play(soundId, 2.5) end)
             elseif isHeadshot then
-                headshotNormalSound.SoundId = CrosshairSettings.OriginalSounds.headshotNormalSound
-                pcall(function() headshotNormalSound:Play() end)
+                pcall(function() u1.play(CrosshairSettings.OriginalSounds.headshotNormalSound, 1) end)
             else
-                hitSound.SoundId = CrosshairSettings.OriginalSounds.hitSound
-                pcall(function() hitSound:Play() end)
+                pcall(function() u1.play(CrosshairSettings.OriginalSounds.hitSound, 1) end)
             end
 
             table.insert(hitQueue, { isHeadshot = isHeadshot, isKill = isKill })
