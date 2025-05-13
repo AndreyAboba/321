@@ -15,8 +15,8 @@ local GunSilent = {
         CircleMethod = { Value = "Center", Default = "Center", Options = {"Center", "Cursor"} },
         PredictVisual = { Value = true, Default = true },
         TrajectoryBeam = { Value = true, Default = true },
-        BulletTrails = { Value = true, Default = true }, -- Новая настройка для BulletTrails
-        BulletTrailDuration = { Value = 2, Default = 2 }, -- Длительность отображения траектории пули
+        BulletTrails = { Value = true, Default = true },
+        BulletTrailDuration = { Value = 2, Default = 2 },
         HitChance = { Value = 100, Default = 100 },
         PredictionStrength = { Value = 1.5, Default = 1.5 },
         PingCompensation = { Value = 0.1, Default = 0.1 },
@@ -48,7 +48,7 @@ local GunSilent = {
         LastTargetUpdate = 0,
         TargetUpdateInterval = 0.2,
         LastFriendsList = nil,
-        BulletTrailBeams = {} -- Хранилище для Beam'ов траекторий пуль
+        BulletTrailBeams = {}
     }
 }
 
@@ -401,7 +401,6 @@ local function createHitDataGun(target)
         hitData[1] = {{Normal = prediction.direction, Instance = hitPart, Position = prediction.position}}
     end
 
-    -- Создаем BulletTrails, если включено
     if GunSilent.Settings.BulletTrails.Value and localRoot then
         local startPos = localRoot.Position + Vector3.new(0, 1.5, 0)
         for i = 1, #hitData do
@@ -412,7 +411,7 @@ local function createHitDataGun(target)
                     Width0 = 0.1,
                     Width1 = 0.1,
                     Transparency = NumberSequence.new(0.2),
-                    Color = ColorSequence.new(Color3.fromRGB(255, 215, 0)), -- Желтый цвет, как в CS:GO
+                    Color = ColorSequence.new(Color3.fromRGB(255, 215, 0)),
                     Parent = Workspace
                 })
                 if trailBeam then
@@ -525,7 +524,6 @@ local function updateVisualsGun(target)
         GunSilent.State.TrajectoryBeam.Enabled = false
     end
 
-    -- Обновление BulletTrails: удаляем старые траектории
     local currentTime = tick()
     for i = #GunSilent.State.BulletTrailBeams, 1, -1 do
         local trailData = GunSilent.State.BulletTrailBeams[i]
@@ -633,7 +631,6 @@ local function Init(UI, Core, notify)
             character:WaitForChild("HumanoidRootPart")
             GunSilent.State.LocalCharacter = character
             GunSilent.State.LocalRoot = character.HumanoidRootPart
-            -- Пересоздаем Attachment после возрождения
             if GunSilent.State.TrajectoryBeam then
                 if not GunSilent.State.TrajectoryAttachment0 then
                     GunSilent.State.TrajectoryAttachment0 = safeCreateInstance("Attachment", { Parent = GunSilent.State.LocalRoot })
@@ -970,10 +967,14 @@ local function Init(UI, Core, notify)
                     safeNotify(GunSilent.notify, "GunSilent", "Bullet Speed set to: " .. value, false)
                 end
             }
+            warn("[GunSilent] uiElements initialized: ", uiElements.GSEnabled and "GSEnabled exists" or "GSEnabled nil")
+        else
+            warn("[GunSilent] Failed to create GunSilent section in Combat tab")
         end
+    else
+        warn("[GunSilent] Combat tab not found")
     end
 
-    -- Новая секция Visuals
     if UI.Tabs.Visuals then
         UI.Sections.GunSilentVisuals = UI.Tabs.Visuals:Section({ Side = "Right", Name = "GunSilent Visuals" })
         if UI.Sections.GunSilentVisuals then
@@ -1019,38 +1020,42 @@ local function Init(UI, Core, notify)
     gunconfigSection:Button({
         Name = "Sync Settings",
         Callback = function()
-            uiElements.RangePlus.callback(uiElements.RangePlus.element:GetValue())
-            local hitPartOptions = uiElements.HitPart.element:GetOptions()
-            for option, selected in pairs(hitPartOptions) do
-                if selected then
-                    uiElements.HitPart.callback(option)
-                    break
+            if uiElements.RangePlus then uiElements.RangePlus.callback(uiElements.RangePlus.element:GetValue()) end
+            if uiElements.GenerateBullets then uiElements.GenerateBullets.callback(uiElements.GenerateBullets.element:GetValue()) end
+            if uiElements.FOV then uiElements.FOV.callback(uiElements.FOV.element:GetValue()) end
+            if uiElements.HitChance then uiElements.HitChance.callback(uiElements.HitChance.element:GetValue()) end
+            if uiElements.PredictionStrength then uiElements.PredictionStrength.callback(uiElements.PredictionStrength.element:GetValue()) end
+            if uiElements.PingCompensation then uiElements.PingCompensation.callback(uiElements.PingCompensation.element:GetValue()) end
+            if uiElements.SmoothingFactor then uiElements.SmoothingFactor.callback(uiElements.SmoothingFactor.element:GetValue()) end
+            if uiElements.ResolverThreshold then uiElements.ResolverThreshold.callback(uiElements.ResolverThreshold.element:GetValue()) end
+            if uiElements.BulletSpeed then uiElements.BulletSpeed.callback(uiElements.BulletSpeed.element:GetValue()) end
+            local hitPartOptions = uiElements.HitPart and uiElements.HitPart.element:GetOptions()
+            if hitPartOptions then
+                for option, selected in pairs(hitPartOptions) do
+                    if selected then
+                        uiElements.HitPart.callback(option)
+                        break
+                    end
                 end
             end
-            uiElements.ShotgunSupport.callback(uiElements.ShotgunSupport.element:GetState())
-            uiElements.GenerateBullets.callback(uiElements.GenerateBullets.element:GetValue())
-            uiElements.TestGenerateBullets.callback(uiElements.TestGenerateBullets.element:GetState())
-            local sortMethodOptions = uiElements.SortMethod.element:GetOptions()
-            for option, selected in pairs(sortMethodOptions) do
-                if selected then
-                    uiElements.SortMethod.callback(option)
-                    break
+            local sortMethodOptions = uiElements.SortMethod and uiElements.SortMethod.element:GetOptions()
+            if sortMethodOptions then
+                for option, selected in pairs(sortMethodOptions) do
+                    if selected then
+                        uiElements.SortMethod.callback(option)
+                        break
+                    end
                 end
             end
-            uiElements.UseFOV.callback(uiElements.UseFOV.element:GetState())
-            uiElements.FOV.callback(uiElements.FOV.element:GetValue())
-            uiElements.ShowCircle.callback(uiElements.ShowCircle.element:GetState())
-            uiElements.CircleMethod.callback(uiElements.CircleMethod.element:GetValue())
-            uiElements.PredictVisual.callback(uiElements.PredictVisual.element:GetState())
-            uiElements.TrajectoryBeam.callback(uiElements.TrajectoryBeam.element:GetState())
-            uiElements.HitChance.callback(uiElements.HitChance.element:GetValue())
-            uiElements.PredictionStrength.callback(uiElements.PredictionStrength.element:GetValue())
-            uiElements.PingCompensation.callback(uiElements.PingCompensation.element:GetValue())
-            uiElements.SmoothingFactor.callback(uiElements.SmoothingFactor.element:GetValue())
-            uiElements.ResolverEnabled.callback(uiElements.ResolverEnabled.element:GetState())
-            uiElements.ResolverThreshold.callback(uiElements.ResolverThreshold.element:GetValue())
-            uiElements.BulletSpeed.callback(uiElements.BulletSpeed.element:GetValue())
-            visualElements.BulletTrailDuration.callback(visualElements.BulletTrailDuration.element:GetValue())
+            local circleMethodOptions = uiElements.CircleMethod and uiElements.CircleMethod.element:GetOptions()
+            if circleMethodOptions then
+                for option, selected in pairs(circleMethodOptions) do
+                    if selected then
+                        uiElements.CircleMethod.callback(option)
+                        break
+                    end
+                end
+            end
             safeNotify(GunSilent.notify, "GunSilent", "Settings synchronized with UI!", true)
         end
     }, 'SyncSettings')
