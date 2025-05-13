@@ -1019,7 +1019,6 @@ local function Init(UI, Core, notify)
     gunconfigSection:Button({
         Name = "Sync Settings",
         Callback = function()
-            uiElements.GSEnabled.callback(uiElements.GSEnabled.element:GetState())
             uiElements.RangePlus.callback(uiElements.RangePlus.element:GetValue())
             local hitPartOptions = uiElements.HitPart.element:GetOptions()
             for option, selected in pairs(hitPartOptions) do
@@ -1051,7 +1050,6 @@ local function Init(UI, Core, notify)
             uiElements.ResolverEnabled.callback(uiElements.ResolverEnabled.element:GetState())
             uiElements.ResolverThreshold.callback(uiElements.ResolverThreshold.element:GetValue())
             uiElements.BulletSpeed.callback(uiElements.BulletSpeed.element:GetValue())
-            visualElements.BulletTrails.callback(visualElements.BulletTrails.element:GetState())
             visualElements.BulletTrailDuration.callback(visualElements.BulletTrailDuration.element:GetValue())
             safeNotify(GunSilent.notify, "GunSilent", "Settings synchronized with UI!", true)
         end
