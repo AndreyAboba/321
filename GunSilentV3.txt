@@ -100,15 +100,31 @@ local function isShotgun(tool)
 end
 
 local function getGunRange(tool)
-    if not tool then
+    if not tool or typeof(tool) ~= "Instance" or not tool:IsA("Tool") then
         return GunSilent.Settings.RangePlus.Value
     end
     local rangeValue = 0
-    if Core.GetEncryptedAttributeName then
+    if Core and Core.GetEncryptedAttributeName then
         local encryptedRangeAttr = Core.GetEncryptedAttributeName("range")
-        rangeValue = tool:GetAttribute(encryptedRangeAttr) or 0
+        if encryptedRangeAttr then
+            local attrValue = tool:GetAttribute(encryptedRangeAttr)
+            if type(attrValue) == "number" then
+                rangeValue = attrValue
+            else
+                safeNotify(GunSilent.notify, "GunSilent", "Error: Range attribute is not a number, using default (0)", true)
+            end
+        else
+            safeNotify(GunSilent.notify, "GunSilent", "Error: Encrypted attribute name for 'range' is nil", true)
+        end
+    else
+        safeNotify(GunSilent.notify, "GunSilent", "Error: Core or Core.GetEncryptedAttributeName is not available", true)
     end
-    return rangeValue + GunSilent.Settings.RangePlus.Value
+    local rangePlus = GunSilent.Settings.RangePlus.Value
+    if type(rangePlus) ~= "number" then
+        safeNotify(GunSilent.notify, "GunSilent", "Error: RangePlus.Value is not a number, using default (0)", true)
+        rangePlus = 0
+    end
+    return rangeValue + rangePlus
 end
 
 local function getEquippedGunTool(character)
@@ -923,23 +939,7 @@ local function Init(UI, Core, notify)
                         GunSilent.Settings.SmoothingFactor.Value = value
                         safeNotify(GunSilent.notify, "GunSilent", "Smoothing Factor set to: " .. value, false)
                     end
-                landing = {
-                    element = combatSection:Slider({
-                        Name = "Landing Prediction",
-                        Minimum = 0,
-                        Maximum = 1,
-                        Default = GunSilent.Settings.LandingPrediction.Value,
-                        Precision = 2,
-                        Callback = function(value)
-                            GunSilent.Settings.LandingPrediction.Value = value
-                            safeNotify(GunSilent.notify, "GunSilent", "Landing Prediction set to: " .. value, false)
-                        end
-                    }, 'LandingPrediction'),
-                    callback = function(value)
-                        GunSilent.Settings.LandingPrediction.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Landing Prediction set to: " .. value, false)
-                    end
-                },
+                }, 'SmoothingFactor'),
                 callback = function(value)
                     GunSilent.Settings.SmoothingFactor.Value = value
                     safeNotify(GunSilent.notify, "GunSilent", "Smoothing Factor set to: " .. value, false)
@@ -1018,7 +1018,6 @@ local function Init(UI, Core, notify)
                                 if trailData.attachment1 then
                                     trailData.attachment1:Destroy()
                                 end
--versus
                             end
                             GunSilent.State.BulletTrails = {}
                             for _, conn in ipairs(GunSilent.State.TrailFadeConnections) do
