@@ -17,6 +17,7 @@ local GunSilent = {
         TrajectoryBeam = { Value = true, Default = true },
         BulletTrailsEnabled = { Value = false, Default = false },
         BulletTrailsFadeTime = { Value = 1, Default = 1 },
+        BulletTrailsColor = { Value = Color3.fromRGB(147, 112, 219), Default = Color3.fromRGB(147, 112, 219) },
         HitChance = { Value = 100, Default = 100 },
         PredictionStrength = { Value = 1.5, Default = 1.5 },
         PingCompensation = { Value = 0.1, Default = 0.1 },
@@ -398,7 +399,7 @@ local function createHitDataGun(target)
             Width0 = 0.1,
             Width1 = 0.1,
             Transparency = NumberSequence.new(0),
-            Color = ColorSequence.new(Color3.fromRGB(147, 112, 219)),
+            Color = ColorSequence.new(GunSilent.Settings.BulletTrailsColor.Value),
             Parent = Workspace
         })
         if trail then
@@ -523,10 +524,13 @@ local function updateVisualsGun(target)
         end
 
         if not GunSilent.State.TrajectoryAttachment0 or not GunSilent.State.TrajectoryAttachment0.Parent then
-            GunSilent.State.TrajectoryAttachment0 = safeCreateInstance("Attachment", { Parent = localRoot })
+            GunSilent.State.TrajectoryAttachment0 = safeCreateInstance("Attachment", { Parent = Workspace.Terrain })
+            GunSilent.State.TrajectoryAttachment0.Position = startPos
         end
         if not GunSilent.State.TrajectoryAttachment1 or not GunSilent.State.TrajectoryAttachment1.Parent then
-            GunSilent.State.TrajectoryAttachment1 = safeCreateInstance("Attachment", { Parent = GunSilent.State.PredictVisualPart })
+            if GunSilent.State.PredictVisualPart then
+                GunSilent.State.TrajectoryAttachment1 = safeCreateInstance("Attachment", { Parent = GunSilent.State.PredictVisualPart })
+            end
         end
 
         local trajectoryBeam = GunSilent.State.TrajectoryBeam
@@ -592,15 +596,21 @@ local function initializeGunSilent()
         end
 
         local character = GunSilent.State.LocalCharacter
-        if character and not character:FindFirstChild("HumanoidRootPart") then
-            GunSilent.State.LocalRoot = nil
-            if GunSilent.State.TrajectoryAttachment0 then
-                GunSilent.State.TrajectoryAttachment0:Destroy()
-                GunSilent.State.TrajectoryAttachment0 = nil
+        if not character or not character:FindFirstChild("HumanoidRootPart") then
+            if character then
+                GunSilent.State.LocalRoot = nil
+                if GunSilent.State.TrajectoryAttachment0 then
+                    GunSilent.State.TrajectoryAttachment0.Parent = Workspace.Terrain
+                    GunSilent.State.TrajectoryAttachment0.Position = Vector3.new(0, 1000, 0)
+                end
+                if GunSilent.State.TrajectoryAttachment1 and GunSilent.State.PredictVisualPart then
+                    GunSilent.State.TrajectoryAttachment1.Parent = GunSilent.State.PredictVisualPart
+                end
             end
-            if GunSilent.State.TrajectoryAttachment1 then
-                GunSilent.State.TrajectoryAttachment1:Destroy()
-                GunSilent.State.TrajectoryAttachment1 = nil
+        else
+            GunSilent.State.LocalRoot = character.HumanoidRootPart
+            if GunSilent.State.TrajectoryAttachment0 and not GunSilent.State.TrajectoryAttachment0.Parent then
+                GunSilent.State.TrajectoryAttachment0.Parent = GunSilent.State.LocalRoot
             end
         end
 
@@ -1053,6 +1063,20 @@ local function Init(UI, Core, notify)
                     safeNotify(GunSilent.notify, "GunSilent", "Fade Time set to: " .. value .. "s", false)
                 end
             }
+            VisualsElements.BulletTrailsColor = {
+                element = visualsSection:Colorpicker({
+                    Name = "Trails Color",
+                    Default = GunSilent.Settings.BulletTrailsColor.Value,
+                    Callback = function(value)
+                        GunSilent.Settings.BulletTrailsColor.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails Color updated", false)
+                    end
+                }, 'BulletTrailsColor'),
+                callback = function(value)
+                    GunSilent.Settings.BulletTrailsColor.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails Color updated", false)
+                end
+            }
         end
     end
 
@@ -1103,6 +1127,7 @@ local function Init(UI, Core, notify)
                 CombatElements.BulletSpeed.callback(CombatElements.BulletSpeed.element:GetValue())
                 VisualsElements.BulletTrailsEnabled.callback(VisualsElements.BulletTrailsEnabled.element:GetState())
                 VisualsElements.BulletTrailsFadeTime.callback(VisualsElements.BulletTrailsFadeTime.element:GetValue())
+                VisualsElements.BulletTrailsColor.callback(VisualsElements.BulletTrailsColor.element:GetValue())
                 safeNotify(GunSilent.notify, "GunSilent", "Settings synchronized with UI!", true)
             end
         }, 'SyncSettings')
