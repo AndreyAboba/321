@@ -16,32 +16,32 @@ local CrosshairSettings = {
     HeadshotSoundEnabled = false,
     SelectedSound = { Value = "Default", Default = "Default" },
     SoundData = {
-        { Label = "Default", SoundId = "rbxassetid://138464116325809" },
-        { Label = "KillSound", SoundId = "rbxassetid://132390332380260" },
-        { Label = "Bubble2", SoundId = "rbxassetid://9086370184" },
-        { Label = "KillSound2", SoundId = "rbxassetid://121311089745141" },
-        { Label = "KillSound3", SoundId = "rbxassetid://104467173440576" },
-        { Label = "OUH", SoundId = "rbxassetid://7246809481" },
-        { Label = "Fart", SoundId = "rbxassetid://5622443597" },
-        { Label = "PUI", SoundId = "rbxassetid://105190141089785" },
-        { Label = "minecraftEXP", SoundId = "rbxassetid://1053296915" },
-        { Label = "Minecraft2", SoundId = "rbxassetid://135478009117226" },
-        { Label = "TF2 HS", SoundId = "rbxassetid://90342360691837" },
-        { Label = "CriminalityHS", SoundId = "rbxassetid://83773429281082" },
-        { Label = "neverlose", SoundId = "rbxassetid://97643101798871" },
-        { Label = "bameware", SoundId = "rbxassetid://92614567965693" },
-        { Label = "fatality", SoundId = "rbxassetid://115982072912004" },
-        { Label = "csgoHS", SoundId = "rbxassetid://6937353691" },
-        { Label = "PopHS", SoundId = "rbxassetid://105543133746827" },
-        { Label = "BubblePop", SoundId = "rbxassetid://119697580657161" },
-        { Label = "NiggaHS", SoundId = "rbxassetid://4868633804" },
-        { Label = "IdkHS", SoundId = "rbxassetid://102911066745395" },
+        { Label = "Default", SoundId = "138464116325809" },
+        { Label = "KillSound", SoundId = "132390332380260" },
+        { Label = "Bubble2", SoundId = "9086370184" },
+        { Label = "KillSound2", SoundId = "121311089745141" },
+        { Label = "KillSound3", SoundId = "104467173440576" },
+        { Label = "OUH", SoundId = "7246809481" },
+        { Label = "Fart", SoundId = "5622443597" },
+        { Label = "PUI", SoundId = "105190141089785" },
+        { Label = "minecraftEXP", SoundId = "1053296915" },
+        { Label = "Minecraft2", SoundId = "135478009117226" },
+        { Label = "TF2 HS", SoundId = "90342360691837" },
+        { Label = "CriminalityHS", SoundId = "83773429281082" },
+        { Label = "neverlose", SoundId = "97643101798871" },
+        { Label = "bameware", SoundId = "92614567965693" },
+        { Label = "fatality", SoundId = "115982072912004" },
+        { Label = "csgoHS", SoundId = "6937353691" },
+        { Label = "PopHS", SoundId = "105543133746827" },
+        { Label = "BubblePop", SoundId = "119697580657161" },
+        { Label = "NiggaHS", SoundId = "4868633804" },
+        { Label = "IdkHS", SoundId = "102911066745395" },
     },
     SoundIds = {},
     OriginalSounds = {
-        headshotSound = "rbxassetid://138464116325809",
-        headshotNormalSound = "rbxassetid://135358980250767",
-        hitSound = "rbxassetid://100758444127105"
+        headshotSound = "138464116325809",
+        headshotNormalSound = "135358980250767",
+        hitSound = "100758444127105"
     },
     OriginalElements = {},
     OriginalBulletsColor = nil
@@ -393,7 +393,6 @@ function HSCR.Init(UI, Core, notify)
             end
         end
 
-        -- Перехватываем стандартный u27
         local originalU27 = require(game.ReplicatedStorage.Modules.Game.UI.Crosshair)
         if originalU27 and originalU27.hitmarker then
             originalU27.hitmarker = u27.hitmarker
