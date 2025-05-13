@@ -1083,7 +1083,7 @@ local function Init(UI, Core, notify)
                 end
             }
             uiElementsVisuals.BulletTrailsCustomTexture = {
-                element = UI.Sections.BulletTrails:Textbox({
+                element = UI.Sections.BulletTrails:Input({
                     Name = "Custom Texture ID",
                     Default = GunSilent.Settings.BulletTrailsCustomTexture.Value,
                     Callback = function(value)
