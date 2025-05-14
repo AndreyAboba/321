@@ -391,7 +391,6 @@ function HSCR.Init(UI, Core, notify)
             if CrosshairSettings.Enabled then
                 u27.pulse(CrosshairSettings.ExpandDistance.Value)
                 u27.pulse_red()
-                table.insert(hitQueue, { isHeadshot = isHeadshot, isKill = isKill })
             end
         end
 
