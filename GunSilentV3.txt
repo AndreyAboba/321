@@ -507,6 +507,38 @@ local function cleanupTrajectoryBeam()
     end
 end
 
+local function createTrajectoryBeam(startPos, endPos)
+    cleanupTrajectoryBeam()
+
+    local trajectoryBeam = safeCreateInstance("Beam", {
+        FaceCamera = true,
+        Width0 = 0.15,
+        Width1 = 0.15,
+        Transparency = NumberSequence.new(0.4),
+        Color = ColorSequence.new(Color3.fromRGB(147, 112, 219)),
+        Parent = Workspace
+    })
+    if not trajectoryBeam then return end
+
+    local attachment0 = safeCreateInstance("Attachment", { Parent = Workspace.Terrain })
+    local attachment1 = safeCreateInstance("Attachment", { Parent = Workspace.Terrain })
+    if not attachment0 or not attachment1 then
+        if trajectoryBeam then trajectoryBeam:Destroy() end
+        if attachment0 then attachment0:Destroy() end
+        if attachment1 then attachment1:Destroy() end
+        return
+    end
+
+    attachment0.Position = startPos
+    attachment1.Position = endPos
+    trajectoryBeam.Attachment0 = attachment0
+    trajectoryBeam.Attachment1 = attachment1
+
+    GunSilent.State.TrajectoryBeam = trajectoryBeam
+    GunSilent.State.TrajectoryAttachment0 = attachment0
+    GunSilent.State.TrajectoryAttachment1 = attachment1
+end
+
 local function updateVisualsGun(target)
     local currentTime = tick()
     if currentTime - GunSilent.State.LastVisualUpdateTime < 0.0345 then return end -- ~29 FPS
@@ -572,49 +604,10 @@ local function updateVisualsGun(target)
         if not GunSilent.State.TrajectoryBeam or not GunSilent.State.TrajectoryBeam.Parent or
            not GunSilent.State.TrajectoryAttachment0 or not GunSilent.State.TrajectoryAttachment0.Parent or
            not GunSilent.State.TrajectoryAttachment1 or not GunSilent.State.TrajectoryAttachment1.Parent then
-            -- Очистка старых объектов перед созданием новых
-            cleanupTrajectoryBeam()
-
-            -- Создание новых объектов с фиксированными родителями
-            local trajectoryBeam = safeCreateInstance("Beam", {
-                FaceCamera = true,
-                Width0 = 0.15,
-                Width1 = 0.15,
-                Transparency = NumberSequence.new(0.4),
-                Color = ColorSequence.new(Color3.fromRGB(147, 112, 219)),
-                Parent = Workspace
-            })
-            local attachment0 = safeCreateInstance("Attachment", { Parent = localRoot })
-            local attachment1 = safeCreateInstance("Attachment", { Parent = GunSilent.State.PredictVisualPart or Workspace.Terrain })
-
-            if trajectoryBeam and attachment0 and attachment1 then
-                trajectoryBeam.Attachment0 = attachment0
-                trajectoryBeam.Attachment1 = attachment1
-                GunSilent.State.TrajectoryBeam = trajectoryBeam
-                GunSilent.State.TrajectoryAttachment0 = attachment0
-                GunSilent.State.TrajectoryAttachment1 = attachment1
-            else
-                -- Если создание не удалось, очищаем
-                if trajectoryBeam then trajectoryBeam:Destroy() end
-                if attachment0 then attachment0:Destroy() end
-                if attachment1 then attachment1:Destroy() end
-                return
-            end
-        end
-
-        -- Обновляем позиции Attachment, не меняя их Parent
-        if GunSilent.State.TrajectoryAttachment0 then
-            GunSilent.State.TrajectoryAttachment0.Position = Vector3.new(0, 1.5, 0)
-        end
-        if GunSilent.State.TrajectoryAttachment1 then
-            if GunSilent.State.PredictVisualPart and GunSilent.State.PredictVisualPart.Parent then
-                GunSilent.State.TrajectoryAttachment1.Position = Vector3.new(0, 0, 0)
-            else
-                GunSilent.State.TrajectoryAttachment1.Position = prediction.position
-            end
-        end
-
-        if GunSilent.State.TrajectoryBeam then
+            createTrajectoryBeam(startPos, predictionPos)
+        else
+            GunSilent.State.TrajectoryAttachment0.Position = startPos
+            GunSilent.State.TrajectoryAttachment1.Position = predictionPos
             GunSilent.State.TrajectoryBeam.Enabled = true
         end
     else
@@ -721,11 +714,26 @@ local function Init(UI, Core, notify)
             GunSilent.State.CurrentToolRangeApplied = nil
             GunSilent.State.BaseRangeCache = {}
             GunSilent.State.PositionHistory = {}
+            cleanupTrajectoryBeam() -- Очистка при респавне
         end)
         if LocalPlayer.Character then
             GunSilent.State.LocalCharacter = LocalPlayer.Character
             GunSilent.State.LocalRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         end
+
+        -- Добавляем обработку смерти персонажа
+        local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.Died:Connect(function()
+                cleanupTrajectoryBeam()
+            end)
+        end
+        LocalPlayer.CharacterAdded:Connect(function(character)
+            local newHumanoid = character:WaitForChild("Humanoid")
+            newHumanoid.Died:Connect(function()
+                cleanupTrajectoryBeam()
+            end)
+        end)
     end
 
     local CombatElements = {}
