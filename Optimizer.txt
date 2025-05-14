@@ -7,8 +7,6 @@ local LocalPlayer = Players.LocalPlayer
 
 -- Функция для безопасного удаления указанных объектов
 local function removeSpecificObjects()
-    if not Workspace then return end
-
     local map = Workspace:FindFirstChild("Map")
 
     local objectsToRemove = {
@@ -64,8 +62,6 @@ end
 
 -- Функция для очистки MaterialService
 local function clearMaterialService()
-    if not MaterialService then return end
-
     for _, material in pairs(MaterialService:GetChildren()) do
         material:Destroy()
     end
@@ -76,8 +72,6 @@ end
 
 -- Функция для оптимизации машин в Workspace.Vehicles
 local function optimizeVehicles()
-    if not Workspace then return end
-
     local vehicles = Workspace:FindFirstChild("Vehicles")
     if not vehicles then return end
 
@@ -98,8 +92,6 @@ end
 
 -- Функция для оптимизации частиц
 local function optimizeParticles()
-    if not Workspace then return end
-
     for _, particle in pairs(Workspace:GetDescendants()) do
         if particle:IsA("ParticleEmitter") then
             particle.Rate = math.max(1, particle.Rate * 0.5)
@@ -111,11 +103,7 @@ end
 
 -- Функция для сжатия текстур
 local function compressTextures()
-    pcall(function()
-        setfflag("RenderTextureQuality", "0")
-    end)
-    if not Workspace then return end
-
+    setfflag("RenderTextureQuality", "0")
     for _, obj in pairs(Workspace:GetDescendants()) do
         if obj:IsA("Texture") or obj:IsA("Decal") then
             obj:Destroy()
@@ -125,99 +113,92 @@ end
 
 -- Функция для проверки и восстановления персонажа
 local function restoreCharacter()
-    if not LocalPlayer then return end
-
     if not LocalPlayer.Character or not LocalPlayer.Character.Parent then
         LocalPlayer.CharacterAdded:Wait()
     end
 end
 
--- Инициализация модуля с Toggle
-return {
-    Init = function(UI, Core, notify)
-        if not UI or not UI.Tabs or not UI.Tabs.Misc then
-            if notify then
-                notify("Optimizer Error", "Misc tab not found! Optimizer failed to initialize.", true)
+-- Создаём таблицу для модуля
+local Optimizer = {}
+
+-- Функция инициализации модуля
+function Optimizer.Init(UI, Core, notify)
+    local MiscTab = UI.Tabs.Misc
+    local OptimizerSection = MiscTab:Section({ Name = "Optimizer", Side = "Right" })
+
+    -- Переменные для отслеживания состояния Toggle
+    local isFastFlagEnabled = false
+    local isRenderEnabled = false
+    local isTrashRemoveEnabled = false
+
+    -- FastFlag Toggle
+    OptimizerSection:Header({ Name = "FastFlag" })
+    OptimizerSection:Toggle({
+        Name = "Enable",
+        Default = false,
+        Callback = function(value)
+            isFastFlagEnabled = value
+            if value then
+                setfflag("RenderShadows", "False")
+                setfflag("RenderTextureQuality", "0")
+                setfflag("RenderPostProcessing", "False")
+                setfflag("RenderDistance", "500")
+                setfflag("RenderParticles", "False")
+                setfflag("RenderLightingQuality", "1")
+                setfflag("PhysicsFPS", "25")
+                setfflag("PhysicsPrecision", "Low")
+                setfflag("NetworkMaxSendRate", "30")
+                setfflag("TaskSchedulerTargetFps", "30")
+                setfflag("RenderVSync", "False")
+                notify("Optimizer", "FastFlag optimizations enabled!", true)
+            else
+                -- Сброс FastFlag (если возможно, зависит от игры)
+                notify("Optimizer", "FastFlag optimizations disabled!", true)
             end
-            return
         end
+    }, "FastFlagToggle")
 
-        local MiscTab = UI.Tabs.Misc
-        local OptimizerSection = MiscTab:Section({ Name = "Optimizer", Side = "Right" })
-
-        -- Переменные для отслеживания состояния Toggle
-        local isFastFlagEnabled = false
-        local isRenderEnabled = false
-        local isTrashRemoveEnabled = false
-
-        -- FastFlag Toggle
-        OptimizerSection:Header({ Name = "FastFlag" })
-        OptimizerSection:Toggle({
-            Name = "Enable FastFlag",
-            Default = false,
-            Callback = function(value)
-                isFastFlagEnabled = value
-                if value then
-                    pcall(function() setfflag("RenderShadows", "False") end)
-                    pcall(function() setfflag("RenderTextureQuality", "0") end)
-                    pcall(function() setfflag("RenderPostProcessing", "False") end)
-                    pcall(function() setfflag("RenderDistance", "500") end)
-                    pcall(function() setfflag("RenderParticles", "False") end)
-                    pcall(function() setfflag("RenderLightingQuality", "1") end)
-                    pcall(function() setfflag("PhysicsFPS", "25") end)
-                    pcall(function() setfflag("PhysicsPrecision", "Low") end)
-                    pcall(function() setfflag("NetworkMaxSendRate", "30") end)
-                    pcall(function() setfflag("TaskSchedulerTargetFps", "30") end)
-                    pcall(function() setfflag("RenderVSync", "False") end)
-                    notify("Optimizer", "FastFlag optimizations enabled!", true)
-                else
-                    notify("Optimizer", "FastFlag optimizations disabled!", true)
-                end
+    -- Render Toggle
+    OptimizerSection:Header({ Name = "Render" })
+    OptimizerSection:Toggle({
+        Name = "Enable",
+        Default = false,
+        Callback = function(value)
+            isRenderEnabled = value
+            if value then
+                Lighting.GlobalShadows = false
+                Lighting.FogEnd = 100000
+                Lighting.Brightness = 1
+                SoundService:ClearAllChildren()
+                optimizeParticles()
+                compressTextures()
+                notify("Optimizer", "Render optimizations enabled!", true)
+            else
+                -- Сброс Render (частично, так как некоторые изменения необратимы)
+                notify("Optimizer", "Render optimizations disabled!", true)
             end
-        }, "FastFlagToggle")
+        end
+    }, "RenderToggle")
 
-        -- Render Toggle
-        OptimizerSection:Header({ Name = "Render" })
-        OptimizerSection:Toggle({
-            Name = "Enable Render",
-            Default = false,
-            Callback = function(value)
-                isRenderEnabled = value
-                if value then
-                    if Lighting then
-                        Lighting.GlobalShadows = false
-                        Lighting.FogEnd = 100000
-                        Lighting.Brightness = 1
-                    end
-                    if SoundService then
-                        SoundService:ClearAllChildren()
-                    end
-                    optimizeParticles()
-                    compressTextures()
-                    notify("Optimizer", "Render optimizations enabled!", true)
-                else
-                    notify("Optimizer", "Render optimizations disabled!", true)
-                end
+    -- TrashRemove Toggle
+    OptimizerSection:Header({ Name = "TrashRemove" })
+    OptimizerSection:Toggle({
+        Name = "Enable",
+        Default = false,
+        Callback = function(value)
+            isTrashRemoveEnabled = value
+            if value then
+                removeSpecificObjects()
+                clearMaterialService()
+                optimizeVehicles()
+                restoreCharacter()
+                notify("Optimizer", "TrashRemove optimizations enabled!", true)
+            else
+                notify("Optimizer", "TrashRemove optimizations disabled!", true)
             end
-        }, "RenderToggle")
+        end
+    }, "TrashRemoveToggle")
+end
 
-        -- TrashRemove Toggle
-        OptimizerSection:Header({ Name = "TrashRemove" })
-        OptimizerSection:Toggle({
-            Name = "Enable TrashRemove",
-            Default = false,
-            Callback = function(value)
-                isTrashRemoveEnabled = value
-                if value then
-                    removeSpecificObjects()
-                    clearMaterialService()
-                    optimizeVehicles()
-                    restoreCharacter()
-                    notify("Optimizer", "TrashRemove optimizations enabled!", true)
-                else
-                    notify("Optimizer", "TrashRemove optimizations disabled!", true)
-                end
-            end
-        }, "TrashRemoveToggle")
-    end
-}
+-- Возвращаем таблицу с функцией Init
+return Optimizer
