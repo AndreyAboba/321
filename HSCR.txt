@@ -105,52 +105,7 @@ function HSCR.Init(UI, Core, notify)
     end
 
     local AnimationFunctions = {}
-    local hitQueue = {}
     local radial = u7.new(crosshairFrame)
-    local lastHitTime
-    local isAnimating = false
-
-    local function processHitQueue()
-        if #hitQueue == 0 or isAnimating then return end
-        warn("Processing hitQueue, count: " .. #hitQueue)
-
-        local hit = table.remove(hitQueue, 1)
-
-        if not crosshairFrame or not crosshairFrame.Parent then
-            crosshairFrame = u5.get("CrosshairFrame")
-            if not crosshairFrame then
-                warn("crosshairFrame not found during processHitQueue")
-                return
-            end
-            frame1 = crosshairFrame:FindFirstChild("Frame1") and crosshairFrame.Frame1:FindFirstChild("ImageLabel")
-            frame2 = crosshairFrame:FindFirstChild("Frame2") and crosshairFrame.Frame2:FindFirstChild("ImageLabel")
-            radial = u7.new(crosshairFrame)
-        end
-
-        if CrosshairSettings.Enabled then
-            AnimationFunctions.updateCrosshairDesign()
-            isAnimating = true
-            AnimationFunctions.pulse(CrosshairSettings.ExpandDistance.Value)
-            AnimationFunctions.pulseRed()
-
-            if radial and radial.SetProgressColor then
-                pcall(function() radial:SetProgressColor(CrosshairSettings.GradientColor) end)
-            end
-
-            task.delay(CrosshairSettings.ExpandDuration.Value + CrosshairSettings.ShrinkDuration.Value, function()
-                isAnimating = false
-            end)
-        end
-
-        local hitTime = os.clock()
-        lastHitTime = hitTime
-        task.wait(0.2)
-        if lastHitTime == hitTime and radial and radial.SetProgressColor then
-            pcall(function() radial:SetProgressColor(CrosshairSettings.GradientColor) end)
-        end
-    end
-
-    RunService:BindToRenderStep("ProcessHitQueue", Enum.RenderPriority.Input.Value, processHitQueue)
 
     local function updateCrosshairDesign()
         if not crosshairFrame or not crosshairFrame.Parent then
@@ -256,7 +211,7 @@ function HSCR.Init(UI, Core, notify)
         if not CrosshairSettings.Enabled or not crosshairFrame or not crosshairFrame.Parent then
             warn("Cannot pulse: Crosshair not enabled or frame missing")
             return
-        end
+        }
         warn("Starting pulse animation with scale: " .. scale)
 
         local tweenInfo = TweenInfo.new(CrosshairSettings.ExpandDuration.Value, Enum.EasingStyle.Quad)
@@ -389,9 +344,9 @@ function HSCR.Init(UI, Core, notify)
             end
 
             if CrosshairSettings.Enabled then
+                AnimationFunctions.updateCrosshairDesign() -- Обновляем дизайн при каждом попадании
                 u27.pulse(CrosshairSettings.ExpandDistance.Value)
                 u27.pulse_red()
-                table.insert(hitQueue, { isHeadshot = isHeadshot, isKill = isKill })
             end
         end
 
