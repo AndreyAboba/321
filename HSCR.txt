@@ -10,9 +10,6 @@ local CrosshairSettings = {
     DotInnerSize = { Value = 4, Default = 4 },
     DotOutlineThickness = { Value = 2, Default = 2 },
     GradientColor = Color3.fromRGB(0, 0, 255),
-    ExpandDistance = { Value = 0.8, Default = 0.8 },
-    ExpandDuration = { Value = 0.08, Default = 0.08 },
-    ShrinkDuration = { Value = 0.05, Default = 0.05 },
     HeadshotSoundEnabled = false,
     SelectedSound = { Value = "Default", Default = "Default" },
     SoundData = {
@@ -48,21 +45,13 @@ local CrosshairSettings = {
 }
 
 function HSCR.Init(UI, Core, notify)
-    local TweenService = game:GetService("TweenService")
-    local RunService = game:GetService("RunService")
-    local ContentProvider = game:GetService("ContentProvider")
     local SoundService = game:GetService("SoundService")
+    local ContentProvider = game:GetService("ContentProvider")
 
     local u1 = require(game.ReplicatedStorage.Modules.Core.Audio)
     local u5 = require(game.ReplicatedStorage.Modules.Core.UI)
     local u6 = require(game.ReplicatedStorage.Modules.Core.Net)
     local u7 = require(game.ReplicatedStorage.Modules.Game.UI.RadialModule)
-    local v3 = require(game.ReplicatedStorage.Modules.Core.State)
-
-    if not v3 then
-        warn("Failed to load ReplicatedStorage.Modules.Core.State")
-        return
-    end
 
     local crosshairScreenGui = u5.get("CrosshairScreenGui")
     local crosshairFrame = u5.get("CrosshairFrame")
@@ -206,83 +195,7 @@ function HSCR.Init(UI, Core, notify)
         end
     end
 
-    local function pulse(scale)
-        if not CrosshairSettings.Enabled or not crosshairFrame or not crosshairFrame.Parent then
-            warn("Cannot pulse: Crosshair not enabled or frame missing")
-            return
-        end
-        warn("Starting pulse animation with scale: " .. scale)
-
-        local originalSize = UDim2.fromOffset(CrosshairSettings.Size.Value, CrosshairSettings.Size.Value)
-        local expandedSize = UDim2.fromOffset(CrosshairSettings.Size.Value * (1 + scale), CrosshairSettings.Size.Value * (1 + scale))
-
-        local expandTween = TweenService:Create(crosshairFrame, TweenInfo.new(CrosshairSettings.ExpandDuration.Value, Enum.EasingStyle.Quad), { Size = expandedSize })
-        local shrinkTween = TweenService:Create(crosshairFrame, TweenInfo.new(CrosshairSettings.ShrinkDuration.Value, Enum.EasingStyle.Quad), { Size = originalSize })
-
-        expandTween:Play()
-        expandTween.Completed:Connect(function()
-            shrinkTween:Play()
-        end)
-    end
-
-    local function pulseRed()
-        if not CrosshairSettings.Enabled or not crosshairFrame or not crosshairFrame.Parent then
-            warn("Cannot pulseRed: Crosshair not enabled or frame missing")
-            return
-        end
-
-        local secondaryColor = Color3.fromRGB(255, 0, 0)
-
-        if CrosshairSettings.Style.Value == "Dot" then
-            local dot = crosshairFrame:FindFirstChild("Dot")
-            if not dot then return end
-            local stroke = dot:FindFirstChild("UIStroke")
-            local innerDot = dot:FindFirstChild("InnerDot")
-            if not stroke or not innerDot then return end
-
-            TweenService:Create(stroke, TweenInfo.new(0.08, Enum.EasingStyle.Quad), { Color = secondaryColor }):Play()
-            TweenService:Create(innerDot, TweenInfo.new(0.08, Enum.EasingStyle.Quad), { BackgroundColor3 = secondaryColor }):Play()
-
-            task.spawn(function()
-                task.wait(0.08)
-                if not crosshairFrame or not crosshairFrame.Parent then return end
-                if not dot then return end
-                if not stroke or not innerDot then return end
-                TweenService:Create(stroke, TweenInfo.new(0.05, Enum.EasingStyle.Quad), { Color = CrosshairSettings.GradientColor }):Play()
-                TweenService:Create(innerDot, TweenInfo.new(0.05, Enum.EasingStyle.Quad), { BackgroundColor3 = CrosshairSettings.GradientColor }):Play()
-            end)
-        elseif CrosshairSettings.Style.Value == "Default" then
-            for _, child in pairs(crosshairFrame:GetChildren()) do
-                if child:IsA("Frame") and child.Name ~= "Frame1" and child.Name ~= "Frame2" then
-                    TweenService:Create(child, TweenInfo.new(0.08, Enum.EasingStyle.Quad), { BackgroundColor3 = secondaryColor }):Play()
-                end
-            end
-
-            task.spawn(function()
-                task.wait(0.08)
-                if not crosshairFrame or not crosshairFrame.Parent then return end
-                for _, child in pairs(crosshairFrame:GetChildren()) do
-                    if child:IsA("Frame") and child.Name ~= "Frame1" and child.Name ~= "Frame2" then
-                        TweenService:Create(child, TweenInfo.new(0.05, Enum.EasingStyle.Quad), { BackgroundColor3 = CrosshairSettings.GradientColor }):Play()
-                    end
-                end
-            end)
-        end
-
-        if bulletsLabel and bulletsLabel.Parent then
-            TweenService:Create(bulletsLabel, TweenInfo.new(0.08, Enum.EasingStyle.Quad), { TextColor3 = secondaryColor }):Play()
-            task.spawn(function()
-                task.wait(0.08)
-                if bulletsLabel and bulletsLabel.Parent then
-                    TweenService:Create(bulletsLabel, TweenInfo.new(0.05, Enum.EasingStyle.Quad), { TextColor3 = CrosshairSettings.GradientColor }):Play()
-                end
-            end)
-        end
-    end
-
     AnimationFunctions.updateCrosshairDesign = updateCrosshairDesign
-    AnimationFunctions.pulse = pulse
-    AnimationFunctions.pulseRed = pulseRed
 
     local function initiate()
         CrosshairSettings.OriginalElements.Size = crosshairFrame.Size
@@ -296,33 +209,6 @@ function HSCR.Init(UI, Core, notify)
             pcall(function() radial:SetProgress(100) end)
             pcall(function() radial:SetProgressColor(CrosshairSettings.GradientColor) end)
         end
-
-        local is_reloading = v3.new(false)
-        local reloading_length = v3.new(0)
-
-        if not is_reloading or not reloading_length then
-            warn("Failed to initialize state objects for is_reloading or reloading_length")
-            return
-        end
-
-        local lastIsReloading = is_reloading:get()
-        RunService.Heartbeat:Connect(function()
-            if not CrosshairSettings.Enabled then return end
-
-            local currentIsReloading = is_reloading:get()
-            if currentIsReloading ~= lastIsReloading then
-                lastIsReloading = currentIsReloading
-                if currentIsReloading then
-                    local length = reloading_length:get()
-                    if radial and radial.SetProgress and radial.TweenProgress then
-                        pcall(function() radial:SetProgress(0) end)
-                        pcall(function() radial:TweenProgress(100, length) end)
-                    end
-                elseif radial and radial.StopAnimating then
-                    pcall(function() radial:StopAnimating(true) end)
-                end
-            end
-        end)
 
         u6.hook("hit_confirmed", function(isHeadshot, isKill)
             warn("Hit confirmed: isHeadshot=" .. tostring(isHeadshot) .. ", isKill=" .. tostring(isKill))
@@ -340,16 +226,6 @@ function HSCR.Init(UI, Core, notify)
                     u1.play(CrosshairSettings.OriginalSounds.headshotSound, 2.5, 1, SoundService)
                 else
                     u1.play(CrosshairSettings.OriginalSounds.hitSound, 1, 1, SoundService)
-                end
-            end
-
-            -- Trigger animations immediately if enabled
-            if CrosshairSettings.Enabled then
-                AnimationFunctions.pulse(CrosshairSettings.ExpandDistance.Value)
-                AnimationFunctions.pulseRed()
-
-                if radial and radial.SetProgressColor then
-                    pcall(function() radial:SetProgressColor(CrosshairSettings.GradientColor) end)
                 end
             end
         end)
@@ -502,54 +378,6 @@ function HSCR.Init(UI, Core, notify)
             end
         }
 
-        uiElements.ExpandDistance = {
-            element = section:Slider({
-                Name = "Expand Distance",
-                Minimum = 0.1,
-                Maximum = 1,
-                Default = CrosshairSettings.ExpandDistance.Default,
-                Precision = 1,
-                Callback = function(value)
-                    CrosshairSettings.ExpandDistance.Value = value
-                end
-            }, "CrosshairExpandDistance"),
-            callback = function(value)
-                CrosshairSettings.ExpandDistance.Value = value
-            end
-        }
-
-        uiElements.ExpandDuration = {
-            element = section:Slider({
-                Name = "Expand Duration",
-                Minimum = 0.05,
-                Maximum = 0.5,
-                Default = CrosshairSettings.ExpandDuration.Default,
-                Precision = 2,
-                Callback = function(value)
-                    CrosshairSettings.ExpandDuration.Value = value
-                end
-            }, "CrosshairExpandDuration"),
-            callback = function(value)
-                CrosshairSettings.ExpandDuration.Value = value
-            end
-        }
-
-        uiElements.ShrinkDuration = {
-            element = section:Slider({
-                Name = "Shrink Duration",
-                Minimum = 0.05,
-                Maximum = 0.5,
-                Default = CrosshairSettings.ShrinkDuration.Default,
-                Precision = 2,
-                Callback = function(value)
-                    CrosshairSettings.ShrinkDuration.Value = value
-                end
-            }, "CrosshairShrinkDuration"),
-            callback = function(value)
-                CrosshairSettings.ShrinkDuration.Value = value
-            end
-        }
-
         uiElements.GradientColor = {
             element = section:Colorpicker({
                 Name = "Crosshair Color",
@@ -636,9 +464,7 @@ function HSCR.Init(UI, Core, notify)
                 uiElements.DotSize.callback(uiElements.DotSize.element:GetValue())
                 uiElements.DotInnerSize.callback(uiElements.DotInnerSize.element:GetValue())
                 uiElements.DotOutlineThickness.callback(uiElements.DotOutlineThickness.element:GetValue())
-                uiElements.ExpandDistance.callback(uiElements.ExpandDistance.element:GetValue())
-                uiElements.ExpandDuration.callback(uiElements.ExpandDuration.element:GetValue())
-                uiElements.ShrinkDuration.callback(uiElements.ShrinkDuration.element:GetValue())
+                uiElements.GradientColor.callback(uiElements.GradientColor.element:GetValue())
 
                 uiElements.HeadshotSoundEnabled.callback(uiElements.HeadshotSoundEnabled.element:GetState())
 
