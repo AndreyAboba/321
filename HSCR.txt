@@ -463,8 +463,7 @@ function HSCR.Init(UI, Core, notify)
                 uiElements.Length.callback(uiElements.Length.element:GetValue())
                 uiElements.DotSize.callback(uiElements.DotSize.element:GetValue())
                 uiElements.DotInnerSize.callback(uiElements.DotInnerSize.element:GetValue())
-                uiElements.DotOutlineThickness.callback(uiElements.DotOutlineThickness.element:GetValue())
-                uiElements.GradientColor.callback(uiElements.GradientColor.element:GetValue())
+                uiElements.DotOutlineThickness.callback(uiElements.DotOutlineThickness.element:GetValue()))
 
                 uiElements.HeadshotSoundEnabled.callback(uiElements.HeadshotSoundEnabled.element:GetState())
 
