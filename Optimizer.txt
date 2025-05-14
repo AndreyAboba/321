@@ -125,7 +125,7 @@ local Optimizer = {}
 function Optimizer.Init(UI, Core, notify)
     local MiscTab = UI.Tabs.Misc
     local OptimizerSection = MiscTab:Section({ Name = "Optimizer", Side = "Right" })
-    OptimizerSection:Header({ Name = Optimizer })
+    OptimizerSection:Header({ Name = 'Optimizer' })
 
     -- Переменные для отслеживания состояния Toggle
     local isFastFlagEnabled = false
