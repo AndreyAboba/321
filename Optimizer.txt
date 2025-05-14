@@ -1,0 +1,198 @@
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+local SoundService = game:GetService("SoundService")
+local MaterialService = game:GetService("MaterialService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- Функция для безопасного удаления указанных объектов
+local function removeSpecificObjects()
+    local map = Workspace:FindFirstChild("Map")
+
+    local objectsToRemove = {
+        "Bowling pin",
+        "Dumbell Plate",
+        "Jerry can",
+        "Soda can",
+        "Spray can"
+    }
+
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj ~= LocalPlayer.Character and not obj:IsDescendantOf(LocalPlayer.Character) then
+            for _, name in pairs(objectsToRemove) do
+                if string.find(obj.Name:lower(), name:lower()) then
+                    obj:Destroy()
+                    break
+                end
+            end
+        end
+    end
+
+    Workspace.ChildAdded:Connect(function(child)
+        if child ~= LocalPlayer.Character and not child:IsDescendantOf(LocalPlayer.Character) then
+            for _, name in pairs(objectsToRemove) do
+                if string.find(child.Name:lower(), name:lower()) then
+                    child:Destroy()
+                    break
+                end
+            end
+        end
+    end)
+
+    if map then
+        local mapObjectsToRemove = {
+            {parent = map, name = "FakeMap"},
+            {parent = map, name = "Vegetation"},
+            {parent = map:FindFirstChild("RoadNetwork"), name = "StreetSigns"},
+            {parent = map, name = "NPCs"}
+        }
+
+        for _, target in pairs(mapObjectsToRemove) do
+            local parent = target.parent
+            local name = target.name
+            if parent then
+                local obj = parent:FindFirstChild(name)
+                if obj then
+                    obj:Destroy()
+                end
+            end
+        end
+    end
+end
+
+-- Функция для очистки MaterialService
+local function clearMaterialService()
+    for _, material in pairs(MaterialService:GetChildren()) do
+        material:Destroy()
+    end
+    pcall(function()
+        MaterialService:ClearAllChildren()
+    end)
+end
+
+-- Функция для оптимизации машин в Workspace.Vehicles
+local function optimizeVehicles()
+    local vehicles = Workspace:FindFirstChild("Vehicles")
+    if not vehicles then return end
+
+    for _, vehicle in pairs(vehicles:GetDescendants()) do
+        if vehicle:IsA("BasePart") then
+            vehicle.CastShadow = false
+            vehicle.Material = Enum.Material.Plastic
+            if not vehicle.Anchored then
+                vehicle.CanCollide = false
+            end
+        elseif vehicle:IsA("Texture") or vehicle:IsA("Decal") then
+            vehicle:Destroy()
+        elseif vehicle:IsA("ParticleEmitter") then
+            vehicle.Enabled = false
+        end
+    end
+end
+
+-- Функция для оптимизации частиц
+local function optimizeParticles()
+    for _, particle in pairs(Workspace:GetDescendants()) do
+        if particle:IsA("ParticleEmitter") then
+            particle.Rate = math.max(1, particle.Rate * 0.5)
+            particle.Speed = NumberRange.new(particle.Speed.Min * 0.5, particle.Speed.Max * 0.5)
+            particle.Lifetime = NumberRange.new(particle.Lifetime.Min * 0.5, particle.Lifetime.Max * 0.5)
+        end
+    end
+end
+
+-- Функция для сжатия текстур
+local function compressTextures()
+    setfflag("RenderTextureQuality", "0")
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("Texture") or obj:IsA("Decal") then
+            obj:Destroy()
+        end
+    end
+end
+
+-- Функция для проверки и восстановления персонажа
+local function restoreCharacter()
+    if not LocalPlayer.Character or not LocalPlayer.Character.Parent then
+        LocalPlayer.CharacterAdded:Wait()
+    end
+end
+
+-- Инициализация модуля с Toggle
+return function(UI, Core, notify)
+    local MiscTab = UI.Tabs.Misc
+    local OptimizerSection = MiscTab:Section({ Name = "Optimizer", Side = "Right" })
+
+    -- Переменные для отслеживания состояния Toggle
+    local isFastFlagEnabled = false
+    local isRenderEnabled = false
+    local isTrashRemoveEnabled = false
+
+    -- FastFlag Toggle
+    OptimizerSection:Header({ Name = "FastFlag" })
+    OptimizerSection:Toggle({
+        Name = "Enable FastFlag",
+        Default = false,
+        Callback = function(value)
+            isFastFlagEnabled = value
+            if value then
+                setfflag("RenderShadows", "False")
+                setfflag("RenderTextureQuality", "0")
+                setfflag("RenderPostProcessing", "False")
+                setfflag("RenderDistance", "500")
+                setfflag("RenderParticles", "False")
+                setfflag("RenderLightingQuality", "1")
+                setfflag("PhysicsFPS", "25")
+                setfflag("PhysicsPrecision", "Low")
+                setfflag("NetworkMaxSendRate", "30")
+                setfflag("TaskSchedulerTargetFps", "30")
+                setfflag("RenderVSync", "False")
+                notify("Optimizer", "FastFlag optimizations enabled!", true)
+            else
+                -- Сброс FastFlag (если возможно, зависит от игры)
+                notify("Optimizer", "FastFlag optimizations disabled!", true)
+            end
+        end
+    }, "FastFlagToggle")
+
+    -- Render Toggle
+    OptimizerSection:Header({ Name = "Render" })
+    OptimizerSection:Toggle({
+        Name = "Enable Render",
+        Default = false,
+        Callback = function(value)
+            isRenderEnabled = value
+            if value then
+                Lighting.GlobalShadows = false
+                Lighting.FogEnd = 100000
+                Lighting.Brightness = 1
+                SoundService:ClearAllChildren()
+                optimizeParticles()
+                compressTextures()
+                notify("Optimizer", "Render optimizations enabled!", true)
+            else
+                -- Сброс Render (частично, так как некоторые изменения необратимы)
+                notify("Optimizer", "Render optimizations disabled!", true)
+            end
+        end
+    }, "RenderToggle")
+
+    -- TrashRemove Toggle
+    OptimizerSection:Header({ Name = "TrashRemove" })
+    OptimizerSection:Toggle({
+        Name = "Enable TrashRemove",
+        Default = false,
+        Callback = function(value)
+            isTrashRemoveEnabled = value
+            if value then
+                removeSpecificObjects()
+                clearMaterialService()
+                optimizeVehicles()
+                restoreCharacter()
+                notify("Optimizer", "TrashRemove optimizations enabled!", true)
+            else
+                notify("Optimizer", "TrashRemove optimizations disabled!", true)
+            end
+        end
+    }, "TrashRemoveToggle")
+end
