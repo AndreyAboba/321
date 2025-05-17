@@ -49,7 +49,8 @@ local TargetInfo = {
             UpdateInterval = 0.5,
             LastFovUpdateTime = 0,
             FovUpdateInterval = 1/30,
-            LastMousePosition = nil
+            LastMousePosition = nil,
+            UIStyle = "Default" -- Новый параметр для стиля UI
         }
 
         -- Кэширование объектов
@@ -177,20 +178,43 @@ local TargetInfo = {
         invCorner.CornerRadius = UDim.new(0, 10)
         invCorner.Parent = invFrame
 
-        local invTitleLabel = Instance.new("TextLabel")
-        invTitleLabel.Size = UDim2.new(0, 200, 0, 20)
-        invTitleLabel.Position = UDim2.new(0, 10, 0, 10)
-        invTitleLabel.BackgroundTransparency = 1
-        invTitleLabel.Text = "Target Inventory"
-        invTitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        invTitleLabel.TextSize = 16
-        invTitleLabel.Font = Enum.Font.GothamBold
-        invTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-        invTitleLabel.Parent = invFrame
+        -- Верхняя полоска для нового стиля
+        local headerFrame = Instance.new("Frame")
+        headerFrame.Size = UDim2.new(1, 0, 0, 30)
+        headerFrame.Position = UDim2.new(0, 0, 0, 0)
+        headerFrame.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
+        headerFrame.BackgroundTransparency = 0.2
+        headerFrame.BorderSizePixel = 0
+        headerFrame.Parent = invFrame
+
+        local headerCorner = Instance.new("UICorner")
+        headerCorner.CornerRadius = UDim.new(0, 10)
+        headerCorner.Parent = headerFrame
+
+        local iconLabel = Instance.new("TextLabel")
+        iconLabel.Size = UDim2.new(0, 20, 0, 20)
+        iconLabel.Position = UDim2.new(0, 5, 0, 5)
+        iconLabel.BackgroundTransparency = 1
+        iconLabel.Text = "L"
+        iconLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        iconLabel.TextSize = 16
+        iconLabel.Font = Enum.Font.GothamBold
+        iconLabel.Parent = headerFrame
+
+        local titleLabel = Instance.new("TextLabel")
+        titleLabel.Size = UDim2.new(0, 180, 0, 20)
+        titleLabel.Position = UDim2.new(0, 30, 0, 5)
+        titleLabel.BackgroundTransparency = 1
+        titleLabel.Text = "Target Inventory"
+        titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        titleLabel.TextSize = 16
+        titleLabel.Font = Enum.Font.GothamBold
+        titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+        titleLabel.Parent = headerFrame
 
         local equippedContainer = Instance.new("Frame")
         equippedContainer.Size = UDim2.new(0, 200, 0, 20)
-        equippedContainer.Position = UDim2.new(0, 10, 0, 35)
+        equippedContainer.Position = UDim2.new(0, 10, 0, 40)
         equippedContainer.BackgroundTransparency = 1
         equippedContainer.Parent = invFrame
 
@@ -214,7 +238,7 @@ local TargetInfo = {
 
         local inventoryFrame = Instance.new("ScrollingFrame")
         inventoryFrame.Size = UDim2.new(0, 200, 0, 85)
-        inventoryFrame.Position = UDim2.new(0, 10, 0, 55)
+        inventoryFrame.Position = UDim2.new(0, 10, 0, 65)
         inventoryFrame.BackgroundTransparency = 1
         inventoryFrame.BorderSizePixel = 0
         inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
@@ -828,14 +852,20 @@ local TargetInfo = {
             if #inventory > 0 then
                 for i, item in ipairs(inventory) do
                     local itemContainer = Instance.new("Frame")
-                    itemContainer.Size = UDim2.new(1, 0, 0, 20)
-                    itemContainer.BackgroundTransparency = 1
+                    itemContainer.Size = UDim2.new(1, -10, 0, 25)
+                    itemContainer.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
+                    itemContainer.BackgroundTransparency = 0.4
+                    itemContainer.BorderSizePixel = 0
                     itemContainer.LayoutOrder = i
                     itemContainer.Parent = inventoryFrame
 
+                    local itemCorner = Instance.new("UICorner")
+                    itemCorner.CornerRadius = UDim.new(0, 5)
+                    itemCorner.Parent = itemContainer
+
                     local itemIcon = Instance.new("ImageLabel")
                     itemIcon.Size = UDim2.new(0, 20, 0, 20)
-                    itemIcon.Position = UDim2.new(0, 0, 0, 0)
+                    itemIcon.Position = UDim2.new(0, 5, 0, 2.5)
                     itemIcon.BackgroundTransparency = 1
                     itemIcon.Image = item.Icon
                     itemIcon.ImageColor3 = getRarityColor(item.Rarity)
@@ -843,7 +873,7 @@ local TargetInfo = {
 
                     local itemLabel = Instance.new("TextLabel")
                     itemLabel.Size = UDim2.new(0, 170, 0, 20)
-                    itemLabel.Position = UDim2.new(0, 25, 0, 0)
+                    itemLabel.Position = UDim2.new(0, 30, 0, 2.5)
                     itemLabel.BackgroundTransparency = 1
                     itemLabel.Text = item.Name
                     itemLabel.TextColor3 = getRarityColor(item.Rarity)
@@ -852,12 +882,17 @@ local TargetInfo = {
                     itemLabel.TextXAlignment = Enum.TextXAlignment.Left
                     itemLabel.Parent = itemContainer
                 end
-                inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, #inventory * 22)
+                inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, #inventory * 27)
             else
                 local emptyLabel = Instance.new("Frame")
-                emptyLabel.Size = UDim2.new(1, 0, 0, 20)
-                emptyLabel.BackgroundTransparency = 1
+                emptyLabel.Size = UDim2.new(1, -10, 0, 25)
+                emptyLabel.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
+                emptyLabel.BackgroundTransparency = 0.4
+                emptyLabel.BorderSizePixel = 0
                 emptyLabel.Parent = inventoryFrame
+                local emptyCorner = Instance.new("UICorner")
+                emptyCorner.CornerRadius = UDim.new(0, 5)
+                emptyCorner.Parent = emptyLabel
                 local emptyText = Instance.new("TextLabel")
                 emptyText.Size = UDim2.new(1, 0, 1, 0)
                 emptyText.BackgroundTransparency = 1
@@ -866,8 +901,9 @@ local TargetInfo = {
                 emptyText.TextSize = 14
                 emptyText.Font = Enum.Font.Gotham
                 emptyText.TextXAlignment = Enum.TextXAlignment.Left
+                emptyText.Position = UDim2.new(0, 5, 0, 0)
                 emptyText.Parent = emptyLabel
-                inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, 20)
+                inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, 25)
             end
         end
 
@@ -1019,6 +1055,16 @@ local TargetInfo = {
                         notify("Target Inventory", "Target Inventory " .. (value and "Enabled" or "Disabled"), true)
                     end
                 }, 'TEnabled')
+                UI.Sections.TargetInventory:Dropdown({
+                    Name = "UI Style",
+                    Options = {"Default", "New"},
+                    Default = TargetInventorySettings.UIStyle,
+                    Callback = function(value)
+                        TargetInventorySettings.UIStyle = value
+                        notify("Target Inventory", "UI Style set to " .. value, true)
+                        updateTargetInventoryView() -- Перерисовка интерфейса при смене стиля
+                    end
+                }, 'UIStyle')
                 UI.Sections.TargetInventory:Toggle({
                     Name = "Show Nick",
                     Default = false,
