@@ -192,7 +192,7 @@ local TargetInfo = {
         headerFrame.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
         headerFrame.BackgroundTransparency = 0.2
         headerFrame.BorderSizePixel = 0
-        headerFrame.Visible = false
+        headerFrame.Visible = TargetInventorySettings.UIStyle == "New" -- Устанавливаем видимость в зависимости от стиля
         headerFrame.Parent = invFrame
 
         local headerCorner = Instance.new("UICorner")
@@ -236,7 +236,7 @@ local TargetInfo = {
         defaultTitleLabel.TextSize = 16
         defaultTitleLabel.Font = Enum.Font.GothamBold
         defaultTitleLabel.TextXAlignment = Enum.TextXAlignment.Center
-        defaultTitleLabel.Visible = true
+        defaultTitleLabel.Visible = TargetInventorySettings.UIStyle == "Default" -- Устанавливаем видимость в зависимости от стиля
         defaultTitleLabel.Parent = invFrame
 
         local equippedContainer = Instance.new("Frame")
@@ -1052,6 +1052,8 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetInventorySettings.UIStyle = value
                         notify("Target Inventory", "UI Style set to " .. value, true)
+                        headerFrame.Visible = value == "New"
+                        defaultTitleLabel.Visible = value == "Default"
                         updateTargetInventoryView()
                     end
                 }, 'UIStyle')
