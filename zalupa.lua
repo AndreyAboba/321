@@ -37,6 +37,7 @@ local TargetInfo = {
             AlwaysVisible = true,
             DistanceLimit = 0,
             TargetMode = "GunSilent Target",
+            AnalysisMode = "Level 3 (TextureID + Description)", -- Новая настройка для метода анализа
             Enabled = false,
             AppearAnim = true,
             FOV = { Value = 100, Default = 100 },
@@ -47,8 +48,7 @@ local TargetInfo = {
             LastUpdateTime = 0,
             UpdateInterval = 0.5,
             LastFovUpdateTime = 0,
-            FovUpdateInterval = 1/30,
-            AnalysisMode = "Level 3 (TextureID + Description)" -- Новый параметр для метода анализа
+            FovUpdateInterval = 1/30
         }
 
         -- База данных предметов
@@ -56,9 +56,9 @@ local TargetInfo = {
         local IconCache = {}
 
         -- Список TextureId для исключения
-        local ExcludedTextureIds = {
+        local IgnoredTextureIds = {
             "rbxassetid://116170302967943", -- Fists
-            "rbxassetid://93909275221626"   -- Дополнительный TextureId для исключения
+            "rbxassetid://93909275221626"   -- Новый TextureId для исключения
         }
 
         -- Создание ScreenGui для TargetHud
@@ -696,9 +696,9 @@ local TargetInfo = {
                         if item:IsA("Tool") then
                             local description = getItemDescription(item, "Item in ReplicatedStorage", nil)
                             local textureId = getTextureId(item, "Item in ReplicatedStorage", nil)
-                            -- Пропускаем предметы с исключёнными TextureId
-                            if textureId and table.find(ExcludedTextureIds, textureId) then
-                                logMessage("Skipping item " .. item.Name .. " with excluded TextureId: " .. textureId)
+                            -- Пропускаем предметы с игнорируемыми TextureId
+                            if textureId and table.find(IgnoredTextureIds, textureId) then
+                                logMessage("Skipping item " .. item.Name .. " with TextureId " .. textureId .. " (ignored)")
                                 processedItems = processedItems + 1
                                 continue
                             end
@@ -726,41 +726,50 @@ local TargetInfo = {
                 return nil
             end
 
-            logMessage("Using analysis mode: " .. TargetInventorySettings.AnalysisMode)
+            local mode = TargetInventorySettings.AnalysisMode
+            logMessage("Using analysis mode: " .. mode)
 
-            if TargetInventorySettings.AnalysisMode == "Level 1 (Description)" then
-                -- Только Description
+            if mode == "Level 1 (Description)" then
+                -- Используем только Description
+                if not description then
+                    logMessage("No description provided in Level 1 mode")
+                    return nil
+                end
                 for itemName, data in pairs(ItemDatabase) do
-                    if description and data.Description and data.Description == description then
+                    if data.Description and data.Description == description then
                         logMessage("Found match by description: " .. itemName .. " for description " .. tostring(description))
                         return itemName
                     end
                 end
                 logMessage("No item found with description: " .. tostring(description))
                 return nil
-            elseif TargetInventorySettings.AnalysisMode == "Level 2 (TextureID)" then
-                -- Только TextureId
-                if textureId then
-                    for itemName, data in pairs(ItemDatabase) do
-                        if data.TextureId and data.TextureId == textureId then
-                            logMessage("Found match by TextureId: " .. itemName .. " for TextureId " .. tostring(textureId))
-                            return itemName
-                        end
-                    end
-                    logMessage("No item found with TextureId: " .. tostring(textureId))
-                else
-                    logMessage("No TextureId provided for Level 2 analysis")
+            elseif mode == "Level 2 (TextureID)" then
+                -- Используем только TextureId
+                if not textureId then
+                    logMessage("No TextureId provided in Level 2 mode")
+                    return nil
                 end
-                return nil
-            else
-                -- Level 3 (TextureID + Description)
                 for itemName, data in pairs(ItemDatabase) do
-                    if description and data.Description and data.Description == description then
-                        logMessage("Found match by description: " .. itemName .. " for description " .. tostring(description))
+                    if data.TextureId and data.TextureId == textureId then
+                        logMessage("Found match by TextureId: " .. itemName .. " for TextureId " .. tostring(textureId))
                         return itemName
                     end
                 end
+                logMessage("No item found with TextureId: " .. tostring(textureId))
+                return nil
+            else
+                -- Level 3 (TextureID + Description)
+                -- Сначала проверяем по Description
+                if description then
+                    for itemName, data in pairs(ItemDatabase) do
+                        if data.Description and data.Description == description then
+                            logMessage("Found match by description: " .. itemName .. " for description " .. tostring(description))
+                            return itemName
+                        end
+                    end
+                end
 
+                -- Если по Description не нашли, проверяем по TextureId
                 if textureId then
                     for itemName, data in pairs(ItemDatabase) do
                         if data.TextureId and data.TextureId == textureId then
@@ -785,8 +794,8 @@ local TargetInfo = {
             for _, item in pairs(character:GetChildren()) do
                 if item:IsA("Tool") then
                     local textureId = getTextureId(item, "Equipped item", target.Name)
-                    if textureId and table.find(ExcludedTextureIds, textureId) then
-                        logMessage("Ignoring item for target " .. target.Name .. " with excluded TextureId: " .. textureId)
+                    if textureId and table.find(IgnoredTextureIds, textureId) then
+                        logMessage("Ignoring item " .. item.Name .. " for target " .. target.Name .. " with TextureId: " .. textureId)
                         continue
                     end
                     if textureId == nil then
@@ -832,8 +841,8 @@ local TargetInfo = {
             for _, item in pairs(backpack:GetChildren()) do
                 if item:IsA("Tool") then
                     local textureId = getTextureId(item, "Inventory item", target.Name)
-                    if textureId and table.find(ExcludedTextureIds, textureId) then
-                        logMessage("Ignoring item in inventory for target " .. target.Name .. " with excluded TextureId: " .. textureId)
+                    if textureId and table.find(IgnoredTextureIds, textureId) then
+                        logMessage("Ignoring item " .. item.Name .. " in inventory for target " .. target.Name .. " with TextureId: " .. textureId)
                         continue
                     end
                     if textureId == nil then
@@ -1089,7 +1098,7 @@ local TargetInfo = {
             if #inventory > 0 then
                 for i, item in ipairs(inventory) do
                     local itemContainer = Instance.new("Frame")
-                    itemContainer.Size/PageRank = UDim2.new(1, 0, 0, 20)
+                    itemContainer.Size = UDim2.new(1, 0, 0, 20)
                     itemContainer.BackgroundTransparency = 1
                     itemContainer.LayoutOrder = i
                     itemContainer.Parent = inventoryFrame
@@ -1364,6 +1373,16 @@ local TargetInfo = {
                         logMessage("Target Mode set to: " .. value)
                     end
                 }, 'GTargetMode')
+                UI.Sections.TargetInventory:Dropdown({
+                    Name = "Analysis Mode",
+                    Options = {"Level 1 (Description)", "Level 2 (TextureID)", "Level 3 (TextureID + Description)"},
+                    Default = TargetInventorySettings.AnalysisMode,
+                    Callback = function(value)
+                        TargetInventorySettings.AnalysisMode = value
+                        notify("Target Inventory", "Analysis Mode set to " .. value, true)
+                        logMessage("Analysis Mode set to: " .. value)
+                    end
+                }, 'AnalysisMode')
                 UI.Sections.TargetInventory:Slider({
                     Name = "FOV",
                     Minimum = 50,
@@ -1404,16 +1423,6 @@ local TargetInfo = {
                         logMessage("Circle Method set to: " .. value)
                     end
                 }, 'CircleMethod')
-                UI.Sections.TargetInventory:Dropdown({
-                    Name = "Analysis Mode",
-                    Options = {"Level 1 (Description)", "Level 2 (TextureID)", "Level 3 (TextureID + Description)"},
-                    Default = TargetInventorySettings.AnalysisMode,
-                    Callback = function(value)
-                        TargetInventorySettings.AnalysisMode = value
-                        notify("Target Inventory", "Analysis Mode set to: " .. value, true)
-                        logMessage("Analysis Mode set to: " .. value)
-                    end
-                }, 'AnalysisMode')
             end
 
             -- UI для Output Log
