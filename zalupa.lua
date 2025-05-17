@@ -67,9 +67,6 @@ local TargetInfo = {
         local ItemDatabase = {}
         local IconCache = {}
 
-        -- Кэш зашифрованных атрибутов
-        local EncryptedAttributeCache = { Durability = Core.GetEncryptedAttributeName("durability") }
-
         -- Создание ScreenGui для TargetHud
         local hudScreenGui = Instance.new("ScreenGui")
         hudScreenGui.Name = "TargetHUDGui"
@@ -197,14 +194,14 @@ local TargetInfo = {
 
         local iconLabel = Instance.new("ImageLabel")
         iconLabel.Size = UDim2.new(0, 20, 0, 20)
-        iconLabel.Position = UDim2.new(0, 35, 0, 5) -- Сдвинут левее
+        iconLabel.Position = UDim2.new(0, 25, 0, 5) -- Сдвинуто левее на 25
         iconLabel.BackgroundTransparency = 1
         iconLabel.Image = "rbxassetid://13289068576"
         iconLabel.Parent = headerFrame
 
         local titleLabel = Instance.new("TextLabel")
         titleLabel.Size = UDim2.new(0, 150, 0, 20)
-        titleLabel.Position = UDim2.new(0, 60, 0, 5) -- Скорректировано под иконку
+        titleLabel.Position = UDim2.new(0, 50, 0, 5) -- Скорректировано под новую позицию иконки
         titleLabel.BackgroundTransparency = 1
         titleLabel.Text = "Target Inventory"
         titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -239,7 +236,7 @@ local TargetInfo = {
         equippedContainer.Size = UDim2.new(1, -20, 0, 25)
         equippedContainer.Position = UDim2.new(0, 10, 0, 40) -- Сдвинут вниз из-за headerFrame
         equippedContainer.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
-        equippedContainer.BackgroundTransparency = 0.4
+        equippedContainer.BackgroundTransparency = 1 -- Симметричный фон
         equippedContainer.BorderSizePixel = 0
         equippedContainer.Visible = true
         equippedContainer.Parent = invFrame
@@ -247,30 +244,6 @@ local TargetInfo = {
         local equippedCorner = Instance.new("UICorner")
         equippedCorner.CornerRadius = UDim.new(0, 5)
         equippedCorner.Parent = equippedContainer
-
-        -- Круг прочности для экипированного предмета
-        local equippedDurabilityCircle = Instance.new("Frame")
-        equippedDurabilityCircle.Size = UDim2.new(0, 15, 0, 15)
-        equippedDurabilityCircle.Position = UDim2.new(1, -25, 0, 5) -- На правом конце
-        equippedDurabilityCircle.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-        equippedDurabilityCircle.BorderSizePixel = 0
-        equippedDurabilityCircle.Visible = false
-        equippedDurabilityCircle.Parent = equippedContainer
-
-        local equippedDurabilityCircleCorner = Instance.new("UICorner")
-        equippedDurabilityCircleCorner.CornerRadius = UDim.new(1, 0)
-        equippedDurabilityCircleCorner.Parent = equippedDurabilityCircle
-
-        local equippedDurabilityFill = Instance.new("Frame")
-        equippedDurabilityFill.Size = UDim2.new(1, 0, 0.5, 0) -- По умолчанию 50%
-        equippedDurabilityFill.Position = UDim2.new(0, 0, 0.5, 0)
-        equippedDurabilityFill.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        equippedDurabilityFill.BorderSizePixel = 0
-        equippedDurabilityFill.Parent = equippedDurabilityCircle
-
-        local equippedDurabilityFillCorner = Instance.new("UICorner")
-        equippedDurabilityFillCorner.CornerRadius = UDim.new(1, 0)
-        equippedDurabilityFillCorner.Parent = equippedDurabilityFill
 
         local equippedIcon = Instance.new("ImageLabel")
         equippedIcon.Size = UDim2.new(0, 20, 0, 20)
@@ -289,19 +262,6 @@ local TargetInfo = {
         equippedLabel.Font = Enum.Font.Gotham
         equippedLabel.TextXAlignment = Enum.TextXAlignment.Left
         equippedLabel.Parent = equippedContainer
-
-        local equippedLabelBackground = Instance.new("Frame")
-        equippedLabelBackground.Size = UDim2.new(1, 0, 1, 0)
-        equippedLabelBackground.Position = UDim2.new(0, 0, 0, 0)
-        equippedLabelBackground.BackgroundColor3 = Color3.fromRGB(15, 25, 45)
-        equippedLabelBackground.BackgroundTransparency = 0.6
-        equippedLabelBackground.BorderSizePixel = 0
-        equippedLabelBackground.Visible = false
-        equippedLabelBackground.Parent = equippedLabel
-
-        local equippedLabelBgCorner = Instance.new("UICorner")
-        equippedLabelBgCorner.CornerRadius = UDim.new(0, 5)
-        equippedLabelBgCorner.Parent = equippedLabelBackground
 
         local inventoryFrame = Instance.new("ScrollingFrame")
         inventoryFrame.Size = UDim2.new(1, -20, 0, 75)
@@ -611,16 +571,6 @@ local TargetInfo = {
             return IconCache[itemName]
         end
 
-        local function getItemCategory(itemName)
-            if not ItemsCache then return nil end
-            for category, folder in pairs(ItemCategories) do
-                if folder and folder:FindFirstChild(itemName) then
-                    return category
-                end
-            end
-            return nil
-        end
-
         local function getItemDescription(item)
             local descObj = item:FindFirstChild("Description") or item:FindFirstChild("description")
             if descObj and descObj:IsA("StringValue") then
@@ -660,27 +610,6 @@ local TargetInfo = {
         local function isLocked(item)
             local lockedValue = item:GetAttribute("Locked")
             return lockedValue == true
-        end
-
-        local function getMaxDurability(itemName)
-            if not ItemsCache then return 100 end
-            for category, folder in pairs(ItemCategories) do
-                if folder and folder:FindFirstChild(itemName) then
-                    local item = folder[itemName]
-                    return item:GetAttribute("Durability") or item:GetAttribute("durability") or 100
-                end
-            end
-            return 100
-        end
-
-        local function getItemDurability(item)
-            if not item then return 0 end
-            local durability = item:GetAttribute("Durability") or item:GetAttribute("durability")
-            if not durability then
-                local encryptedName = EncryptedAttributeCache.Durability
-                durability = item:GetAttribute(encryptedName)
-            end
-            return durability or 0
         end
 
         local function initializeItemDatabase()
@@ -728,7 +657,7 @@ local TargetInfo = {
         end
 
         local function getTargetEquippedItem(target)
-            if not target or not target.Character then return "None", nil, nil, 0, 0, nil end
+            if not target or not target.Character then return "None", nil, nil end
             local character = target.Character
             local equippedItem = nil
             for _, item in pairs(character:GetChildren()) do
@@ -737,16 +666,13 @@ local TargetInfo = {
                     break
                 end
             end
-            if not equippedItem then return "None", nil, nil, 0, 0, nil end
+            if not equippedItem then return "None", nil, nil end
 
             local description = getItemDescription(equippedItem)
             local imageId = getImageId(equippedItem)
             local rarityName = getRarityName(equippedItem)
             local itemName = (description or imageId) and getItemNameByDescriptionOrImageId(description, imageId) or equippedItem.Name
-            local maxDurability = getMaxDurability(itemName or equippedItem.Name)
-            local durability = getItemDurability(equippedItem)
-            local category = getItemCategory(itemName or equippedItem.Name)
-            return itemName, itemName, rarityName, durability, maxDurability, category
+            return itemName, itemName, rarityName
         end
 
         local function getTargetInventory(target)
@@ -761,10 +687,7 @@ local TargetInfo = {
                     local imageId = getImageId(item)
                     local rarityName = getRarityName(item)
                     local itemName = (description or imageId) and getItemNameByDescriptionOrImageId(description, imageId) or item.Name
-                    local maxDurability = getMaxDurability(itemName or item.Name)
-                    local durability = getItemDurability(item)
-                    local category = getItemCategory(itemName or item.Name)
-                    if itemName then table.insert(items, { Name = itemName, Icon = getItemIcon(itemName), Rarity = rarityName, Durability = durability, MaxDurability = maxDurability, Category = category }) end
+                    if itemName then table.insert(items, { Name = itemName, Icon = getItemIcon(itemName), Rarity = rarityName }) end
                 end
             end
             return items
@@ -916,7 +839,6 @@ local TargetInfo = {
                 defaultTitleLabel.Visible = false
                 equippedContainer.Position = UDim2.new(0, 10, 0, 40)
                 inventoryFrame.Position = UDim2.new(0, 10, 0, 70)
-                equippedLabelBackground.Visible = true
                 equippedContainer.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
                 equippedContainer.BackgroundTransparency = 0.4
                 placeholderFrame.Visible = true
@@ -946,7 +868,6 @@ local TargetInfo = {
                 defaultTitleLabel.Visible = true
                 equippedContainer.Position = UDim2.new(0, 10, 0, 30)
                 inventoryFrame.Position = UDim2.new(0, 10, 0, 60)
-                equippedLabelBackground.Visible = false
                 equippedContainer.BackgroundTransparency = 1
                 placeholderFrame.Visible = false
                 for _, child in pairs(inventoryFrame:GetChildren()) do
@@ -979,7 +900,6 @@ local TargetInfo = {
                 equippedIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
                 equippedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
                 equippedLabel.Position = UDim2.new(0, 30, 0, 2.5)
-                equippedDurabilityCircle.Visible = false
                 for _, child in pairs(inventoryFrame:GetChildren()) do
                     if child:IsA("Frame") then child:Destroy() end
                 end
@@ -1029,22 +949,18 @@ local TargetInfo = {
                 return
             end
 
-            local equippedItem, equippedItemName, rarityName, durability, maxDurability, category = getTargetEquippedItem(target)
+            local equippedItem, equippedItemName, rarityName = getTargetEquippedItem(target)
             equippedLabel.Text = " | Equipped: " .. equippedItem
             if equippedItemName then
                 equippedIcon.Image = getItemIcon(equippedItemName)
                 equippedIcon.ImageColor3 = getRarityColor(rarityName)
                 equippedLabel.TextColor3 = getRarityColor(rarityName)
                 equippedLabel.Position = UDim2.new(0, 30, 0, 2.5)
-                equippedDurabilityFill.Size = UDim2.new(1, 0, math.clamp(durability / maxDurability, 0, 1), 0)
-                equippedDurabilityCircle.Visible = (category == "melee" or category == "gun") and TargetInventorySettings.UIStyle == "New"
             else
                 equippedIcon.Image = "rbxassetid://18821914323"
                 equippedIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
                 equippedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
                 equippedLabel.Position = UDim2.new(0, 30, 0, 2.5)
-                equippedDurabilityFill.Size = UDim2.new(1, 0, 0, 0)
-                equippedDurabilityCircle.Visible = false
             end
 
             for _, child in pairs(inventoryFrame:GetChildren()) do
@@ -1066,31 +982,6 @@ local TargetInfo = {
                     local itemCorner = Instance.new("UICorner")
                     itemCorner.CornerRadius = UDim.new(0, 5)
                     itemCorner.Parent = itemContainer
-
-                    -- Круг прочности для предмета
-                    local itemDurabilityCircle = Instance.new("Frame")
-                    itemDurabilityCircle.Name = "DurabilityCircle"
-                    itemDurabilityCircle.Size = UDim2.new(0, 15, 0, 15)
-                    itemDurabilityCircle.Position = UDim2.new(1, -25, 0, 5) -- На правом конце
-                    itemDurabilityCircle.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-                    itemDurabilityCircle.BorderSizePixel = 0
-                    itemDurabilityCircle.Visible = (item.Category == "melee" or item.Category == "gun") and TargetInventorySettings.UIStyle == "New"
-                    itemDurabilityCircle.Parent = itemContainer
-
-                    local itemDurabilityCircleCorner = Instance.new("UICorner")
-                    itemDurabilityCircleCorner.CornerRadius = UDim.new(1, 0)
-                    itemDurabilityCircleCorner.Parent = itemDurabilityCircle
-
-                    local itemDurabilityFill = Instance.new("Frame")
-                    itemDurabilityFill.Size = UDim2.new(1, 0, math.clamp(item.Durability / item.MaxDurability, 0, 1), 0)
-                    itemDurabilityFill.Position = UDim2.new(0, 0, 1 - math.clamp(item.Durability / item.MaxDurability, 0, 1), 0)
-                    itemDurabilityFill.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-                    itemDurabilityFill.BorderSizePixel = 0
-                    itemDurabilityFill.Parent = itemDurabilityCircle
-
-                    local itemDurabilityFillCorner = Instance.new("UICorner")
-                    itemDurabilityFillCorner.CornerRadius = UDim.new(1, 0)
-                    itemDurabilityFillCorner.Parent = itemDurabilityFill
 
                     local itemIcon = Instance.new("ImageLabel")
                     itemIcon.Size = UDim2.new(0, 20, 0, 20)
