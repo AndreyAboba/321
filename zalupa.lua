@@ -45,10 +45,14 @@ local TargetInfo = {
             CircleGradient = { Value = false, Default = false },
             LastTarget = nil,
             LastUpdateTime = 0,
-            UpdateInterval = 0.2,
+            UpdateInterval = 0.5, -- Увеличиваем интервал для оптимизации
             LastFovUpdateTime = 0,
             FovUpdateInterval = 1/30 -- ~30 FPS для круга FOV
         }
+
+        -- База данных предметов
+        local ItemDatabase = {}
+        local IconCache = {}
 
         -- Создание ScreenGui для TargetHud
         local hudScreenGui = Instance.new("ScreenGui")
@@ -533,41 +537,39 @@ local TargetInfo = {
 
         -- Функции TargetInventory
         local function getItemIcon(itemName)
-            local Items = ReplicatedStorage:WaitForChild("Items", 5)
-            if not Items then
-                logMessage("ReplicatedStorage.Items not found")
-                return ""
-            end
-            local GunItems = Items:WaitForChild("gun", 5)
-            local MeleeItems = Items:WaitForChild("melee", 5)
-            local ThrowableItems = Items:WaitForChild("throwable", 5)
-            local ConsumableItems = Items:WaitForChild("consumable", 5)
-            local MiscItems = Items:WaitForChild("misc", 5)
+            if not IconCache[itemName] then
+                local Items = ReplicatedStorage:WaitForChild("Items", 5)
+                if not Items then
+                    logMessage("ReplicatedStorage.Items not found")
+                    return ""
+                end
+                local GunItems = Items:WaitForChild("gun", 5)
+                local MeleeItems = Items:WaitForChild("melee", 5)
+                local ThrowableItems = Items:WaitForChild("throwable", 5)
+                local ConsumableItems = Items:WaitForChild("consumable", 5)
+                local MiscItems = Items:WaitForChild("misc", 5)
 
-            if not (GunItems and MeleeItems and ThrowableItems and ConsumableItems and MiscItems) then
-                logMessage("Some item categories missing in ReplicatedStorage.Items")
-                return ""
-            end
+                if not (GunItems and MeleeItems and ThrowableItems and ConsumableItems and MiscItems) then
+                    logMessage("Some item categories missing in ReplicatedStorage.Items")
+                    return ""
+                end
 
-            if GunItems:FindFirstChild(itemName) then
-                logMessage("Found icon for gun: " .. itemName)
-                return "rbxassetid://109065124754087"
-            elseif MeleeItems:FindFirstChild(itemName) then
-                logMessage("Found icon for melee: " .. itemName)
-                return "rbxassetid://10455604811"
-            elseif ThrowableItems:FindFirstChild(itemName) then
-                logMessage("Found icon for throwable: " .. itemName)
-                return "rbxassetid://13492316452"
-            elseif ConsumableItems:FindFirstChild(itemName) then
-                logMessage("Found icon for consumable: " .. itemName)
-                return "rbxassetid://17181103870"
-            elseif MiscItems:FindFirstChild(itemName) then
-                logMessage("Found icon for misc: " .. itemName)
-                return "rbxassetid://6966623635"
-            else
-                logMessage("No icon found for item: " .. itemName)
-                return ""
+                if GunItems:FindFirstChild(itemName) then
+                    IconCache[itemName] = "rbxassetid://109065124754087"
+                elseif MeleeItems:FindFirstChild(itemName) then
+                    IconCache[itemName] = "rbxassetid://10455604811"
+                elseif ThrowableItems:FindFirstChild(itemName) then
+                    IconCache[itemName] = "rbxassetid://13492316452"
+                elseif ConsumableItems:FindFirstChild(itemName) then
+                    IconCache[itemName] = "rbxassetid://17181103870"
+                elseif MiscItems:FindFirstChild(itemName) then
+                    IconCache[itemName] = "rbxassetid://6966623635"
+                else
+                    IconCache[itemName] = ""
+                    logMessage("No icon found for item: " .. itemName)
+                end
             end
+            return IconCache[itemName]
         end
 
         local function getItemDescription(item, context, targetName)
@@ -628,38 +630,47 @@ local TargetInfo = {
             return descValue
         end
 
+        local function initializeItemDatabase()
+            local Items = ReplicatedStorage:WaitForChild("Items", 5)
+            if not Items then
+                logMessage("ReplicatedStorage.Items not found during database initialization")
+                return
+            end
+
+            local categories = {"gun", "melee", "throwable", "consumable", "misc"}
+            for _, category in pairs(categories) do
+                local categoryFolder = Items:WaitForChild(category, 5)
+                if categoryFolder then
+                    logMessage("Initializing database for category " .. category .. " with " .. #categoryFolder:GetChildren() .. " items")
+                    for _, item in pairs(categoryFolder:GetChildren()) do
+                        if item:IsA("Tool") then
+                            local description = getItemDescription(item, "Item in ReplicatedStorage", nil)
+                            if description then
+                                ItemDatabase[item.Name] = description
+                                logMessage("Added to database: " .. item.Name .. " -> " .. tostring(description))
+                            else
+                                ItemDatabase[item.Name] = nil
+                                logMessage("No description for " .. item.Name .. ", using name as fallback")
+                            end
+                        end
+                    end
+                else
+                    logMessage("Category " .. category .. " not found in ReplicatedStorage.Items")
+                end
+            end
+            logMessage("Item database initialized with " .. table.getn(ItemDatabase) .. " entries")
+        end
+
         local function getItemNameByDescription(description)
             if not description then
                 logMessage("No description provided for item lookup")
                 return nil
             end
 
-            local Items = ReplicatedStorage:WaitForChild("Items", 5)
-            if not Items then
-                logMessage("ReplicatedStorage.Items not found for description lookup")
-                return nil
-            end
-
-            logMessage("Starting item lookup with description: " .. tostring(description))
-
-            local categories = {"gun", "melee", "throwable", "consumable", "misc"}
-            for _, category in pairs(categories) do
-                local categoryFolder = Items:WaitForChild(category, 5)
-                if not categoryFolder then
-                    logMessage("Category " .. category .. " not found")
-                    continue
-                end
-                for _, item in pairs(categoryFolder:GetChildren()) do
-                    if item:IsA("Tool") then
-                        local descValue = getItemDescription(item, "Item in ReplicatedStorage", nil)
-                        logMessage("Comparing description of item " .. item.Name .. " in category " .. category .. ":")
-                        logMessage("  Stored: " .. tostring(descValue))
-                        logMessage("  Target: " .. tostring(description))
-                        if descValue and descValue == description then
-                            logMessage("Matched description for item " .. item.Name .. " in category " .. category)
-                            return item.Name
-                        end
-                    end
+            for itemName, itemDesc in pairs(ItemDatabase) do
+                if itemDesc and itemDesc == description then
+                    logMessage("Found match in database: " .. itemName .. " for description " .. tostring(description))
+                    return itemName
                 end
             end
             logMessage("No item found with description: " .. tostring(description))
@@ -898,7 +909,7 @@ local TargetInfo = {
             end
 
             if TargetInventorySettings.LastTarget == target then
-                return -- Убираем спам логов
+                return -- Кэшируем, если цель не изменилась
             end
             TargetInventorySettings.LastTarget = target
             logMessage("New target detected: " .. (target and target.Name or "None"))
@@ -1289,24 +1300,8 @@ local TargetInfo = {
             end
         end
 
-        -- Инициализация: Проверка структуры ReplicatedStorage.Items
-        local Items = ReplicatedStorage:WaitForChild("Items", 5)
-        if Items then
-            local categories = {"gun", "melee", "throwable", "consumable", "misc"}
-            for _, category in pairs(categories) do
-                local folder = Items:WaitForChild(category, 5)
-                if folder then
-                    logMessage("Found category " .. category .. " with " .. #folder:GetChildren() .. " items")
-                    for _, item in pairs(folder:GetChildren()) do
-                        getItemDescription(item, "Item in ReplicatedStorage", nil)
-                    end
-                else
-                    logMessage("Category " .. category .. " not found in ReplicatedStorage.Items")
-                end
-            end
-        else
-            logMessage("ReplicatedStorage.Items not found during initialization")
-        end
+        -- Инициализация базы данных
+        initializeItemDatabase()
 
         -- Обновление TargetInventory и TargetHud
         RunService.Stepped:Connect(function()
