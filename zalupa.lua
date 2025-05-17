@@ -27,7 +27,7 @@ local TargetInfo = {
                 PreviousHealth = nil,
                 LastDamageAnimationTime = 0,
                 LastUpdateTime = 0,
-                UpdateInterval = 0.1
+                UpdateInterval = 0.2 -- Увеличено с 0.1 для оптимизации
             }
         }
 
@@ -37,7 +37,7 @@ local TargetInfo = {
             AlwaysVisible = true,
             DistanceLimit = 0,
             TargetMode = "GunSilent Target",
-            AnalysisMode = "Level 3 (ImageID + Description)", -- По умолчанию Level 3
+            AnalysisMode = "Level 3 (ImageID + Description)",
             Enabled = false,
             AppearAnim = true,
             FOV = { Value = 100, Default = 100 },
@@ -46,10 +46,20 @@ local TargetInfo = {
             CircleGradient = { Value = false, Default = false },
             LastTarget = nil,
             LastUpdateTime = 0,
-            UpdateInterval = 0.5,
+            UpdateInterval = 1.0, -- Увеличено с 0.5 для оптимизации
             LastFovUpdateTime = 0,
-            FovUpdateInterval = 1/30
+            FovUpdateInterval = 1/15 -- Увеличено с 1/30 для оптимизации
         }
+
+        -- Кэширование объектов
+        local ItemsCache = ReplicatedStorage:WaitForChild("Items", 5)
+        local ItemCategories = ItemsCache and {
+            gun = ItemsCache:WaitForChild("gun", 5),
+            melee = ItemsCache:WaitForChild("melee", 5),
+            throwable = ItemsCache:WaitForChild("throwable", 5),
+            consumable = ItemsCache:WaitForChild("consumable", 5),
+            misc = ItemsCache:WaitForChild("misc", 5)
+        } or {}
 
         -- База данных предметов
         local ItemDatabase = {}
@@ -489,31 +499,20 @@ local TargetInfo = {
         -- Функции TargetInventory
         local function getItemIcon(itemName)
             if not IconCache[itemName] then
-                local Items = ReplicatedStorage:WaitForChild("Items", 5)
-                if not Items then
-                    return ""
+                if not ItemsCache then return "" end
+                for category, folder in pairs(ItemCategories) do
+                    if folder and folder:FindFirstChild(itemName) then
+                        IconCache[itemName] = ({
+                            gun = "rbxassetid://109065124754087",
+                            melee = "rbxassetid://10455604811",
+                            throwable = "rbxassetid://13492316452",
+                            consumable = "rbxassetid://17181103870",
+                            misc = "rbxassetid://6966623635"
+                        })[category] or ""
+                        break
+                    end
                 end
-                local GunItems = Items:WaitForChild("gun", 5)
-                local MeleeItems = Items:WaitForChild("melee", 5)
-                local ThrowableItems = Items:WaitForChild("throwable", 5)
-                local ConsumableItems = Items:WaitForChild("consumable", 5)
-                local MiscItems = Items:WaitForChild("misc", 5)
-
-                if not (GunItems and MeleeItems and ThrowableItems and ConsumableItems and MiscItems) then
-                    return ""
-                end
-
-                if GunItems:FindFirstChild(itemName) then
-                    IconCache[itemName] = "rbxassetid://109065124754087"
-                elseif MeleeItems:FindFirstChild(itemName) then
-                    IconCache[itemName] = "rbxassetid://10455604811"
-                elseif ThrowableItems:FindFirstChild(itemName) then
-                    IconCache[itemName] = "rbxassetid://13492316452"
-                elseif ConsumableItems:FindFirstChild(itemName) then
-                    IconCache[itemName] = "rbxassetid://17181103870"
-                elseif MiscItems:FindFirstChild(itemName) then
-                    IconCache[itemName] = "rbxassetid://6966623635"
-                else
+                if not IconCache[itemName] then
                     IconCache[itemName] = ""
                 end
             end
@@ -521,117 +520,56 @@ local TargetInfo = {
         end
 
         local function getItemDescription(item)
-            local descObj1 = item:FindFirstChild("Description")
-            local descObj2 = item:FindFirstChild("description")
-            local descValueFromAttr1 = item:GetAttribute("Description")
-            local descValueFromAttr2 = item:GetAttribute("description")
-            local descValue = nil
-
-            -- Проверяем дочерние объекты
-            if descObj1 then
-                if descObj1:IsA("StringValue") then
-                    descValue = descObj1.Value
-                end
-            elseif descObj2 then
-                if descObj2:IsA("StringValue") then
-                    descValue = descObj2.Value
-                end
+            local descObj = item:FindFirstChild("Description") or item:FindFirstChild("description")
+            if descObj and descObj:IsA("StringValue") then
+                return descObj.Value
             end
-
-            -- Проверяем атрибуты
-            if not descValue then
-                if descValueFromAttr1 then
-                    descValue = descValueFromAttr1
-                elseif descValueFromAttr2 then
-                    descValue = descValueFromAttr2
-                end
-            end
-
-            return descValue
+            return item:GetAttribute("Description") or item:GetAttribute("description")
         end
 
         local function getImageId(item)
-            local imageObj1 = item:FindFirstChild("ImageID")
-            local imageObj2 = item:FindFirstChild("imageID")
-            local imageValueFromAttr1 = item:GetAttribute("ImageID")
-            local imageValueFromAttr2 = item:GetAttribute("imageID")
-            local imageId = nil
-
-            -- Проверяем дочерние объекты
-            if imageObj1 then
-                if imageObj1:IsA("StringValue") then
-                    imageId = imageObj1.Value
-                end
-            elseif imageObj2 then
-                if imageObj2:IsA("StringValue") then
-                    imageId = imageObj2.Value
-                end
+            local imageObj = item:FindFirstChild("ImageID") or item:FindFirstChild("imageID")
+            if imageObj and imageObj:IsA("StringValue") then
+                return imageObj.Value
             end
-
-            -- Проверяем атрибуты
-            if not imageId then
-                if imageValueFromAttr1 then
-                    imageId = imageValueFromAttr1
-                elseif imageValueFromAttr2 then
-                    imageId = imageValueFromAttr2
-                end
-            end
-
-            return imageId
+            return item:GetAttribute("ImageID") or item:GetAttribute("imageID")
         end
 
         local function getRarityName(item)
-            local rarityValue = item:GetAttribute("RarityName")
-            return rarityValue
+            return item:GetAttribute("RarityName")
         end
 
         local function getRarityColor(rarityName)
             if rarityName == "Common" then
-                return Color3.fromRGB(255, 255, 255) -- Белый
+                return Color3.fromRGB(255, 255, 255)
             elseif rarityName == "Uncommon" then
-                return Color3.fromRGB(0, 255, 0) -- Зелёный
+                return Color3.fromRGB(0, 255, 0)
             elseif rarityName == "Rare" then
-                return Color3.fromRGB(0, 191, 255) -- Голубоватый
+                return Color3.fromRGB(0, 191, 255)
             elseif rarityName == "Epic" then
-                return Color3.fromRGB(186, 85, 211) -- Светло-фиолетовый
+                return Color3.fromRGB(186, 85, 211)
             elseif rarityName == "Legendary" then
-                return Color3.fromRGB(255, 215, 0) -- Золотой
+                return Color3.fromRGB(255, 215, 0)
             else
-                return Color3.fromRGB(255, 255, 255) -- Белый по умолчанию
+                return Color3.fromRGB(255, 255, 255)
             end
         end
 
         local function isLocked(item)
             local lockedValue = item:GetAttribute("Locked")
-            if lockedValue == nil then
-                return false
-            end
-            local isLockedBool = (lockedValue == true)
-            return isLockedBool
+            return lockedValue == true
         end
 
         local function initializeItemDatabase()
-            local Items = ReplicatedStorage:WaitForChild("Items", 5)
-            if not Items then
-                return
-            end
-
-            local categories = {"gun", "melee", "throwable", "consumable", "misc"}
-            for _, category in pairs(categories) do
-                local categoryFolder = Items:WaitForChild(category, 5)
-                if categoryFolder then
-                    for _, item in pairs(categoryFolder:GetChildren()) do
-                        if item:IsA("Tool") then
-                            local description = getItemDescription(item)
-                            local imageId = getImageId(item)
-                            local locked = isLocked(item)
-                            -- Пропускаем предметы с Locked == true
-                            if locked then
-                                continue
-                            end
+            if not ItemsCache then return end
+            for _, category in pairs({"gun", "melee", "throwable", "consumable", "misc"}) do
+                local folder = ItemCategories[category]
+                if folder then
+                    for _, item in pairs(folder:GetChildren()) do
+                        if item:IsA("Tool") and not isLocked(item) then
                             ItemDatabase[item.Name] = {
-                                Description = description,
-                                ImageId = imageId
+                                Description = getItemDescription(item),
+                                ImageId = getImageId(item)
                             }
                         end
                     end
@@ -640,120 +578,64 @@ local TargetInfo = {
         end
 
         local function getItemNameByDescriptionOrImageId(description, imageId)
-            if not description and not imageId then
-                return nil
-            end
-
+            if not description and not imageId then return nil end
             local mode = TargetInventorySettings.AnalysisMode
 
-            if mode == "Level 1 (Description)" then
-                -- Используем только Description
-                if not description then
-                    return nil
-                end
+            if mode == "Level 1 (Description)" and description then
                 for itemName, data in pairs(ItemDatabase) do
-                    if data.Description and data.Description == description then
-                        return itemName
-                    end
+                    if data.Description == description then return itemName end
                 end
-                return nil
-            elseif mode == "Level 2 (ImageID)" then
-                -- Используем только ImageId
-                if not imageId then
-                    return nil
-                end
+            elseif mode == "Level 2 (ImageID)" and imageId then
                 for itemName, data in pairs(ItemDatabase) do
-                    if data.ImageId and data.ImageId == imageId then
-                        return itemName
-                    end
+                    if data.ImageId == imageId then return itemName end
                 end
-                return nil
             else
-                -- Level 3 (ImageID + Description)
-                -- Сначала проверяем по Description
                 if description then
                     for itemName, data in pairs(ItemDatabase) do
-                        if data.Description and data.Description == description then
-                            return itemName
-                        end
+                        if data.Description == description then return itemName end
                     end
                 end
-
-                -- Если по Description не нашли, проверяем по ImageId
                 if imageId then
                     for itemName, data in pairs(ItemDatabase) do
-                        if data.ImageId and data.ImageId == imageId then
-                            return itemName
-                        end
+                        if data.ImageId == imageId then return itemName end
                     end
                 end
-
-                return nil
             end
+            return nil
         end
 
         local function getTargetEquippedItem(target)
-            if not target or not target.Character then
-                return "None", nil, nil
-            end
+            if not target or not target.Character then return "None", nil, nil end
             local character = target.Character
             local equippedItem = nil
             for _, item in pairs(character:GetChildren()) do
-                if item:IsA("Tool") then
-                    local locked = isLocked(item)
-                    if locked then
-                        continue
-                    end
+                if item:IsA("Tool") and not isLocked(item) then
                     equippedItem = item
                     break
                 end
             end
-            if not equippedItem then
-                return "None", nil, nil
-            end
+            if not equippedItem then return "None", nil, nil end
 
             local description = getItemDescription(equippedItem)
             local imageId = getImageId(equippedItem)
             local rarityName = getRarityName(equippedItem)
-            local itemName
-            if description or imageId then
-                itemName = getItemNameByDescriptionOrImageId(description, imageId) or equippedItem.Name
-            else
-                itemName = equippedItem.Name
-            end
+            local itemName = (description or imageId) and getItemNameByDescriptionOrImageId(description, imageId) or equippedItem.Name
             return itemName, itemName, rarityName
         end
 
         local function getTargetInventory(target)
-            if not target then
-                return {}
-            end
+            if not target then return {} end
             local backpack = target:FindFirstChild("Backpack")
-            if not backpack then
-                return {}
-            end
+            if not backpack then return {} end
             local _, equippedItemName = getTargetEquippedItem(target)
             local items = {}
             for _, item in pairs(backpack:GetChildren()) do
-                if item:IsA("Tool") then
-                    local locked = isLocked(item)
-                    if locked then
-                        continue
-                    end
-                    if item.Name ~= equippedItemName then
-                        local description = getItemDescription(item)
-                        local imageId = getImageId(item)
-                        local rarityName = getRarityName(item)
-                        local itemName
-                        if description or imageId then
-                            itemName = getItemNameByDescriptionOrImageId(description, imageId) or item.Name
-                        else
-                            itemName = item.Name
-                        end
-                        if itemName then
-                            table.insert(items, { Name = itemName, Icon = getItemIcon(itemName), Rarity = rarityName })
-                        end
-                    end
+                if item:IsA("Tool") and not isLocked(item) and item.Name ~= equippedItemName then
+                    local description = getItemDescription(item)
+                    local imageId = getImageId(item)
+                    local rarityName = getRarityName(item)
+                    local itemName = (description or imageId) and getItemNameByDescriptionOrImageId(description, imageId) or item.Name
+                    if itemName then table.insert(items, { Name = itemName, Icon = getItemIcon(itemName), Rarity = rarityName }) end
                 end
             end
             return items
@@ -762,29 +644,20 @@ local TargetInfo = {
         local function getNearestPlayerToMouse()
             local localPlayer = Core.PlayerData.LocalPlayer
             local localCharacter = localPlayer.Character
-            if not localCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") then
-                return nil
-            end
+            if not localCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") then return nil end
             local localPos = localCharacter.HumanoidRootPart.Position
 
-            local referencePos
-            if TargetInventorySettings.CircleMethod.Value == "Middle" then
-                local viewportSize = Workspace.CurrentCamera.ViewportSize
-                referencePos = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
-            else
-                referencePos = UserInputService:GetMouseLocation()
-            end
+            local referencePos = TargetInventorySettings.CircleMethod.Value == "Middle" and
+                Vector2.new(Workspace.CurrentCamera.ViewportSize.X / 2, Workspace.CurrentCamera.ViewportSize.Y / 2) or
+                UserInputService:GetMouseLocation()
 
-            local nearestPlayer = nil
-            local minDist = TargetInventorySettings.FOV.Value
-
+            local nearestPlayer, minDist = nil, TargetInventorySettings.FOV.Value
             for _, player in pairs(Players:GetPlayers()) do
                 if player ~= localPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
                     local targetPos = player.Character.HumanoidRootPart.Position
                     local screenPos = Workspace.CurrentCamera:WorldToScreenPoint(targetPos)
                     local distToReference = (Vector2.new(screenPos.X, screenPos.Y) - referencePos).Magnitude
                     local worldDist = (localPos - targetPos).Magnitude
-
                     if distToReference < minDist and (TargetInventorySettings.DistanceLimit == 0 or worldDist <= TargetInventorySettings.DistanceLimit) then
                         minDist = distToReference
                         nearestPlayer = player
@@ -796,19 +669,10 @@ local TargetInfo = {
 
         local function isGunEquipped()
             local character = Core.PlayerData.LocalPlayer.Character
-            if not character then
-                return false
-            end
+            if not character then return false end
             for _, child in pairs(character:GetChildren()) do
-                if child:IsA("Tool") then
-                    local Items = ReplicatedStorage:WaitForChild("Items", 5)
-                    if not Items then
-                        return false
-                    end
-                    local gunItem = Items:WaitForChild("gun", 5) and Items.gun:FindFirstChild(child.Name)
-                    if gunItem then
-                        return true
-                    end
+                if child:IsA("Tool") and ItemsCache and ItemCategories.gun and ItemCategories.gun:FindFirstChild(child.Name) then
+                    return true
                 end
             end
             return false
@@ -819,33 +683,23 @@ local TargetInfo = {
                 invFrame.Size = UDim2.new(0, 220, 0, 150)
                 invFrame.BackgroundTransparency = 0.3
                 for _, child in pairs(invFrame:GetDescendants()) do
-                    if child:IsA("TextLabel") or child:IsA("ImageLabel") then
-                        child.Visible = true
-                    end
+                    if child:IsA("TextLabel") or child:IsA("ImageLabel") then child.Visible = true end
                 end
                 return
             end
 
             for _, child in pairs(invFrame:GetDescendants()) do
-                if child:IsA("TextLabel") or child:IsA("ImageLabel") then
-                    child.Visible = false
-                end
+                if child:IsA("TextLabel") or child:IsA("ImageLabel") then child.Visible = false end
             end
 
             invFrame.Size = UDim2.new(0, 220 * 0.5, 0, 150 * 0.5)
             invFrame.BackgroundTransparency = 1
 
             local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-            TweenService:Create(invFrame, tweenInfo, {
-                Size = UDim2.new(0, 220, 0, 150),
-                BackgroundTransparency = 0.3
-            }):Play()
-
+            TweenService:Create(invFrame, tweenInfo, { Size = UDim2.new(0, 220, 0, 150), BackgroundTransparency = 0.3 }):Play()
             task.delay(0.5, function()
                 for _, child in pairs(invFrame:GetDescendants()) do
-                    if child:IsA("TextLabel") or child:IsA("ImageLabel") then
-                        child.Visible = true
-                    end
+                    if child:IsA("TextLabel") or child:IsA("ImageLabel") then child.Visible = true end
                 end
             end)
         end
@@ -865,12 +719,9 @@ local TargetInfo = {
 
             fovCircle.Visible = true
             fovCircle.Size = UDim2.new(0, TargetInventorySettings.FOV.Value, 0, TargetInventorySettings.FOV.Value)
-            if TargetInventorySettings.CircleMethod.Value == "Middle" then
-                fovCircle.Position = UDim2.new(0.5, -TargetInventorySettings.FOV.Value / 2, 0.5, -TargetInventorySettings.FOV.Value / 2)
-            elseif TargetInventorySettings.CircleMethod.Value == "Cursor" then
-                local mousePos = UserInputService:GetMouseLocation()
-                fovCircle.Position = UDim2.new(0, mousePos.X - TargetInventorySettings.FOV.Value / 2, 0, mousePos.Y - TargetInventorySettings.FOV.Value / 2)
-            end
+            fovCircle.Position = TargetInventorySettings.CircleMethod.Value == "Middle" and
+                UDim2.new(0.5, -TargetInventorySettings.FOV.Value / 2, 0.5, -TargetInventorySettings.FOV.Value / 2) or
+                UDim2.new(0, UserInputService:GetMouseLocation().X - TargetInventorySettings.FOV.Value / 2, 0, UserInputService:GetMouseLocation().Y - TargetInventorySettings.FOV.Value / 2)
 
             if TargetInventorySettings.CircleGradient.Value then
                 local t = (math.sin(currentTime * 2) + 1) / 2
@@ -881,10 +732,7 @@ local TargetInfo = {
         end
 
         local function updateTargetInventoryView()
-            if not TargetInventorySettings.Enabled then
-                invFrame.Visible = false
-                return
-            end
+            if not TargetInventorySettings.Enabled or not invFrame.Visible then return end
 
             local currentTime = tick()
             if currentTime - TargetInventorySettings.LastUpdateTime < TargetInventorySettings.UpdateInterval then
@@ -916,9 +764,7 @@ local TargetInfo = {
                 return
             end
 
-            if TargetInventorySettings.LastTarget == target then
-                return
-            end
+            if TargetInventorySettings.LastTarget == target then return end
             TargetInventorySettings.LastTarget = target
 
             if TargetInventorySettings.ShowNick then
@@ -1256,18 +1102,12 @@ local TargetInfo = {
 
         -- Обновление TargetInventory и TargetHud
         RunService.Stepped:Connect(function()
-            if TargetHud.Settings.Enabled.Value then
-                UpdateTargetHud()
-            end
-            if TargetInventorySettings.Enabled then
-                updateTargetInventoryView()
-            end
+            if TargetHud.Settings.Enabled.Value then UpdateTargetHud() end
+            if TargetInventorySettings.Enabled then updateTargetInventoryView() end
         end)
 
         -- Отдельное обновление позиции круга FOV для плавности
-        RunService.RenderStepped:Connect(function()
-            updateFovCirclePosition()
-        end)
+        RunService.RenderStepped:Connect(updateFovCirclePosition)
 
         -- Очистка при выгрузке
     end
