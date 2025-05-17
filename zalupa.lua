@@ -68,7 +68,7 @@ local TargetInfo = {
         local IconCache = {}
 
         -- Кэш зашифрованных атрибутов
-        local EncryptedAttributeCache = { Durability = Core.GetEncryptedAttributeName("Durability") }
+        local EncryptedAttributeCache = { Durability = Core.GetEncryptedAttributeName("durability") }
 
         -- Создание ScreenGui для TargetHud
         local hudScreenGui = Instance.new("ScreenGui")
@@ -195,40 +195,16 @@ local TargetInfo = {
         headerCorner.CornerRadius = UDim.new(0, 10)
         headerCorner.Parent = headerFrame
 
-        -- Круг прочности
-        local durabilityCircle = Instance.new("Frame")
-        durabilityCircle.Size = UDim2.new(0, 25, 0, 25)
-        durabilityCircle.Position = UDim2.new(0, 5, 0, 2.5)
-        durabilityCircle.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-        durabilityCircle.BorderSizePixel = 0
-        durabilityCircle.Visible = false
-        durabilityCircle.Parent = headerFrame
-
-        local durabilityCircleCorner = Instance.new("UICorner")
-        durabilityCircleCorner.CornerRadius = UDim.new(1, 0)
-        durabilityCircleCorner.Parent = durabilityCircle
-
-        local durabilityFill = Instance.new("Frame")
-        durabilityFill.Size = UDim2.new(1, 0, 0.5, 0) -- По умолчанию 50% (как в шаблоне)
-        durabilityFill.Position = UDim2.new(0, 0, 0.5, 0)
-        durabilityFill.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        durabilityFill.BorderSizePixel = 0
-        durabilityFill.Parent = durabilityCircle
-
-        local durabilityFillCorner = Instance.new("UICorner")
-        durabilityFillCorner.CornerRadius = UDim.new(1, 0)
-        durabilityFillCorner.Parent = durabilityFill
-
         local iconLabel = Instance.new("ImageLabel")
         iconLabel.Size = UDim2.new(0, 20, 0, 20)
-        iconLabel.Position = UDim2.new(0, 35, 0, 5) -- Сдвинут правее из-за круга
+        iconLabel.Position = UDim2.new(0, 45, 0, 5) -- Сдвинут правее
         iconLabel.BackgroundTransparency = 1
         iconLabel.Image = "rbxassetid://13289068576"
         iconLabel.Parent = headerFrame
 
         local titleLabel = Instance.new("TextLabel")
         titleLabel.Size = UDim2.new(0, 150, 0, 20)
-        titleLabel.Position = UDim2.new(0, 60, 0, 5) -- Сдвинут правее
+        titleLabel.Position = UDim2.new(0, 70, 0, 5) -- Сдвинут правее из-за иконки
         titleLabel.BackgroundTransparency = 1
         titleLabel.Text = "Target Inventory"
         titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -272,6 +248,30 @@ local TargetInfo = {
         equippedCorner.CornerRadius = UDim.new(0, 5)
         equippedCorner.Parent = equippedContainer
 
+        -- Круг прочности для экипированного предмета
+        local equippedDurabilityCircle = Instance.new("Frame")
+        equippedDurabilityCircle.Size = UDim2.new(0, 15, 0, 15)
+        equippedDurabilityCircle.Position = UDim2.new(0, -15, 0, 5) -- Выступ слева
+        equippedDurabilityCircle.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        equippedDurabilityCircle.BorderSizePixel = 0
+        equippedDurabilityCircle.Visible = false
+        equippedDurabilityCircle.Parent = equippedContainer
+
+        local equippedDurabilityCircleCorner = Instance.new("UICorner")
+        equippedDurabilityCircleCorner.CornerRadius = UDim.new(1, 0)
+        equippedDurabilityCircleCorner.Parent = equippedDurabilityCircle
+
+        local equippedDurabilityFill = Instance.new("Frame")
+        equippedDurabilityFill.Size = UDim2.new(1, 0, 0.5, 0) -- По умолчанию 50%
+        equippedDurabilityFill.Position = UDim2.new(0, 0, 0.5, 0)
+        equippedDurabilityFill.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        equippedDurabilityFill.BorderSizePixel = 0
+        equippedDurabilityFill.Parent = equippedDurabilityCircle
+
+        local equippedDurabilityFillCorner = Instance.new("UICorner")
+        equippedDurabilityFillCorner.CornerRadius = UDim.new(1, 0)
+        equippedDurabilityFillCorner.Parent = equippedDurabilityFill
+
         local equippedIcon = Instance.new("ImageLabel")
         equippedIcon.Size = UDim2.new(0, 20, 0, 20)
         equippedIcon.Position = UDim2.new(0, 5, 0, 2.5)
@@ -280,8 +280,8 @@ local TargetInfo = {
         equippedIcon.Parent = equippedContainer
 
         local equippedLabel = Instance.new("TextLabel")
-        equippedLabel.Size = UDim2.new(0, 170, 0, 20)
-        equippedLabel.Position = UDim2.new(0, 30, 0, 2.5) -- Сдвинут правее
+        equippedLabel.Size = UDim2.new(0, 155, 0, 20) -- Уменьшен размер, чтобы не доходил до круга
+        equippedLabel.Position = UDim2.new(0, 40, 0, 2.5) -- Сдвинут правее из-за круга
         equippedLabel.BackgroundTransparency = 1
         equippedLabel.Text = " | Equipped: None"
         equippedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -750,7 +750,9 @@ local TargetInfo = {
                     local imageId = getImageId(item)
                     local rarityName = getRarityName(item)
                     local itemName = (description or imageId) and getItemNameByDescriptionOrImageId(description, imageId) or item.Name
-                    if itemName then table.insert(items, { Name = itemName, Icon = getItemIcon(itemName), Rarity = rarityName }) end
+                    local maxDurability = getMaxDurability(itemName or item.Name)
+                    local durability = getItemDurability(item)
+                    if itemName then table.insert(items, { Name = itemName, Icon = getItemIcon(itemName), Rarity = rarityName, Durability = durability, MaxDurability = maxDurability }) end
                 end
             end
             return items
@@ -902,7 +904,7 @@ local TargetInfo = {
                 defaultTitleLabel.Visible = false
                 equippedContainer.Position = UDim2.new(0, 10, 0, 40)
                 inventoryFrame.Position = UDim2.new(0, 10, 0, 70)
-                durabilityCircle.Visible = true
+                equippedDurabilityCircle.Visible = true
                 placeholderFrame.Visible = true
                 for _, child in pairs(inventoryFrame:GetChildren()) do
                     if child:IsA("Frame") then
@@ -923,6 +925,10 @@ local TargetInfo = {
                             bgCorner.CornerRadius = UDim.new(0, 5)
                             bgCorner.Parent = bg
                         end
+                        local durabilityCircle = child:FindFirstChild("DurabilityCircle")
+                        if durabilityCircle then
+                            durabilityCircle.Visible = true
+                        end
                     end
                 end
                 equippedContainer.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
@@ -933,7 +939,7 @@ local TargetInfo = {
                 defaultTitleLabel.Visible = true
                 equippedContainer.Position = UDim2.new(0, 10, 0, 30)
                 inventoryFrame.Position = UDim2.new(0, 10, 0, 60)
-                durabilityCircle.Visible = false
+                equippedDurabilityCircle.Visible = false
                 placeholderFrame.Visible = false
                 for _, child in pairs(inventoryFrame:GetChildren()) do
                     if child:IsA("Frame") then
@@ -944,6 +950,10 @@ local TargetInfo = {
                             if bg then
                                 bg.Visible = false
                             end
+                        end
+                        local durabilityCircle = child:FindFirstChild("DurabilityCircle")
+                        if durabilityCircle then
+                            durabilityCircle.Visible = false
                         end
                     end
                 end
@@ -966,8 +976,8 @@ local TargetInfo = {
                 equippedIcon.Image = "rbxassetid://18821914323"
                 equippedIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
                 equippedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-                equippedLabel.Position = UDim2.new(0, 30, 0, 2.5)
-                durabilityFill.Size = UDim2.new(1, 0, 0, 0)
+                equippedLabel.Position = UDim2.new(0, 40, 0, 2.5)
+                equippedDurabilityFill.Size = UDim2.new(1, 0, 0, 0)
                 for _, child in pairs(inventoryFrame:GetChildren()) do
                     if child:IsA("Frame") then child:Destroy() end
                 end
@@ -1023,14 +1033,14 @@ local TargetInfo = {
                 equippedIcon.Image = getItemIcon(equippedItemName)
                 equippedIcon.ImageColor3 = getRarityColor(rarityName)
                 equippedLabel.TextColor3 = getRarityColor(rarityName)
-                equippedLabel.Position = UDim2.new(0, 30, 0, 2.5)
-                durabilityFill.Size = UDim2.new(1, 0, math.clamp(durability / maxDurability, 0, 1), 0)
+                equippedLabel.Position = UDim2.new(0, 40, 0, 2.5)
+                equippedDurabilityFill.Size = UDim2.new(1, 0, math.clamp(durability / maxDurability, 0, 1), 0)
             else
                 equippedIcon.Image = "rbxassetid://18821914323"
                 equippedIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
                 equippedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-                equippedLabel.Position = UDim2.new(0, 30, 0, 2.5)
-                durabilityFill.Size = UDim2.new(1, 0, 0, 0)
+                equippedLabel.Position = UDim2.new(0, 40, 0, 2.5)
+                equippedDurabilityFill.Size = UDim2.new(1, 0, 0, 0)
             end
 
             for _, child in pairs(inventoryFrame:GetChildren()) do
@@ -1053,6 +1063,31 @@ local TargetInfo = {
                     itemCorner.CornerRadius = UDim.new(0, 5)
                     itemCorner.Parent = itemContainer
 
+                    -- Круг прочности для предмета
+                    local itemDurabilityCircle = Instance.new("Frame")
+                    itemDurabilityCircle.Name = "DurabilityCircle"
+                    itemDurabilityCircle.Size = UDim2.new(0, 15, 0, 15)
+                    itemDurabilityCircle.Position = UDim2.new(0, -15, 0, 5) -- Выступ слева
+                    itemDurabilityCircle.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+                    itemDurabilityCircle.BorderSizePixel = 0
+                    itemDurabilityCircle.Visible = false
+                    itemDurabilityCircle.Parent = itemContainer
+
+                    local itemDurabilityCircleCorner = Instance.new("UICorner")
+                    itemDurabilityCircleCorner.CornerRadius = UDim.new(1, 0)
+                    itemDurabilityCircleCorner.Parent = itemDurabilityCircle
+
+                    local itemDurabilityFill = Instance.new("Frame")
+                    itemDurabilityFill.Size = UDim2.new(1, 0, math.clamp(item.Durability / item.MaxDurability, 0, 1), 0)
+                    itemDurabilityFill.Position = UDim2.new(0, 0, 1 - math.clamp(item.Durability / item.MaxDurability, 0, 1), 0)
+                    itemDurabilityFill.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+                    itemDurabilityFill.BorderSizePixel = 0
+                    itemDurabilityFill.Parent = itemDurabilityCircle
+
+                    local itemDurabilityFillCorner = Instance.new("UICorner")
+                    itemDurabilityFillCorner.CornerRadius = UDim.new(1, 0)
+                    itemDurabilityFillCorner.Parent = itemDurabilityFill
+
                     local itemIcon = Instance.new("ImageLabel")
                     itemIcon.Size = UDim2.new(0, 20, 0, 20)
                     itemIcon.Position = UDim2.new(0, 5, 0, 2.5)
@@ -1062,8 +1097,8 @@ local TargetInfo = {
                     itemIcon.Parent = itemContainer
 
                     local itemLabel = Instance.new("TextLabel")
-                    itemLabel.Size = UDim2.new(0, 170, 0, 20)
-                    itemLabel.Position = UDim2.new(0, 30, 0, 2.5) -- Сдвинут правее
+                    itemLabel.Size = UDim2.new(0, 155, 0, 20) -- Уменьшен размер, чтобы не доходил до круга
+                    itemLabel.Position = UDim2.new(0, 40, 0, 2.5) -- Сдвинут правее из-за круга
                     itemLabel.BackgroundTransparency = 1
                     itemLabel.Text = " | " .. item.Name
                     itemLabel.TextColor3 = getRarityColor(item.Rarity)
