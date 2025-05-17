@@ -239,7 +239,7 @@ local TargetInfo = {
         fovCircleCorner.CornerRadius = UDim.new(1, 0)
         fovCircleCorner.Parent = fovCircle
 
-        -- Консоль вывода
+        -- Консоль вывода с прокруткой
         local logScreenGui = Instance.new("ScreenGui")
         logScreenGui.Name = "OutputLogGui"
         logScreenGui.Parent = Core.Services.CoreGuiService
@@ -258,25 +258,36 @@ local TargetInfo = {
         logCorner.CornerRadius = UDim.new(0, 10)
         logCorner.Parent = logFrame
 
-        local logText = Instance.new("TextLabel")
-        logText.Size = UDim2.new(0, 280, 0, 180)
-        logText.Position = UDim2.new(0, 10, 0, 10)
-        logText.BackgroundTransparency = 1
-        logText.Text = ""
-        logText.TextColor3 = Color3.fromRGB(255, 255, 255)
-        logText.TextSize = 12
-        logText.Font = Enum.Font.Gotham
-        logText.TextXAlignment = Enum.TextXAlignment.Left
-        logText.TextYAlignment = Enum.TextYAlignment.Top
-        logText.TextWrapped = true
-        logText.Parent = logFrame
+        local logScrollFrame = Instance.new("ScrollingFrame")
+        logScrollFrame.Size = UDim2.new(0, 280, 0, 180)
+        logScrollFrame.Position = UDim2.new(0, 10, 0, 10)
+        logScrollFrame.BackgroundTransparency = 1
+        logScrollFrame.BorderSizePixel = 0
+        logScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+        logScrollFrame.ScrollBarThickness = 5
+        logScrollFrame.Parent = logFrame
+
+        local logListLayout = Instance.new("UIListLayout")
+        logListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        logListLayout.Padding = UDim.new(0, 2)
+        logListLayout.Parent = logScrollFrame
 
         local function logMessage(message)
             local timestamp = os.date("%H:%M:%S")
-            logText.Text = logText.Text .. "[" .. timestamp .. "] " .. message .. "\n"
-            if logText.TextFits then
-                logText.CanvasSize = UDim2.new(0, 0, 0, #logText.Text:split("\n") * 15)
-            end
+            local logEntry = Instance.new("TextLabel")
+            logEntry.Size = UDim2.new(1, 0, 0, 14)
+            logEntry.BackgroundTransparency = 1
+            logEntry.Text = "[" .. timestamp .. "] " .. message
+            logEntry.TextColor3 = Color3.fromRGB(255, 255, 255)
+            logEntry.TextSize = 12
+            logEntry.Font = Enum.Font.Gotham
+            logEntry.TextXAlignment = Enum.TextXAlignment.Left
+            logEntry.TextWrapped = true
+            logEntry.Parent = logScrollFrame
+
+            -- Обновление CanvasSize для прокрутки
+            local entryCount = #logScrollFrame:GetChildren() - 1 -- Вычитаем UIListLayout
+            logScrollFrame.CanvasSize = UDim2.new(0, 0, 0, entryCount * 16)
         end
 
         -- Функции TargetHud
@@ -415,7 +426,6 @@ local TargetInfo = {
                 healthBarBackground.Visible = true
                 healthBarFill.Visible = true
 
-                -- Проверяем, есть ли валидная текущая цель
                 local target = TargetHud.State.CurrentTarget
                 if target and target.Character and target.Character:FindFirstChild("Humanoid") and target.Character.Humanoid.Health > 0 then
                     local humanoid = target.Character.Humanoid
@@ -425,7 +435,6 @@ local TargetInfo = {
                     UpdateHealthBarColor(humanoid.Health, humanoid.MaxHealth)
                     UpdatePlayerIcon(target)
                 else
-                    -- Если цели нет или она невалидна, показываем локального игрока
                     nameLabel.Text = "Preview"
                     healthLabel.Text = "HP: 100.0"
                     healthBarFill.Size = UDim2.new(1, 0, 1, 0)
@@ -459,7 +468,6 @@ local TargetInfo = {
                 target = TargetHud.State.CurrentTarget or Core.PlayerData.LocalPlayer
             end
 
-            -- Проверка валидности цели
             if not target or not target.Character or not target.Character:FindFirstChild("Humanoid") or target.Character.Humanoid.Health <= 0 then
                 TargetHud.State.CurrentTarget = nil
                 TargetHud.State.PreviousHealth = nil
@@ -526,60 +534,73 @@ local TargetInfo = {
 
         -- Функции TargetInventory
         local function getItemIcon(itemName)
-            local Items = ReplicatedStorage:WaitForChild("Items")
-            local GunItems = Items:WaitForChild("gun")
-            local MeleeItems = Items:WaitForChild("melee")
-            local ThrowableItems = Items:WaitForChild("throwable")
-            local ConsumableItems = Items:WaitForChild("consumable")
-            local MiscItems = Items:WaitForChild("misc")
+            local Items = ReplicatedStorage:WaitForChild("Items", 5)
+            if not Items then
+                logMessage("ReplicatedStorage.Items not found")
+                return ""
+            end
+            local GunItems = Items:WaitForChild("gun", 5)
+            local MeleeItems = Items:WaitForChild("melee", 5)
+            local ThrowableItems = Items:WaitForChild("throwable", 5)
+            local ConsumableItems = Items:WaitForChild("consumable", 5)
+            local MiscItems = Items:WaitForChild("misc", 5)
 
-            if GunItems:FindFirstChild(itemName) then return "rbxassetid://109065124754087"
-            elseif MeleeItems:FindFirstChild(itemName) then return "rbxassetid://10455604811"
-            elseif ThrowableItems:FindFirstChild(itemName) then return "rbxassetid://13492316452"
-            elseif ConsumableItems:FindFirstChild(itemName) then return "rbxassetid://17181103870"
-            elseif MiscItems:FindFirstChild(itemName) then return "rbxassetid://6966623635"
-            else return "" end
+            if not (GunItems and MeleeItems and ThrowableItems and ConsumableItems and MiscItems) then
+                logMessage("Some item categories missing in ReplicatedStorage.Items")
+                return ""
+            end
+
+            if GunItems:FindFirstChild(itemName) then
+                logMessage("Found icon for gun: " .. itemName)
+                return "rbxassetid://109065124754087"
+            elseif MeleeItems:FindFirstChild(itemName) then
+                logMessage("Found icon for melee: " .. itemName)
+                return "rbxassetid://10455604811"
+            elseif ThrowableItems:FindFirstChild(itemName) then
+                logMessage("Found icon for throwable: " .. itemName)
+                return "rbxassetid://13492316452"
+            elseif ConsumableItems:FindFirstChild(itemName) then
+                logMessage("Found icon for consumable: " .. itemName)
+                return "rbxassetid://17181103870"
+            elseif MiscItems:FindFirstChild(itemName) then
+                logMessage("Found icon for misc: " .. itemName)
+                return "rbxassetid://6966623635"
+            else
+                logMessage("No icon found for item: " .. itemName)
+                return ""
+            end
         end
 
         local function getItemNameByDescription(description)
-            local Items = ReplicatedStorage:WaitForChild("Items")
-            local GunItems = Items:WaitForChild("gun")
-            local MeleeItems = Items:WaitForChild("melee")
-            local ThrowableItems = Items:WaitForChild("throwable")
-            local ConsumableItems = Items:WaitForChild("consumable")
-            local MiscItems = Items:WaitForChild("misc")
+            if not description then
+                logMessage("No description provided for item lookup")
+                return nil
+            end
 
-            for _, item in pairs(GunItems:GetChildren()) do
-                if item:IsA("Tool") and item:FindFirstChild("Description") and item.Description.Value == description then
-                    logMessage("Found gun item: " .. item.Name .. " with description " .. description)
-                    return item.Name
+            local Items = ReplicatedStorage:WaitForChild("Items", 5)
+            if not Items then
+                logMessage("ReplicatedStorage.Items not found for description lookup")
+                return nil
+            end
+
+            local categories = {"gun", "melee", "throwable", "consumable", "misc"}
+            for _, category in pairs(categories) do
+                local categoryFolder = Items:WaitForChild(category, 5)
+                if not categoryFolder then
+                    logMessage("Category " .. category .. " not found")
+                    continue
+                end
+                for _, item in pairs(categoryFolder:GetChildren()) do
+                    if item:IsA("Tool") then
+                        local desc = item:FindFirstChild("Description")
+                        if desc and desc.Value == description then
+                            logMessage("Found item " .. item.Name .. " in category " .. category .. " with matching description")
+                            return item.Name
+                        end
+                    end
                 end
             end
-            for _, item in pairs(MeleeItems:GetChildren()) do
-                if item:IsA("Tool") and item:FindFirstChild("Description") and item.Description.Value == description then
-                    logMessage("Found melee item: " .. item.Name .. " with description " .. description)
-                    return item.Name
-                end
-            end
-            for _, item in pairs(ThrowableItems:GetChildren()) do
-                if item:IsA("Tool") and item:FindFirstChild("Description") and item.Description.Value == description then
-                    logMessage("Found throwable item: " .. item.Name .. " with description " .. description)
-                    return item.Name
-                end
-            end
-            for _, item in pairs(ConsumableItems:GetChildren()) do
-                if item:IsA("Tool") and item:FindFirstChild("Description") and item.Description.Value == description then
-                    logMessage("Found consumable item: " .. item.Name .. " with description " .. description)
-                    return item.Name
-                end
-            end
-            for _, item in pairs(MiscItems:GetChildren()) do
-                if item:IsA("Tool") and item:FindFirstChild("Description") and item.Description.Value == description then
-                    logMessage("Found misc item: " .. item.Name .. " with description " .. description)
-                    return item.Name
-                end
-            end
-            logMessage("No item found with description: " .. (description or "nil"))
+            logMessage("No item found with description: " .. description)
             return nil
         end
 
@@ -589,16 +610,22 @@ local TargetInfo = {
                 return "None", nil
             end
             local character = target.Character
+            local equippedItem = nil
             for _, item in pairs(character:GetChildren()) do
                 if item:IsA("Tool") and item.Name:lower() ~= "fists" then
-                    local description = item:FindFirstChild("Description") and item.Description.Value or nil
-                    local itemName = description and getItemNameByDescription(description) or item.Name
-                    logMessage("Equipped item found: " .. itemName .. " (Description: " .. (description or "nil") .. ")")
-                    return itemName, itemName
+                    equippedItem = item
+                    break
                 end
             end
-            logMessage("No equipped item found for target")
-            return "None", nil
+            if not equippedItem then
+                logMessage("No equipped item found for target " .. target.Name)
+                return "None", nil
+            end
+
+            local description = equippedItem:FindFirstChild("Description") and equippedItem.Description.Value or nil
+            local itemName = description and getItemNameByDescription(description) or equippedItem.Name
+            logMessage("Equipped item for " .. target.Name .. ": " .. itemName .. " (Description: " .. (description or "nil") .. ")")
+            return itemName, itemName
         end
 
         local function getTargetInventory(target)
@@ -608,7 +635,7 @@ local TargetInfo = {
             end
             local backpack = target:FindFirstChild("Backpack")
             if not backpack then
-                logMessage("No backpack found for target")
+                logMessage("No backpack found for target " .. target.Name)
                 return {}
             end
             local _, equippedItemName = getTargetEquippedItem(target)
@@ -618,12 +645,14 @@ local TargetInfo = {
                     local description = item:FindFirstChild("Description") and item.Description.Value or nil
                     local itemName = description and getItemNameByDescription(description) or item.Name
                     if itemName then
-                        logMessage("Inventory item found: " .. itemName .. " (Description: " .. (description or "nil") .. ")")
+                        logMessage("Inventory item for " .. target.Name .. ": " .. itemName .. " (Description: " .. (description or "nil") .. ")")
                         table.insert(items, { Name = itemName, Icon = getItemIcon(itemName) })
+                    else
+                        logMessage("Skipping item with no valid name: " .. item.Name)
                     end
                 end
             end
-            logMessage("Total inventory items found: " .. #items)
+            logMessage("Total inventory items found for " .. target.Name .. ": " .. #items)
             return items
         end
 
@@ -672,7 +701,12 @@ local TargetInfo = {
             end
             for _, child in pairs(character:GetChildren()) do
                 if child:IsA("Tool") then
-                    local gunItem = ReplicatedStorage:WaitForChild("Items"):WaitForChild("gun"):FindFirstChild(child.Name)
+                    local Items = ReplicatedStorage:WaitForChild("Items", 5)
+                    if not Items then
+                        logMessage("ReplicatedStorage.Items not found for gun check")
+                        return false
+                    end
+                    local gunItem = Items:WaitForChild("gun", 5) and Items.gun:FindFirstChild(child.Name)
                     if gunItem then
                         logMessage("Gun equipped: " .. child.Name)
                         return true
@@ -767,13 +801,13 @@ local TargetInfo = {
 
             if TargetInventorySettings.TargetMode == "GunSilent Target" or TargetInventorySettings.TargetMode == "All" then
                 target = Core.GunSilentTarget.CurrentTarget
+                logMessage("Checking GunSilentTarget: " .. (target and target.Name or "nil"))
             end
             if TargetInventorySettings.TargetMode == "Mouse" or (TargetInventorySettings.TargetMode == "All" and not target) then
                 target = getNearestPlayerToMouse()
                 useMouseTargeting = true
             end
 
-            -- Проверка валидности цели
             if target and (not target.Character or not target.Character:FindFirstChild("Humanoid") or target.Character.Humanoid.Health <= 0) then
                 target = nil
                 logMessage("Target invalidated: No character, Humanoid, or health <= 0")
@@ -790,7 +824,6 @@ local TargetInfo = {
                 return
             end
 
-            -- Пропуск обновления UI, если цель не изменилась
             if TargetInventorySettings.LastTarget == target then
                 logMessage("Target unchanged: " .. (target and target.Name or "None"))
                 return
@@ -1182,6 +1215,26 @@ local TargetInfo = {
                     end
                 }, 'LogVisible')
             end
+        end
+
+        -- Инициализация: Проверка структуры ReplicatedStorage.Items
+        local Items = ReplicatedStorage:WaitForChild("Items", 5)
+        if Items then
+            local categories = {"gun", "melee", "throwable", "consumable", "misc"}
+            for _, category in pairs(categories) do
+                local folder = Items:WaitForChild(category, 5)
+                if folder then
+                    logMessage("Found category " .. category .. " with " .. #folder:GetChildren() .. " items")
+                    for _, item in pairs(folder:GetChildren()) do
+                        local desc = item:FindFirstChild("Description")
+                        logMessage("Item in " .. category .. ": " .. item.Name .. " (Description: " .. (desc and desc.Value or "nil") .. ")")
+                    end
+                else
+                    logMessage("Category " .. category .. " not found in ReplicatedStorage.Items")
+                end
+            end
+        else
+            logMessage("ReplicatedStorage.Items not found during initialization")
         end
 
         -- Обновление TargetInventory и TargetHud
