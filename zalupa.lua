@@ -27,7 +27,7 @@ local TargetInfo = {
                 PreviousHealth = nil,
                 LastDamageAnimationTime = 0,
                 LastUpdateTime = 0,
-                UpdateInterval = 0.2 -- Увеличено с 0.1 для оптимизации
+                UpdateInterval = 0.1 -- Возвращено к исходному значению
             }
         }
 
@@ -46,9 +46,9 @@ local TargetInfo = {
             CircleGradient = { Value = false, Default = false },
             LastTarget = nil,
             LastUpdateTime = 0,
-            UpdateInterval = 1.0, -- Увеличено с 0.5 для оптимизации
+            UpdateInterval = 0.5, -- Возвращено к исходному значению
             LastFovUpdateTime = 0,
-            FovUpdateInterval = 1/15 -- Увеличено с 1/30 для оптимизации
+            FovUpdateInterval = 1/30 -- Возвращено к исходному значению
         }
 
         -- Кэширование объектов
@@ -301,7 +301,7 @@ local TargetInfo = {
         end
 
         local function CreateOrb()
-            local orb = Instance.new("ImageLabel")
+            local orb = Instance.new("ImageLabelbs")
             orb.Size = UDim2.new(0, 8, 0, 8)
             orb.BackgroundTransparency = 0
             orb.Image = "rbxassetid://0"
@@ -647,15 +647,18 @@ local TargetInfo = {
             if not localCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") then return nil end
             local localPos = localCharacter.HumanoidRootPart.Position
 
+            local viewportSize = Workspace.CurrentCamera.ViewportSize
             local referencePos = TargetInventorySettings.CircleMethod.Value == "Middle" and
-                Vector2.new(Workspace.CurrentCamera.ViewportSize.X / 2, Workspace.CurrentCamera.ViewportSize.Y / 2) or
+                Vector2.new(viewportSize.X / 2, viewportSize.Y / 2) or
                 UserInputService:GetMouseLocation()
 
             local nearestPlayer, minDist = nil, TargetInventorySettings.FOV.Value
+            local camera = Workspace.CurrentCamera
+
             for _, player in pairs(Players:GetPlayers()) do
                 if player ~= localPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
                     local targetPos = player.Character.HumanoidRootPart.Position
-                    local screenPos = Workspace.CurrentCamera:WorldToScreenPoint(targetPos)
+                    local screenPos = camera:WorldToScreenPoint(targetPos)
                     local distToReference = (Vector2.new(screenPos.X, screenPos.Y) - referencePos).Magnitude
                     local worldDist = (localPos - targetPos).Magnitude
                     if distToReference < minDist and (TargetInventorySettings.DistanceLimit == 0 or worldDist <= TargetInventorySettings.DistanceLimit) then
@@ -717,11 +720,12 @@ local TargetInfo = {
             end
             TargetInventorySettings.LastFovUpdateTime = currentTime
 
+            local mousePos = UserInputService:GetMouseLocation()
             fovCircle.Visible = true
             fovCircle.Size = UDim2.new(0, TargetInventorySettings.FOV.Value, 0, TargetInventorySettings.FOV.Value)
             fovCircle.Position = TargetInventorySettings.CircleMethod.Value == "Middle" and
                 UDim2.new(0.5, -TargetInventorySettings.FOV.Value / 2, 0.5, -TargetInventorySettings.FOV.Value / 2) or
-                UDim2.new(0, UserInputService:GetMouseLocation().X - TargetInventorySettings.FOV.Value / 2, 0, UserInputService:GetMouseLocation().Y - TargetInventorySettings.FOV.Value / 2)
+                UDim2.new(0, mousePos.X - TargetInventorySettings.FOV.Value / 2, 0, mousePos.Y - TargetInventorySettings.FOV.Value / 2)
 
             if TargetInventorySettings.CircleGradient.Value then
                 local t = (math.sin(currentTime * 2) + 1) / 2
@@ -732,7 +736,10 @@ local TargetInfo = {
         end
 
         local function updateTargetInventoryView()
-            if not TargetInventorySettings.Enabled or not invFrame.Visible then return end
+            if not TargetInventorySettings.Enabled then
+                invFrame.Visible = false
+                return
+            end
 
             local currentTime = tick()
             if currentTime - TargetInventorySettings.LastUpdateTime < TargetInventorySettings.UpdateInterval then
