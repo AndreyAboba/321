@@ -572,48 +572,52 @@ local TargetInfo = {
             return IconCache[itemName]
         end
 
-        local function getItemTextureId(item, context, targetName)
+        -- Функция для получения TextureId как свойства
+        local function getTextureId(item, context, targetName)
             local textureId = nil
+            local possibleNames = {"TextureId", "textureId", "TextureID", "texture_id", "Texture", "texture"}
 
-            -- Проверяем Data у предмета
-            local data = item:FindFirstChild("Data")
-            if data then
-                -- Проверяем разные варианты написания TextureId
-                local possibleNames = {"TextureId", "textureId", "TextureID", "texture_id", "Texture", "texture"}
-                for _, name in pairs(possibleNames) do
-                    local textureObj = data:FindFirstChild(name)
-                    if textureObj and textureObj:IsA("StringValue") then
-                        textureId = textureObj.Value
-                        logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has " .. name .. " in Data: " .. tostring(textureId))
+            for _, name in pairs(possibleNames) do
+                local success, value = pcall(function()
+                    return item[name]
+                end)
+                if success and value ~= nil then
+                    local valueType = type(value)
+                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has property " .. name .. " with raw value: " .. tostring(value) .. " (type: " .. valueType .. ")")
+
+                    if valueType == "string" then
+                        if value == "" then
+                            logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has empty string TextureId, skipping")
+                            return nil -- Игнорируем пустые строки
+                        elseif value:match("^rbxassetid://%d+$") then
+                            textureId = value
+                            logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has valid string TextureId: " .. tostring(textureId))
+                            return textureId
+                        else
+                            logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has string property " .. name .. " but invalid format: " .. tostring(value))
+                        end
+                    elseif valueType == "number" then
+                        textureId = "rbxassetid://" .. tostring(value)
+                        logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " converted number to TextureId: " .. tostring(textureId))
                         return textureId
-                    elseif textureObj then
-                        logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has " .. name .. " in Data but not StringValue, type: " .. textureObj.ClassName)
+                    elseif valueType == "table" or valueType == "userdata" then
+                        local successValue, stringValue = pcall(function()
+                            return tostring(value)
+                        end)
+                        if successValue and stringValue and stringValue:match("^rbxassetid://%d+$") then
+                            textureId = stringValue
+                            logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " converted object to TextureId: " .. tostring(textureId))
+                            return textureId
+                        else
+                            logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has object property " .. name .. " but cannot convert to valid TextureId: " .. tostring(stringValue or "nil"))
+                        end
+                    else
+                        logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has unsupported property " .. name .. " type: " .. valueType)
                     end
                 end
-
-                -- Логируем содержимое Data для отладки
-                logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " Data children: " .. #data:GetChildren())
-                for _, child in pairs(data:GetChildren()) do
-                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " Data contains: " .. child.Name .. " (Class: " .. child.ClassName .. ")")
-                end
-            else
-                logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has no Data object")
             end
 
-            -- Проверяем Handle с Decal как резервный вариант
-            local handle = item:FindFirstChild("Handle")
-            if handle then
-                local decal = handle:FindFirstChildOfClass("Decal")
-                if decal then
-                    textureId = decal.Texture
-                    if textureId and textureId ~= "" then
-                        logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has Decal Texture: " .. tostring(textureId))
-                        return textureId
-                    end
-                end
-            end
-
-            logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has no TextureId")
+            logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has no TextureId as a direct property")
             return nil
         end
 
@@ -684,7 +688,13 @@ local TargetInfo = {
                     for _, item in pairs(categoryFolder:GetChildren()) do
                         if item:IsA("Tool") then
                             local description = getItemDescription(item, "Item in ReplicatedStorage", nil)
-                            local textureId = getItemTextureId(item, "Item in ReplicatedStorage", nil)
+                            local textureId = getTextureId(item, "Item in ReplicatedStorage", nil)
+                            -- Пропускаем предметы с TextureId, равным rbxassetid://116170302967943 (Fists)
+                            if textureId == "rbxassetid://116170302967943" then
+                                logMessage("Skipping item " .. item.Name .. " with TextureId rbxassetid://116170302967943 (Fists)")
+                                processedItems = processedItems + 1
+                                continue
+                            end
                             ItemDatabase[item.Name] = {
                                 Description = description,
                                 TextureId = textureId
@@ -710,14 +720,23 @@ local TargetInfo = {
             end
 
             for itemName, data in pairs(ItemDatabase) do
+                -- Сначала проверяем по Description
                 if description and data.Description and data.Description == description then
                     logMessage("Found match by description: " .. itemName .. " for description " .. tostring(description))
                     return itemName
-                elseif textureId and data.TextureId and data.TextureId == textureId then
-                    logMessage("Found match by TextureId: " .. itemName .. " for TextureId " .. tostring(textureId))
-                    return itemName
                 end
             end
+
+            -- Если по Description не нашли, проверяем по TextureId
+            if textureId then
+                for itemName, data in pairs(ItemDatabase) do
+                    if textureId and data.TextureId and data.TextureId == textureId then
+                        logMessage("Found match by TextureId: " .. itemName .. " for TextureId " .. tostring(textureId))
+                        return itemName
+                    end
+                end
+            end
+
             logMessage("No item found with description: " .. tostring(description) .. " or TextureId: " .. tostring(textureId))
             return nil
         end
@@ -731,9 +750,13 @@ local TargetInfo = {
             local equippedItem = nil
             for _, item in pairs(character:GetChildren()) do
                 if item:IsA("Tool") then
-                    local textureId = getItemTextureId(item, "Equipped item", target.Name)
+                    local textureId = getTextureId(item, "Equipped item", target.Name)
                     if textureId == "rbxassetid://116170302967943" then
-                        logMessage("Ignoring Fists for target " .. target.Name)
+                        logMessage("Ignoring Fists for target " .. target.Name .. " with TextureId: " .. textureId)
+                        continue
+                    end
+                    if textureId == nil then
+                        logMessage("Skipping equipped item " .. item.Name .. " due to empty or invalid TextureId")
                         continue
                     end
                     if item.Name:lower() ~= "fists" then
@@ -748,7 +771,7 @@ local TargetInfo = {
             end
 
             local description = getItemDescription(equippedItem, "Equipped item", target.Name)
-            local textureId = getItemTextureId(equippedItem, "Equipped item", target.Name)
+            local textureId = getTextureId(equippedItem, "Equipped item", target.Name)
             local itemName
             if description or textureId then
                 itemName = getItemNameByDescriptionOrTexture(description, textureId) or equippedItem.Name
@@ -774,9 +797,13 @@ local TargetInfo = {
             local items = {}
             for _, item in pairs(backpack:GetChildren()) do
                 if item:IsA("Tool") then
-                    local textureId = getItemTextureId(item, "Inventory item", target.Name)
+                    local textureId = getTextureId(item, "Inventory item", target.Name)
                     if textureId == "rbxassetid://116170302967943" then
-                        logMessage("Ignoring Fists in inventory for target " .. target.Name)
+                        logMessage("Ignoring Fists in inventory for target " .. target.Name .. " with TextureId: " .. textureId)
+                        continue
+                    end
+                    if textureId == nil then
+                        logMessage("Skipping inventory item " .. item.Name .. " due to empty or invalid TextureId")
                         continue
                     end
                     if item.Name:lower() ~= "fists" and item.Name ~= equippedItemName then
