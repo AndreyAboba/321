@@ -45,7 +45,7 @@ local TargetInfo = {
             CircleGradient = { Value = false, Default = false },
             LastTarget = nil,
             LastUpdateTime = 0,
-            UpdateInterval = 0.5, -- Увеличиваем интервал для оптимизации
+            UpdateInterval = 0.5, -- Оптимизированный интервал
             LastFovUpdateTime = 0,
             FovUpdateInterval = 1/30 -- ~30 FPS для круга FOV
         }
@@ -572,6 +572,40 @@ local TargetInfo = {
             return IconCache[itemName]
         end
 
+        local function getItemTextureId(item, context, targetName)
+            local textureId = nil
+            -- Проверяем атрибут TextureId
+            textureId = item:GetAttribute("TextureId")
+            if textureId then
+                logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has attribute TextureId: " .. tostring(textureId))
+                return textureId
+            end
+
+            -- Проверяем дочерние объекты (например, Handle с Decal)
+            local handle = item:FindFirstChild("Handle")
+            if handle then
+                local decal = handle:FindFirstChildOfClass("Decal")
+                if decal then
+                    textureId = decal.Texture
+                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has Decal Texture: " .. tostring(textureId))
+                    return textureId
+                end
+            end
+
+            -- Проверяем в Configuration
+            local config = item:FindFirstChild("Configuration")
+            if config then
+                textureId = config:GetAttribute("TextureId")
+                if textureId then
+                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has attribute TextureId in Configuration: " .. tostring(textureId))
+                    return textureId
+                end
+            end
+
+            logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has no TextureId")
+            return nil
+        end
+
         local function getItemDescription(item, context, targetName)
             local descObj1 = item:FindFirstChild("Description")
             local descObj2 = item:FindFirstChild("description")
@@ -638,6 +672,16 @@ local TargetInfo = {
             end
 
             local categories = {"gun", "melee", "throwable", "consumable", "misc"}
+            local totalItems = 0
+            for _, category in pairs(categories) do
+                local categoryFolder = Items:WaitForChild(category, 5)
+                if categoryFolder then
+                    totalItems = totalItems + #categoryFolder:GetChildren()
+                end
+            end
+            logMessage("Total items to process: " .. totalItems)
+
+            local processedItems = 0
             for _, category in pairs(categories) do
                 local categoryFolder = Items:WaitForChild(category, 5)
                 if categoryFolder then
@@ -645,12 +689,15 @@ local TargetInfo = {
                     for _, item in pairs(categoryFolder:GetChildren()) do
                         if item:IsA("Tool") then
                             local description = getItemDescription(item, "Item in ReplicatedStorage", nil)
-                            if description then
-                                ItemDatabase[item.Name] = description
-                                logMessage("Added to database: " .. item.Name .. " -> " .. tostring(description))
-                            else
-                                ItemDatabase[item.Name] = nil
-                                logMessage("No description for " .. item.Name .. ", using name as fallback")
+                            local textureId = getItemTextureId(item, "Item in ReplicatedStorage", nil)
+                            ItemDatabase[item.Name] = {
+                                Description = description,
+                                TextureId = textureId
+                            }
+                            processedItems = processedItems + 1
+                            if processedItems % 10 == 0 then -- Логируем прогресс каждые 10 предметов
+                                logMessage("Processed " .. processedItems .. "/" .. totalItems .. " items")
+                                task.wait() -- Даем время на обработку, чтобы избежать лагов
                             end
                         end
                     end
@@ -658,22 +705,25 @@ local TargetInfo = {
                     logMessage("Category " .. category .. " not found in ReplicatedStorage.Items")
                 end
             end
-            logMessage("Item database initialized with " .. table.getn(ItemDatabase) .. " entries")
+            logMessage("Item database initialized with " .. processedItems .. " entries")
         end
 
-        local function getItemNameByDescription(description)
-            if not description then
-                logMessage("No description provided for item lookup")
+        local function getItemNameByDescriptionOrTexture(description, textureId)
+            if not description and not textureId then
+                logMessage("No description or TextureId provided for item lookup")
                 return nil
             end
 
-            for itemName, itemDesc in pairs(ItemDatabase) do
-                if itemDesc and itemDesc == description then
-                    logMessage("Found match in database: " .. itemName .. " for description " .. tostring(description))
+            for itemName, data in pairs(ItemDatabase) do
+                if description and data.Description and data.Description == description then
+                    logMessage("Found match by description: " .. itemName .. " for description " .. tostring(description))
+                    return itemName
+                elseif textureId and data.TextureId and data.TextureId == textureId then
+                    logMessage("Found match by TextureId: " .. itemName .. " for TextureId " .. tostring(textureId))
                     return itemName
                 end
             end
-            logMessage("No item found with description: " .. tostring(description))
+            logMessage("No item found with description: " .. tostring(description) .. " or TextureId: " .. tostring(textureId))
             return nil
         end
 
@@ -685,9 +735,16 @@ local TargetInfo = {
             local character = target.Character
             local equippedItem = nil
             for _, item in pairs(character:GetChildren()) do
-                if item:IsA("Tool") and item.Name:lower() ~= "fists" then
-                    equippedItem = item
-                    break
+                if item:IsA("Tool") then
+                    local textureId = getItemTextureId(item, "Equipped item", target.Name)
+                    if textureId == "rbxassetid://116170302967943" then
+                        logMessage("Ignoring Fists for target " .. target.Name)
+                        continue -- Игнорируем Fists
+                    end
+                    if item.Name:lower() ~= "fists" then
+                        equippedItem = item
+                        break
+                    end
                 end
             end
             if not equippedItem then
@@ -696,13 +753,14 @@ local TargetInfo = {
             end
 
             local description = getItemDescription(equippedItem, "Equipped item", target.Name)
+            local textureId = getItemTextureId(equippedItem, "Equipped item", target.Name)
             local itemName
-            if description then
-                itemName = getItemNameByDescription(description) or equippedItem.Name
-                logMessage("Equipped item for " .. target.Name .. ": " .. itemName .. " (Description: " .. tostring(description) .. ")")
+            if description or textureId then
+                itemName = getItemNameByDescriptionOrTexture(description, textureId) or equippedItem.Name
+                logMessage("Equipped item for " .. target.Name .. ": " .. itemName .. " (Description: " .. tostring(description) .. ", TextureId: " .. tostring(textureId) .. ")")
             else
                 itemName = equippedItem.Name
-                logMessage("Equipped item for " .. target.Name .. ": " .. itemName .. " (No description found)")
+                logMessage("Equipped item for " .. target.Name .. ": " .. itemName .. " (No description or TextureId found)")
             end
             return itemName, itemName
         end
@@ -720,20 +778,27 @@ local TargetInfo = {
             local _, equippedItemName = getTargetEquippedItem(target)
             local items = {}
             for _, item in pairs(backpack:GetChildren()) do
-                if item:IsA("Tool") and item.Name:lower() ~= "fists" and item.Name ~= equippedItemName then
-                    local description = getItemDescription(item, "Inventory item", target.Name)
-                    local itemName
-                    if description then
-                        itemName = getItemNameByDescription(description) or item.Name
-                        logMessage("Inventory item for " .. target.Name .. ": " .. itemName .. " (Description: " .. tostring(description) .. ")")
-                    else
-                        itemName = item.Name
-                        logMessage("Inventory item for " .. target.Name .. ": " .. itemName .. " (No description found)")
+                if item:IsA("Tool") then
+                    local textureId = getItemTextureId(item, "Inventory item", target.Name)
+                    if textureId == "rbxassetid://116170302967943" then
+                        logMessage("Ignoring Fists in inventory for target " .. target.Name)
+                        continue -- Игнорируем Fists
                     end
-                    if itemName then
-                        table.insert(items, { Name = itemName, Icon = getItemIcon(itemName) })
-                    else
-                        logMessage("Skipping item with no valid name: " .. item.Name)
+                    if item.Name:lower() ~= "fists" and item.Name ~= equippedItemName then
+                        local description = getItemDescription(item, "Inventory item", target.Name)
+                        local itemName
+                        if description or textureId then
+                            itemName = getItemNameByDescriptionOrTexture(description, textureId) or item.Name
+                            logMessage("Inventory item for " .. target.Name .. ": " .. itemName .. " (Description: " .. tostring(description) .. ", TextureId: " .. tostring(textureId) .. ")")
+                        else
+                            itemName = item.Name
+                            logMessage("Inventory item for " .. target.Name .. ": " .. itemName .. " (No description or TextureId found)")
+                        end
+                        if itemName then
+                            table.insert(items, { Name = itemName, Icon = getItemIcon(itemName) })
+                        else
+                            logMessage("Skipping item with no valid name: " .. item.Name)
+                        end
                     end
                 end
             end
