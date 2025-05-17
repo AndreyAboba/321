@@ -37,7 +37,7 @@ local TargetInfo = {
             AlwaysVisible = true,
             DistanceLimit = 0,
             TargetMode = "GunSilent Target",
-            AnalysisMode = "Level 3 (TextureID + Description)", -- Новая настройка для метода анализа
+            AnalysisMode = "Level 3 (ImageID + Description)", -- Обновлённый режим
             Enabled = false,
             AppearAnim = true,
             FOV = { Value = 100, Default = 100 },
@@ -54,12 +54,6 @@ local TargetInfo = {
         -- База данных предметов
         local ItemDatabase = {}
         local IconCache = {}
-
-        -- Список TextureId для исключения
-        local IgnoredTextureIds = {
-            "rbxassetid://116170302967943", -- Fists
-            "rbxassetid://93909275221626"   -- Новый TextureId для исключения
-        }
 
         -- Создание ScreenGui для TargetHud
         local hudScreenGui = Instance.new("ScreenGui")
@@ -579,55 +573,6 @@ local TargetInfo = {
             return IconCache[itemName]
         end
 
-        -- Функция для получения TextureId как свойства
-        local function getTextureId(item, context, targetName)
-            local textureId = nil
-            local possibleNames = {"TextureId", "textureId", "TextureID", "texture_id", "Texture", "texture"}
-
-            for _, name in pairs(possibleNames) do
-                local success, value = pcall(function()
-                    return item[name]
-                end)
-                if success and value ~= nil then
-                    local valueType = type(value)
-                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has property " .. name .. " with raw value: " .. tostring(value) .. " (type: " .. valueType .. ")")
-
-                    if valueType == "string" then
-                        if value == "" then
-                            logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has empty string TextureId, skipping")
-                            return nil -- Игнорируем пустые строки
-                        elseif value:match("^rbxassetid://%d+$") then
-                            textureId = value
-                            logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has valid string TextureId: " .. tostring(textureId))
-                            return textureId
-                        else
-                            logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has string property " .. name .. " but invalid format: " .. tostring(value))
-                        end
-                    elseif valueType == "number" then
-                        textureId = "rbxassetid://" .. tostring(value)
-                        logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " converted number to TextureId: " .. tostring(textureId))
-                        return textureId
-                    elseif valueType == "table" or valueType == "userdata" then
-                        local successValue, stringValue = pcall(function()
-                            return tostring(value)
-                        end)
-                        if successValue and stringValue and stringValue:match("^rbxassetid://%d+$") then
-                            textureId = stringValue
-                            logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " converted object to TextureId: " .. tostring(textureId))
-                            return textureId
-                        else
-                            logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has object property " .. name .. " but cannot convert to valid TextureId: " .. tostring(stringValue or "nil"))
-                        end
-                    else
-                        logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has unsupported property " .. name .. " type: " .. valueType)
-                    end
-                end
-            end
-
-            logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has no TextureId as a direct property")
-            return nil
-        end
-
         local function getItemDescription(item, context, targetName)
             local descObj1 = item:FindFirstChild("Description")
             local descObj2 = item:FindFirstChild("description")
@@ -670,6 +615,59 @@ local TargetInfo = {
             return descValue
         end
 
+        local function getImageId(item, context, targetName)
+            local imageObj1 = item:FindFirstChild("ImageID")
+            local imageObj2 = item:FindFirstChild("imageID")
+            local imageValueFromAttr1 = item:GetAttribute("ImageID")
+            local imageValueFromAttr2 = item:GetAttribute("imageID")
+            local imageId = nil
+
+            -- Проверяем дочерние объекты
+            if imageObj1 then
+                if imageObj1:IsA("StringValue") then
+                    imageId = imageObj1.Value
+                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has StringValue ImageID: " .. tostring(imageId))
+                else
+                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has ImageID but not StringValue, type: " .. imageObj1.ClassName)
+                end
+            elseif imageObj2 then
+                if imageObj2:IsA("StringValue") then
+                    imageId = imageObj2.Value
+                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has StringValue imageID: " .. tostring(imageId))
+                else
+                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has imageID but not StringValue, type: " .. imageObj2.ClassName)
+                end
+            end
+
+            -- Проверяем атрибуты
+            if not imageId then
+                if imageValueFromAttr1 then
+                    imageId = imageValueFromAttr1
+                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has attribute ImageID: " .. tostring(imageId))
+                elseif imageValueFromAttr2 then
+                    imageId = imageValueFromAttr2
+                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has attribute imageID: " .. tostring(imageId))
+                end
+            end
+
+            if not imageId then
+                logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has no ImageID or imageID")
+            end
+
+            return imageId
+        end
+
+        local function isLocked(item, context, targetName)
+            local lockedValue = item:GetAttribute("Locked")
+            if lockedValue == nil then
+                logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has no Locked attribute")
+                return false
+            end
+            local isLockedBool = (lockedValue == true)
+            logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has Locked: " .. tostring(lockedValue) .. " (interpreted as " .. tostring(isLockedBool) .. ")")
+            return isLockedBool
+        end
+
         local function initializeItemDatabase()
             local Items = ReplicatedStorage:WaitForChild("Items", 5)
             if not Items then
@@ -695,16 +693,17 @@ local TargetInfo = {
                     for _, item in pairs(categoryFolder:GetChildren()) do
                         if item:IsA("Tool") then
                             local description = getItemDescription(item, "Item in ReplicatedStorage", nil)
-                            local textureId = getTextureId(item, "Item in ReplicatedStorage", nil)
-                            -- Пропускаем предметы с игнорируемыми TextureId
-                            if textureId and table.find(IgnoredTextureIds, textureId) then
-                                logMessage("Skipping item " .. item.Name .. " with TextureId " .. textureId .. " (ignored)")
+                            local imageId = getImageId(item, "Item in ReplicatedStorage", nil)
+                            local locked = isLocked(item, "Item in ReplicatedStorage", nil)
+                            -- Пропускаем предметы с Locked == true
+                            if locked then
+                                logMessage("Skipping item " .. item.Name .. " (Locked: true)")
                                 processedItems = processedItems + 1
                                 continue
                             end
                             ItemDatabase[item.Name] = {
                                 Description = description,
-                                TextureId = textureId
+                                ImageId = imageId
                             }
                             processedItems = processedItems + 1
                             if processedItems % 10 == 0 then
@@ -720,9 +719,9 @@ local TargetInfo = {
             logMessage("Item database initialized with " .. processedItems .. " entries")
         end
 
-        local function getItemNameByDescriptionOrTexture(description, textureId)
-            if not description and not textureId then
-                logMessage("No description or TextureId provided for item lookup")
+        local function getItemNameByDescriptionOrImageId(description, imageId)
+            if not description and not imageId then
+                logMessage("No description or ImageID provided for item lookup")
                 return nil
             end
 
@@ -743,22 +742,22 @@ local TargetInfo = {
                 end
                 logMessage("No item found with description: " .. tostring(description))
                 return nil
-            elseif mode == "Level 2 (TextureID)" then
-                -- Используем только TextureId
-                if not textureId then
-                    logMessage("No TextureId provided in Level 2 mode")
+            elseif mode == "Level 2 (ImageID)" then
+                -- Используем только ImageId
+                if not imageId then
+                    logMessage("No ImageID provided in Level 2 mode")
                     return nil
                 end
                 for itemName, data in pairs(ItemDatabase) do
-                    if data.TextureId and data.TextureId == textureId then
-                        logMessage("Found match by TextureId: " .. itemName .. " for TextureId " .. tostring(textureId))
+                    if data.ImageId and data.ImageId == imageId then
+                        logMessage("Found match by ImageID: " .. itemName .. " for ImageID " .. tostring(imageId))
                         return itemName
                     end
                 end
-                logMessage("No item found with TextureId: " .. tostring(textureId))
+                logMessage("No item found with ImageID: " .. tostring(imageId))
                 return nil
             else
-                -- Level 3 (TextureID + Description)
+                -- Level 3 (ImageID + Description)
                 -- Сначала проверяем по Description
                 if description then
                     for itemName, data in pairs(ItemDatabase) do
@@ -769,17 +768,17 @@ local TargetInfo = {
                     end
                 end
 
-                -- Если по Description не нашли, проверяем по TextureId
-                if textureId then
+                -- Если по Description не нашли, проверяем по ImageId
+                if imageId then
                     for itemName, data in pairs(ItemDatabase) do
-                        if data.TextureId and data.TextureId == textureId then
-                            logMessage("Found match by TextureId: " .. itemName .. " for TextureId " .. tostring(textureId))
+                        if data.ImageId and data.ImageId == imageId then
+                            logMessage("Found match by ImageID: " .. itemName .. " for ImageID " .. tostring(imageId))
                             return itemName
                         end
                     end
                 end
 
-                logMessage("No item found with description: " .. tostring(description) .. " or TextureId: " .. tostring(textureId))
+                logMessage("No item found with description: " .. tostring(description) .. " or ImageID: " .. tostring(imageId))
                 return nil
             end
         end
@@ -793,19 +792,13 @@ local TargetInfo = {
             local equippedItem = nil
             for _, item in pairs(character:GetChildren()) do
                 if item:IsA("Tool") then
-                    local textureId = getTextureId(item, "Equipped item", target.Name)
-                    if textureId and table.find(IgnoredTextureIds, textureId) then
-                        logMessage("Ignoring item " .. item.Name .. " for target " .. target.Name .. " with TextureId: " .. textureId)
+                    local locked = isLocked(item, "Equipped item", target.Name)
+                    if locked then
+                        logMessage("Ignoring item " .. item.Name .. " for target " .. target.Name .. " (Locked: true)")
                         continue
                     end
-                    if textureId == nil then
-                        logMessage("Skipping equipped item " .. item.Name .. " due to empty or invalid TextureId")
-                        continue
-                    end
-                    if item.Name:lower() ~= "fists" then
-                        equippedItem = item
-                        break
-                    end
+                    equippedItem = item
+                    break
                 end
             end
             if not equippedItem then
@@ -814,14 +807,14 @@ local TargetInfo = {
             end
 
             local description = getItemDescription(equippedItem, "Equipped item", target.Name)
-            local textureId = getTextureId(equippedItem, "Equipped item", target.Name)
+            local imageId = getImageId(equippedItem, "Equipped item", target.Name)
             local itemName
-            if description or textureId then
-                itemName = getItemNameByDescriptionOrTexture(description, textureId) or equippedItem.Name
-                logMessage("Equipped item for " .. target.Name .. ": " .. itemName .. " (Description: " .. tostring(description) .. ", TextureId: " .. tostring(textureId) .. ")")
+            if description or imageId then
+                itemName = getItemNameByDescriptionOrImageId(description, imageId) or equippedItem.Name
+                logMessage("Equipped item for " .. target.Name .. ": " .. itemName .. " (Description: " .. tostring(description) .. ", ImageID: " .. tostring(imageId) .. ")")
             else
                 itemName = equippedItem.Name
-                logMessage("Equipped item for " .. target.Name .. ": " .. itemName .. " (No description or TextureId found)")
+                logMessage("Equipped item for " .. target.Name .. ": " .. itemName .. " (No description or ImageID found)")
             end
             return itemName, itemName
         end
@@ -840,24 +833,21 @@ local TargetInfo = {
             local items = {}
             for _, item in pairs(backpack:GetChildren()) do
                 if item:IsA("Tool") then
-                    local textureId = getTextureId(item, "Inventory item", target.Name)
-                    if textureId and table.find(IgnoredTextureIds, textureId) then
-                        logMessage("Ignoring item " .. item.Name .. " in inventory for target " .. target.Name .. " with TextureId: " .. textureId)
+                    local locked = isLocked(item, "Inventory item", target.Name)
+                    if locked then
+                        logMessage("Ignoring item " .. item.Name .. " in inventory for target " .. target.Name .. " (Locked: true)")
                         continue
                     end
-                    if textureId == nil then
-                        logMessage("Skipping inventory item " .. item.Name .. " due to empty or invalid TextureId")
-                        continue
-                    end
-                    if item.Name:lower() ~= "fists" and item.Name ~= equippedItemName then
+                    if item.Name ~= equippedItemName then
                         local description = getItemDescription(item, "Inventory item", target.Name)
+                        local imageId = getImageId(item, "Inventory item", target.Name)
                         local itemName
-                        if description or textureId then
-                            itemName = getItemNameByDescriptionOrTexture(description, textureId) or item.Name
-                            logMessage("Inventory item for " .. target.Name .. ": " .. itemName .. " (Description: " .. tostring(description) .. ", TextureId: " .. tostring(textureId) .. ")")
+                        if description or imageId then
+                            itemName = getItemNameByDescriptionOrImageId(description, imageId) or item.Name
+                            logMessage("Inventory item for " .. target.Name .. ": " .. itemName .. " (Description: " .. tostring(description) .. ", ImageID: " .. tostring(imageId) .. ")")
                         else
                             itemName = item.Name
-                            logMessage("Inventory item for " .. target.Name .. ": " .. itemName .. " (No description or TextureId found)")
+                            logMessage("Inventory item for " .. target.Name .. ": " .. itemName .. " (No description or ImageID found)")
                         end
                         if itemName then
                             table.insert(items, { Name = itemName, Icon = getItemIcon(itemName) })
@@ -1375,7 +1365,7 @@ local TargetInfo = {
                 }, 'GTargetMode')
                 UI.Sections.TargetInventory:Dropdown({
                     Name = "Analysis Mode",
-                    Options = {"Level 1 (Description)", "Level 2 (TextureID)", "Level 3 (TextureID + Description)"},
+                    Options = {"Level 1 (Description)", "Level 2 (ImageID)", "Level 3 (ImageID + Description)"},
                     Default = TargetInventorySettings.AnalysisMode,
                     Callback = function(value)
                         TargetInventorySettings.AnalysisMode = value
