@@ -27,7 +27,7 @@ local TargetInfo = {
                 PreviousHealth = nil,
                 LastDamageAnimationTime = 0,
                 LastUpdateTime = 0,
-                UpdateInterval = 0.1 -- Возвращено к исходному значению
+                UpdateInterval = 0.1
             }
         }
 
@@ -46,9 +46,10 @@ local TargetInfo = {
             CircleGradient = { Value = false, Default = false },
             LastTarget = nil,
             LastUpdateTime = 0,
-            UpdateInterval = 0.5, -- Возвращено к исходному значению
+            UpdateInterval = 0.5,
             LastFovUpdateTime = 0,
-            FovUpdateInterval = 1/30 -- Возвращено к исходному значению
+            FovUpdateInterval = 1/30,
+            LastMousePosition = nil
         }
 
         -- Кэширование объектов
@@ -301,7 +302,7 @@ local TargetInfo = {
         end
 
         local function CreateOrb()
-            local orb = Instance.new("ImageLabelbs")
+            local orb = Instance.new("ImageLabel")
             orb.Size = UDim2.new(0, 8, 0, 8)
             orb.BackgroundTransparency = 0
             orb.Image = "rbxassetid://0"
@@ -524,7 +525,7 @@ local TargetInfo = {
             if descObj and descObj:IsA("StringValue") then
                 return descObj.Value
             end
-            return item:GetAttribute("Description") or item:GetAttribute("description")
+            return item:GetAttribute("Description") or item:GetAttribute("description") or ""
         end
 
         local function getImageId(item)
@@ -532,11 +533,11 @@ local TargetInfo = {
             if imageObj and imageObj:IsA("StringValue") then
                 return imageObj.Value
             end
-            return item:GetAttribute("ImageID") or item:GetAttribute("imageID")
+            return item:GetAttribute("ImageID") or item:GetAttribute("imageID") or ""
         end
 
         local function getRarityName(item)
-            return item:GetAttribute("RarityName")
+            return item:GetAttribute("RarityName") or "Common"
         end
 
         local function getRarityColor(rarityName)
@@ -650,7 +651,7 @@ local TargetInfo = {
             local viewportSize = Workspace.CurrentCamera.ViewportSize
             local referencePos = TargetInventorySettings.CircleMethod.Value == "Middle" and
                 Vector2.new(viewportSize.X / 2, viewportSize.Y / 2) or
-                UserInputService:GetMouseLocation()
+                (TargetInventorySettings.LastMousePosition or UserInputService:GetMouseLocation())
 
             local nearestPlayer, minDist = nil, TargetInventorySettings.FOV.Value
             local camera = Workspace.CurrentCamera
@@ -720,7 +721,9 @@ local TargetInfo = {
             end
             TargetInventorySettings.LastFovUpdateTime = currentTime
 
-            local mousePos = UserInputService:GetMouseLocation()
+            local mousePos = TargetInventorySettings.LastMousePosition or UserInputService:GetMouseLocation()
+            TargetInventorySettings.LastMousePosition = mousePos
+
             fovCircle.Visible = true
             fovCircle.Size = UDim2.new(0, TargetInventorySettings.FOV.Value, 0, TargetInventorySettings.FOV.Value)
             fovCircle.Position = TargetInventorySettings.CircleMethod.Value == "Middle" and
@@ -748,14 +751,11 @@ local TargetInfo = {
             TargetInventorySettings.LastUpdateTime = currentTime
 
             local target = nil
-            local useMouseTargeting = false
-
             if TargetInventorySettings.TargetMode == "GunSilent Target" or TargetInventorySettings.TargetMode == "All" then
                 target = Core.GunSilentTarget.CurrentTarget
             end
             if TargetInventorySettings.TargetMode == "Mouse" or (TargetInventorySettings.TargetMode == "All" and not target) then
                 target = getNearestPlayerToMouse()
-                useMouseTargeting = true
             end
 
             if target and (not target.Character or not target.Character:FindFirstChild("Humanoid") or target.Character.Humanoid.Health <= 0) then
@@ -894,6 +894,7 @@ local TargetInfo = {
         UserInputService.InputChanged:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseMovement and invDragging then
                 local mousePos = UserInputService:GetMouseLocation()
+                TargetInventorySettings.LastMousePosition = mousePos
                 local delta = mousePos - invDragStart
                 invFrame.Position = UDim2.new(0, invStartPos.X.Offset + delta.X, 0, invStartPos.Y.Offset + delta.Y)
             end
@@ -1107,14 +1108,14 @@ local TargetInfo = {
         -- Инициализация базы данных
         initializeItemDatabase()
 
-        -- Обновление TargetInventory и TargetHud
+        -- Обновление TargetInventory, TargetHud и позиции круга FOV
         RunService.Stepped:Connect(function()
             if TargetHud.Settings.Enabled.Value then UpdateTargetHud() end
-            if TargetInventorySettings.Enabled then updateTargetInventoryView() end
+            if TargetInventorySettings.Enabled then
+                updateTargetInventoryView()
+                updateFovCirclePosition()
+            end
         end)
-
-        -- Отдельное обновление позиции круга FOV для плавности
-        RunService.RenderStepped:Connect(updateFovCirclePosition)
 
         -- Очистка при выгрузке
     end
