@@ -201,7 +201,7 @@ local TargetInfo = {
 
         local titleLabel = Instance.new("TextLabel")
         titleLabel.Size = UDim2.new(0, 180, 0, 20)
-        titleLabel.Position = UDim2.new(0, 30, 0, 5)
+        titleLabel.Position = UDim2.new(0, 40, 0, 5) -- Увеличен отступ
         titleLabel.BackgroundTransparency = 1
         titleLabel.Text = "Target Inventory"
         titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -253,6 +253,19 @@ local TargetInfo = {
         equippedLabel.Font = Enum.Font.Gotham
         equippedLabel.TextXAlignment = Enum.TextXAlignment.Left
         equippedLabel.Parent = equippedContainer
+
+        local equippedLabelBackground = Instance.new("Frame")
+        equippedLabelBackground.Size = UDim2.new(1, 0, 1, 0)
+        equippedLabelBackground.Position = UDim2.new(0, 0, 0, 0)
+        equippedLabelBackground.BackgroundColor3 = Color3.fromRGB(15, 25, 45)
+        equippedLabelBackground.BackgroundTransparency = 0.6
+        equippedLabelBackground.BorderSizePixel = 0
+        equippedLabelBackground.Visible = false
+        equippedLabelBackground.Parent = equippedLabel
+
+        local equippedLabelBgCorner = Instance.new("UICorner")
+        equippedLabelBgCorner.CornerRadius = UDim.new(0, 5)
+        equippedLabelBgCorner.Parent = equippedLabelBackground
 
         local inventoryFrame = Instance.new("ScrollingFrame")
         inventoryFrame.Size = UDim2.new(1, -20, 0, 75)
@@ -834,10 +847,26 @@ local TargetInfo = {
                     if child:IsA("Frame") then
                         child.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
                         child.BackgroundTransparency = 0.4
+                        local textLabel = child:FindFirstChildWhichIsA("TextLabel")
+                        if textLabel then
+                            local bg = textLabel:FindFirstChild("LabelBackground") or Instance.new("Frame")
+                            bg.Name = "LabelBackground"
+                            bg.Size = UDim2.new(1, 0, 1, 0)
+                            bg.Position = UDim2.new(0, 0, 0, 0)
+                            bg.BackgroundColor3 = Color3.fromRGB(15, 25, 45)
+                            bg.BackgroundTransparency = 0.6
+                            bg.BorderSizePixel = 0
+                            bg.Visible = true
+                            bg.Parent = textLabel
+                            local bgCorner = bg:FindFirstChild("UICorner") or Instance.new("UICorner")
+                            bgCorner.CornerRadius = UDim.new(0, 5)
+                            bgCorner.Parent = bg
+                        end
                     end
                 end
                 equippedContainer.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
                 equippedContainer.BackgroundTransparency = 0.4
+                equippedLabelBackground.Visible = true
             else -- Default
                 headerFrame.Visible = false
                 defaultTitleLabel.Visible = true
@@ -846,9 +875,17 @@ local TargetInfo = {
                 for _, child in pairs(inventoryFrame:GetChildren()) do
                     if child:IsA("Frame") then
                         child.BackgroundTransparency = 1
+                        local textLabel = child:FindFirstChildWhichIsA("TextLabel")
+                        if textLabel then
+                            local bg = textLabel:FindFirstChild("LabelBackground")
+                            if bg then
+                                bg.Visible = false
+                            end
+                        end
                     end
                 end
                 equippedContainer.BackgroundTransparency = 1
+                equippedLabelBackground.Visible = false
             end
 
             if TargetInventorySettings.LastTarget == target then return end
@@ -897,6 +934,21 @@ local TargetInfo = {
                 emptyText.Font = Enum.Font.Gotham
                 emptyText.TextXAlignment = Enum.TextXAlignment.Left
                 emptyText.Parent = emptyLabel
+
+                local emptyLabelBackground = Instance.new("Frame")
+                emptyLabelBackground.Name = "LabelBackground"
+                emptyLabelBackground.Size = UDim2.new(1, 0, 1, 0)
+                emptyLabelBackground.Position = UDim2.new(0, 0, 0, 0)
+                emptyLabelBackground.BackgroundColor3 = Color3.fromRGB(15, 25, 45)
+                emptyLabelBackground.BackgroundTransparency = 0.6
+                emptyLabelBackground.BorderSizePixel = 0
+                emptyLabelBackground.Visible = TargetInventorySettings.UIStyle == "New"
+                emptyLabelBackground.Parent = emptyText
+
+                local emptyLabelBgCorner = Instance.new("UICorner")
+                emptyLabelBgCorner.CornerRadius = UDim.new(0, 5)
+                emptyLabelBgCorner.Parent = emptyLabelBackground
+
                 inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, 25)
                 return
             end
@@ -953,6 +1005,20 @@ local TargetInfo = {
                     itemLabel.Font = Enum.Font.Gotham
                     itemLabel.TextXAlignment = Enum.TextXAlignment.Left
                     itemLabel.Parent = itemContainer
+
+                    local itemLabelBackground = Instance.new("Frame")
+                    itemLabelBackground.Name = "LabelBackground"
+                    itemLabelBackground.Size = UDim2.new(1, 0, 1, 0)
+                    itemLabelBackground.Position = UDim2.new(0, 0, 0, 0)
+                    itemLabelBackground.BackgroundColor3 = Color3.fromRGB(15, 25, 45)
+                    itemLabelBackground.BackgroundTransparency = 0.6
+                    itemLabelBackground.BorderSizePixel = 0
+                    itemLabelBackground.Visible = TargetInventorySettings.UIStyle == "New"
+                    itemLabelBackground.Parent = itemLabel
+
+                    local itemLabelBgCorner = Instance.new("UICorner")
+                    itemLabelBgCorner.CornerRadius = UDim.new(0, 5)
+                    itemLabelBgCorner.Parent = itemLabelBackground
                 end
                 inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, #inventory * 27)
             else
@@ -983,6 +1049,21 @@ local TargetInfo = {
                 emptyText.Font = Enum.Font.Gotham
                 emptyText.TextXAlignment = Enum.TextXAlignment.Left
                 emptyText.Parent = emptyLabel
+
+                local emptyLabelBackground = Instance.new("Frame")
+                emptyLabelBackground.Name = "LabelBackground"
+                emptyLabelBackground.Size = UDim2.new(1, 0, 1, 0)
+                emptyLabelBackground.Position = UDim2.new(0, 0, 0, 0)
+                emptyLabelBackground.BackgroundColor3 = Color3.fromRGB(15, 25, 45)
+                emptyLabelBackground.BackgroundTransparency = 0.6
+                emptyLabelBackground.BorderSizePixel = 0
+                emptyLabelBackground.Visible = TargetInventorySettings.UIStyle == "New"
+                emptyLabelBackground.Parent = emptyText
+
+                local emptyLabelBgCorner = Instance.new("UICorner")
+                emptyLabelBgCorner.CornerRadius = UDim.new(0, 5)
+                emptyLabelBgCorner.Parent = emptyLabelBackground
+
                 inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, 25)
             end
         end
