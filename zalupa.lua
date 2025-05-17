@@ -285,7 +285,6 @@ local TargetInfo = {
             logEntry.TextWrapped = true
             logEntry.Parent = logScrollFrame
 
-            -- Обновление CanvasSize для прокрутки
             local entryCount = #logScrollFrame:GetChildren() - 1 -- Вычитаем UIListLayout
             logScrollFrame.CanvasSize = UDim2.new(0, 0, 0, entryCount * 16)
         end
@@ -592,10 +591,17 @@ local TargetInfo = {
                 end
                 for _, item in pairs(categoryFolder:GetChildren()) do
                     if item:IsA("Tool") then
-                        local desc = item:FindFirstChild("Description")
-                        if desc and desc.Value == description then
-                            logMessage("Found item " .. item.Name .. " in category " .. category .. " with matching description")
-                            return item.Name
+                        local descObj1 = item:FindFirstChild("Description")
+                        local descObj2 = item:FindFirstChild("description")
+                        local descValue = descObj1 and descObj1.Value or (descObj2 and descObj2.Value or nil)
+                        if descValue then
+                            logMessage("Item " .. item.Name .. " in category " .. category .. " has description: " .. descValue)
+                            if descValue == description then
+                                logMessage("Matched description for item " .. item.Name)
+                                return item.Name
+                            end
+                        else
+                            logMessage("Item " .. item.Name .. " in category " .. category .. " has no description")
                         end
                     end
                 end
@@ -622,9 +628,17 @@ local TargetInfo = {
                 return "None", nil
             end
 
-            local description = equippedItem:FindFirstChild("Description") and equippedItem.Description.Value or nil
-            local itemName = description and getItemNameByDescription(description) or equippedItem.Name
-            logMessage("Equipped item for " .. target.Name .. ": " .. itemName .. " (Description: " .. (description or "nil") .. ")")
+            local descObj1 = equippedItem:FindFirstChild("Description")
+            local descObj2 = equippedItem:FindFirstChild("description")
+            local description = descObj1 and descObj1.Value or (descObj2 and descObj2.Value or nil)
+            local itemName
+            if description then
+                itemName = getItemNameByDescription(description) or equippedItem.Name
+                logMessage("Equipped item for " .. target.Name .. ": " .. itemName .. " (Description: " .. description .. ")")
+            else
+                itemName = equippedItem.Name
+                logMessage("Equipped item for " .. target.Name .. ": " .. itemName .. " (No description found)")
+            end
             return itemName, itemName
         end
 
@@ -642,10 +656,18 @@ local TargetInfo = {
             local items = {}
             for _, item in pairs(backpack:GetChildren()) do
                 if item:IsA("Tool") and item.Name:lower() ~= "fists" and item.Name ~= equippedItemName then
-                    local description = item:FindFirstChild("Description") and item.Description.Value or nil
-                    local itemName = description and getItemNameByDescription(description) or item.Name
+                    local descObj1 = item:FindFirstChild("Description")
+                    local descObj2 = item:FindFirstChild("description")
+                    local description = descObj1 and descObj1.Value or (descObj2 and descObj2.Value or nil)
+                    local itemName
+                    if description then
+                        itemName = getItemNameByDescription(description) or item.Name
+                        logMessage("Inventory item for " .. target.Name .. ": " .. itemName .. " (Description: " .. description .. ")")
+                    else
+                        itemName = item.Name
+                        logMessage("Inventory item for " .. target.Name .. ": " .. itemName .. " (No description found)")
+                    end
                     if itemName then
-                        logMessage("Inventory item for " .. target.Name .. ": " .. itemName .. " (Description: " .. (description or "nil") .. ")")
                         table.insert(items, { Name = itemName, Icon = getItemIcon(itemName) })
                     else
                         logMessage("Skipping item with no valid name: " .. item.Name)
@@ -1226,8 +1248,10 @@ local TargetInfo = {
                 if folder then
                     logMessage("Found category " .. category .. " with " .. #folder:GetChildren() .. " items")
                     for _, item in pairs(folder:GetChildren()) do
-                        local desc = item:FindFirstChild("Description")
-                        logMessage("Item in " .. category .. ": " .. item.Name .. " (Description: " .. (desc and desc.Value or "nil") .. ")")
+                        local descObj1 = item:FindFirstChild("Description")
+                        local descObj2 = item:FindFirstChild("description")
+                        local descValue = descObj1 and descObj1.Value or (descObj2 and descObj2.Value or nil)
+                        logMessage("Item in " .. category .. ": " .. item.Name .. " (Description: " .. (descValue or "nil") .. ")")
                     end
                 else
                     logMessage("Category " .. category .. " not found in ReplicatedStorage.Items")
