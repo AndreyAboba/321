@@ -591,22 +591,27 @@ local TargetInfo = {
                 end
                 for _, item in pairs(categoryFolder:GetChildren()) do
                     if item:IsA("Tool") then
-                        local descObj1 = item:FindFirstChild("Description")
-                        local descObj2 = item:FindFirstChild("description")
-                        local descValue = descObj1 and descObj1.Value or (descObj2 and descObj2.Value or nil)
-                        if descValue then
-                            logMessage("Item " .. item.Name .. " in category " .. category .. " has description: " .. descValue)
-                            if descValue == description then
-                                logMessage("Matched description for item " .. item.Name)
-                                return item.Name
+                        -- Проверяем атрибуты через GetAttribute
+                        local possibleDescriptions = {"Description", "description", "Desc", "desc"}
+                        local descValue = nil
+                        for _, attrName in pairs(possibleDescriptions) do
+                            descValue = item:GetAttribute(attrName)
+                            if descValue then
+                                logMessage("Item " .. item.Name .. " in category " .. category .. " has attribute " .. attrName .. ": " .. tostring(descValue))
+                                break
                             end
-                        else
-                            logMessage("Item " .. item.Name .. " in category " .. category .. " has no description")
+                        end
+                        -- Дополнительно логируем все атрибуты предмета
+                        local allAttributes = item:GetAttributes()
+                        logMessage("All attributes for item " .. item.Name .. " in category " .. category .. ": " .. (next(allAttributes) and table.concat(table.create(0, allAttributes), ", ") or "none"))
+                        if descValue and descValue == description then
+                            logMessage("Matched description for item " .. item.Name)
+                            return item.Name
                         end
                     end
                 end
             end
-            logMessage("No item found with description: " .. description)
+            logMessage("No item found with description: " .. tostring(description))
             return nil
         end
 
@@ -628,13 +633,24 @@ local TargetInfo = {
                 return "None", nil
             end
 
-            local descObj1 = equippedItem:FindFirstChild("Description")
-            local descObj2 = equippedItem:FindFirstChild("description")
-            local description = descObj1 and descObj1.Value or (descObj2 and descObj2.Value or nil)
+            -- Проверяем атрибуты через GetAttribute
+            local possibleDescriptions = {"Description", "description", "Desc", "desc"}
+            local description = nil
+            for _, attrName in pairs(possibleDescriptions) do
+                description = equippedItem:GetAttribute(attrName)
+                if description then
+                    logMessage("Equipped item " .. equippedItem.Name .. " for " .. target.Name .. " has attribute " .. attrName .. ": " .. tostring(description))
+                    break
+                end
+            end
+            -- Логируем все атрибуты предмета
+            local allAttributes = equippedItem:GetAttributes()
+            logMessage("All attributes for equipped item " .. equippedItem.Name .. " of " .. target.Name .. ": " .. (next(allAttributes) and table.concat(table.create(0, allAttributes), ", ") or "none"))
+            
             local itemName
             if description then
                 itemName = getItemNameByDescription(description) or equippedItem.Name
-                logMessage("Equipped item for " .. target.Name .. ": " .. itemName .. " (Description: " .. description .. ")")
+                logMessage("Equipped item for " .. target.Name .. ": " .. itemName .. " (Description: " .. tostring(description) .. ")")
             else
                 itemName = equippedItem.Name
                 logMessage("Equipped item for " .. target.Name .. ": " .. itemName .. " (No description found)")
@@ -656,13 +672,24 @@ local TargetInfo = {
             local items = {}
             for _, item in pairs(backpack:GetChildren()) do
                 if item:IsA("Tool") and item.Name:lower() ~= "fists" and item.Name ~= equippedItemName then
-                    local descObj1 = item:FindFirstChild("Description")
-                    local descObj2 = item:FindFirstChild("description")
-                    local description = descObj1 and descObj1.Value or (descObj2 and descObj2.Value or nil)
+                    -- Проверяем атрибуты через GetAttribute
+                    local possibleDescriptions = {"Description", "description", "Desc", "desc"}
+                    local description = nil
+                    for _, attrName in pairs(possibleDescriptions) do
+                        description = item:GetAttribute(attrName)
+                        if description then
+                            logMessage("Inventory item " .. item.Name .. " for " .. target.Name .. " has attribute " .. attrName .. ": " .. tostring(description))
+                            break
+                        end
+                    end
+                    -- Логируем все атрибуты предмета
+                    local allAttributes = item:GetAttributes()
+                    logMessage("All attributes for inventory item " .. item.Name .. " of " .. target.Name .. ": " .. (next(allAttributes) and table.concat(table.create(0, allAttributes), ", ") or "none"))
+                    
                     local itemName
                     if description then
                         itemName = getItemNameByDescription(description) or item.Name
-                        logMessage("Inventory item for " .. target.Name .. ": " .. itemName .. " (Description: " .. description .. ")")
+                        logMessage("Inventory item for " .. target.Name .. ": " .. itemName .. " (Description: " .. tostring(description) .. ")")
                     else
                         itemName = item.Name
                         logMessage("Inventory item for " .. target.Name .. ": " .. itemName .. " (No description found)")
@@ -1248,10 +1275,17 @@ local TargetInfo = {
                 if folder then
                     logMessage("Found category " .. category .. " with " .. #folder:GetChildren() .. " items")
                     for _, item in pairs(folder:GetChildren()) do
-                        local descObj1 = item:FindFirstChild("Description")
-                        local descObj2 = item:FindFirstChild("description")
-                        local descValue = descObj1 and descObj1.Value or (descObj2 and descObj2.Value or nil)
-                        logMessage("Item in " .. category .. ": " .. item.Name .. " (Description: " .. (descValue or "nil") .. ")")
+                        local possibleDescriptions = {"Description", "description", "Desc", "desc"}
+                        local descValue = nil
+                        for _, attrName in pairs(possibleDescriptions) do
+                            descValue = item:GetAttribute(attrName)
+                            if descValue then
+                                logMessage("Item " .. item.Name .. " in category " .. category .. " has attribute " .. attrName .. ": " .. tostring(descValue))
+                                break
+                            end
+                        end
+                        local allAttributes = item:GetAttributes()
+                        logMessage("All attributes for item " .. item.Name .. " in category " .. category .. ": " .. (next(allAttributes) and table.concat(table.create(0, allAttributes), ", ") or "none"))
                     end
                 else
                     logMessage("Category " .. category .. " not found in ReplicatedStorage.Items")
