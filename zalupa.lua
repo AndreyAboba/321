@@ -591,9 +591,9 @@ local TargetInfo = {
             elseif rarityName == "Uncommon" then
                 return Color3.fromRGB(0, 255, 0) -- Зелёный
             elseif rarityName == "Rare" then
-                return Color3.fromRGB(0, 0, 255) -- Синий
+                return Color3.fromRGB(0, 191, 255) -- Голубоватый
             elseif rarityName == "Epic" then
-                return Color3.fromRGB(128, 0, 128) -- Пурпурный
+                return Color3.fromRGB(186, 85, 211) -- Светло-фиолетовый
             elseif rarityName == "Legendary" then
                 return Color3.fromRGB(255, 215, 0) -- Золотой
             else
@@ -932,6 +932,7 @@ local TargetInfo = {
                 equippedLabel.Text = "Equipped: No Target"
                 equippedIcon.Image = ""
                 equippedIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
+                equippedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
                 equippedLabel.Position = UDim2.new(0, 0, 0, 0)
                 for _, child in pairs(inventoryFrame:GetChildren()) do
                     if child:IsA("Frame") then child:Destroy() end
@@ -958,10 +959,12 @@ local TargetInfo = {
             if equippedItemName then
                 equippedIcon.Image = getItemIcon(equippedItemName)
                 equippedIcon.ImageColor3 = getRarityColor(rarityName)
+                equippedLabel.TextColor3 = getRarityColor(rarityName)
                 equippedLabel.Position = UDim2.new(0, 25, 0, 0)
             else
                 equippedIcon.Image = ""
                 equippedIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
+                equippedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
                 equippedLabel.Position = UDim2.new(0, 0, 0, 0)
             end
 
@@ -991,7 +994,7 @@ local TargetInfo = {
                     itemLabel.Position = UDim2.new(0, 25, 0, 0)
                     itemLabel.BackgroundTransparency = 1
                     itemLabel.Text = item.Name
-                    itemLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    itemLabel.TextColor3 = getRarityColor(item.Rarity)
                     itemLabel.TextSize = 14
                     itemLabel.Font = Enum.Font.Gotham
                     itemLabel.TextXAlignment = Enum.TextXAlignment.Left
