@@ -67,6 +67,9 @@ local TargetInfo = {
         local ItemDatabase = {}
         local IconCache = {}
 
+        -- Кэш зашифрованных атрибутов
+        local EncryptedAttributeCache = { Durability = Core.GetEncryptedAttributeName("Durability") }
+
         -- Создание ScreenGui для TargetHud
         local hudScreenGui = Instance.new("ScreenGui")
         hudScreenGui.Name = "TargetHUDGui"
@@ -192,16 +195,40 @@ local TargetInfo = {
         headerCorner.CornerRadius = UDim.new(0, 10)
         headerCorner.Parent = headerFrame
 
+        -- Круг прочности
+        local durabilityCircle = Instance.new("Frame")
+        durabilityCircle.Size = UDim2.new(0, 25, 0, 25)
+        durabilityCircle.Position = UDim2.new(0, 5, 0, 2.5)
+        durabilityCircle.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        durabilityCircle.BorderSizePixel = 0
+        durabilityCircle.Visible = false
+        durabilityCircle.Parent = headerFrame
+
+        local durabilityCircleCorner = Instance.new("UICorner")
+        durabilityCircleCorner.CornerRadius = UDim.new(1, 0)
+        durabilityCircleCorner.Parent = durabilityCircle
+
+        local durabilityFill = Instance.new("Frame")
+        durabilityFill.Size = UDim2.new(1, 0, 0.5, 0) -- По умолчанию 50% (как в шаблоне)
+        durabilityFill.Position = UDim2.new(0, 0, 0.5, 0)
+        durabilityFill.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        durabilityFill.BorderSizePixel = 0
+        durabilityFill.Parent = durabilityCircle
+
+        local durabilityFillCorner = Instance.new("UICorner")
+        durabilityFillCorner.CornerRadius = UDim.new(1, 0)
+        durabilityFillCorner.Parent = durabilityFill
+
         local iconLabel = Instance.new("ImageLabel")
         iconLabel.Size = UDim2.new(0, 20, 0, 20)
-        iconLabel.Position = UDim2.new(0, 5, 0, 5)
+        iconLabel.Position = UDim2.new(0, 35, 0, 5) -- Сдвинут правее из-за круга
         iconLabel.BackgroundTransparency = 1
         iconLabel.Image = "rbxassetid://13289068576"
         iconLabel.Parent = headerFrame
 
         local titleLabel = Instance.new("TextLabel")
-        titleLabel.Size = UDim2.new(0, 180, 0, 20)
-        titleLabel.Position = UDim2.new(0, 40, 0, 5) -- Увеличен отступ
+        titleLabel.Size = UDim2.new(0, 150, 0, 20)
+        titleLabel.Position = UDim2.new(0, 60, 0, 5) -- Сдвинут правее
         titleLabel.BackgroundTransparency = 1
         titleLabel.Text = "Target Inventory"
         titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -209,6 +236,15 @@ local TargetInfo = {
         titleLabel.Font = Enum.Font.GothamBold
         titleLabel.TextXAlignment = Enum.TextXAlignment.Left
         titleLabel.Parent = headerFrame
+
+        -- Симметричное место (правый верхний угол)
+        local placeholderFrame = Instance.new("Frame")
+        placeholderFrame.Size = UDim2.new(0, 25, 0, 25)
+        placeholderFrame.Position = UDim2.new(1, -30, 0, 2.5)
+        placeholderFrame.BackgroundTransparency = 1
+        placeholderFrame.BorderSizePixel = 0
+        placeholderFrame.Visible = false
+        placeholderFrame.Parent = headerFrame
 
         -- Текст "Target Inventory" для стиля Default
         local defaultTitleLabel = Instance.new("TextLabel")
@@ -225,7 +261,7 @@ local TargetInfo = {
 
         local equippedContainer = Instance.new("Frame")
         equippedContainer.Size = UDim2.new(1, -20, 0, 25)
-        equippedContainer.Position = UDim2.new(0, 10, 0, 30)
+        equippedContainer.Position = UDim2.new(0, 10, 0, 40) -- Сдвинут вниз из-за headerFrame
         equippedContainer.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
         equippedContainer.BackgroundTransparency = 0.4
         equippedContainer.BorderSizePixel = 0
@@ -245,7 +281,7 @@ local TargetInfo = {
 
         local equippedLabel = Instance.new("TextLabel")
         equippedLabel.Size = UDim2.new(0, 170, 0, 20)
-        equippedLabel.Position = UDim2.new(0, 30, 0, 2.5)
+        equippedLabel.Position = UDim2.new(0, 30, 0, 2.5) -- Сдвинут правее
         equippedLabel.BackgroundTransparency = 1
         equippedLabel.Text = " | Equipped: None"
         equippedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -269,7 +305,7 @@ local TargetInfo = {
 
         local inventoryFrame = Instance.new("ScrollingFrame")
         inventoryFrame.Size = UDim2.new(1, -20, 0, 75)
-        inventoryFrame.Position = UDim2.new(0, 10, 0, 60)
+        inventoryFrame.Position = UDim2.new(0, 10, 0, 70) -- Сдвинут вниз
         inventoryFrame.BackgroundTransparency = 1
         inventoryFrame.BorderSizePixel = 0
         inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
@@ -616,6 +652,27 @@ local TargetInfo = {
             return lockedValue == true
         end
 
+        local function getMaxDurability(itemName)
+            if not ItemsCache then return 100 end
+            for category, folder in pairs(ItemCategories) do
+                if folder and folder:FindFirstChild(itemName) then
+                    local item = folder[itemName]
+                    return item:GetAttribute("Durability") or item:GetAttribute("durability") or 100
+                end
+            end
+            return 100
+        end
+
+        local function getItemDurability(item)
+            if not item then return 0 end
+            local durability = item:GetAttribute("Durability") or item:GetAttribute("durability")
+            if not durability then
+                local encryptedName = EncryptedAttributeCache.Durability
+                durability = item:GetAttribute(encryptedName)
+            end
+            return durability or 0
+        end
+
         local function initializeItemDatabase()
             if not ItemsCache then return end
             for _, category in pairs({"gun", "melee", "throwable", "consumable", "misc"}) do
@@ -661,7 +718,7 @@ local TargetInfo = {
         end
 
         local function getTargetEquippedItem(target)
-            if not target or not target.Character then return "None", nil, nil end
+            if not target or not target.Character then return "None", nil, nil, 0, 0 end
             local character = target.Character
             local equippedItem = nil
             for _, item in pairs(character:GetChildren()) do
@@ -670,13 +727,15 @@ local TargetInfo = {
                     break
                 end
             end
-            if not equippedItem then return "None", nil, nil end
+            if not equippedItem then return "None", nil, nil, 0, 0 end
 
             local description = getItemDescription(equippedItem)
             local imageId = getImageId(equippedItem)
             local rarityName = getRarityName(equippedItem)
             local itemName = (description or imageId) and getItemNameByDescriptionOrImageId(description, imageId) or equippedItem.Name
-            return itemName, itemName, rarityName
+            local maxDurability = getMaxDurability(itemName or equippedItem.Name)
+            local durability = getItemDurability(equippedItem)
+            return itemName, itemName, rarityName, durability, maxDurability
         end
 
         local function getTargetInventory(target)
@@ -843,6 +902,8 @@ local TargetInfo = {
                 defaultTitleLabel.Visible = false
                 equippedContainer.Position = UDim2.new(0, 10, 0, 40)
                 inventoryFrame.Position = UDim2.new(0, 10, 0, 70)
+                durabilityCircle.Visible = true
+                placeholderFrame.Visible = true
                 for _, child in pairs(inventoryFrame:GetChildren()) do
                     if child:IsA("Frame") then
                         child.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
@@ -872,6 +933,8 @@ local TargetInfo = {
                 defaultTitleLabel.Visible = true
                 equippedContainer.Position = UDim2.new(0, 10, 0, 30)
                 inventoryFrame.Position = UDim2.new(0, 10, 0, 60)
+                durabilityCircle.Visible = false
+                placeholderFrame.Visible = false
                 for _, child in pairs(inventoryFrame:GetChildren()) do
                     if child:IsA("Frame") then
                         child.BackgroundTransparency = 1
@@ -904,6 +967,7 @@ local TargetInfo = {
                 equippedIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
                 equippedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
                 equippedLabel.Position = UDim2.new(0, 30, 0, 2.5)
+                durabilityFill.Size = UDim2.new(1, 0, 0, 0)
                 for _, child in pairs(inventoryFrame:GetChildren()) do
                     if child:IsA("Frame") then child:Destroy() end
                 end
@@ -953,18 +1017,20 @@ local TargetInfo = {
                 return
             end
 
-            local equippedItem, equippedItemName, rarityName = getTargetEquippedItem(target)
+            local equippedItem, equippedItemName, rarityName, durability, maxDurability = getTargetEquippedItem(target)
             equippedLabel.Text = " | Equipped: " .. equippedItem
             if equippedItemName then
                 equippedIcon.Image = getItemIcon(equippedItemName)
                 equippedIcon.ImageColor3 = getRarityColor(rarityName)
                 equippedLabel.TextColor3 = getRarityColor(rarityName)
                 equippedLabel.Position = UDim2.new(0, 30, 0, 2.5)
+                durabilityFill.Size = UDim2.new(1, 0, math.clamp(durability / maxDurability, 0, 1), 0)
             else
                 equippedIcon.Image = "rbxassetid://18821914323"
                 equippedIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
                 equippedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
                 equippedLabel.Position = UDim2.new(0, 30, 0, 2.5)
+                durabilityFill.Size = UDim2.new(1, 0, 0, 0)
             end
 
             for _, child in pairs(inventoryFrame:GetChildren()) do
@@ -997,7 +1063,7 @@ local TargetInfo = {
 
                     local itemLabel = Instance.new("TextLabel")
                     itemLabel.Size = UDim2.new(0, 170, 0, 20)
-                    itemLabel.Position = UDim2.new(0, 30, 0, 2.5)
+                    itemLabel.Position = UDim2.new(0, 30, 0, 2.5) -- Сдвинут правее
                     itemLabel.BackgroundTransparency = 1
                     itemLabel.Text = " | " .. item.Name
                     itemLabel.TextColor3 = getRarityColor(item.Rarity)
