@@ -194,7 +194,7 @@ local TargetInfo = {
 
         local iconLabel = Instance.new("ImageLabel")
         iconLabel.Size = UDim2.new(0, 20, 0, 20)
-        iconLabel.Position = UDim2.new(0, 5, 0, 5) -- Сдвинуто ещё левее на 5 (было 15)
+        iconLabel.Position = UDim2.new(0, 10, 0, 5) -- Сдвинуто правее на 10 (было 5)
         iconLabel.BackgroundTransparency = 1
         iconLabel.Image = "rbxassetid://13289068576"
         iconLabel.Parent = headerFrame
@@ -844,15 +844,8 @@ local TargetInfo = {
                 placeholderFrame.Visible = true
                 for _, child in pairs(inventoryFrame:GetChildren()) do
                     if child:IsA("Frame") then
-                        child.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- Убрали фон, оставили прозрачность
-                        child.BackgroundTransparency = 1 -- Убрали лишний слой фона
-                        local textLabel = child:FindFirstChildWhichIsA("TextLabel")
-                        if textLabel then
-                            local bg = textLabel:FindFirstChild("LabelBackground")
-                            if bg then
-                                bg:Destroy() -- Убрали фоновый слой для текста
-                            end
-                        end
+                        child.BackgroundColor3 = Color3.fromRGB(25, 35, 55) -- Такой же фон, как у equippedContainer
+                        child.BackgroundTransparency = 0.4
                     end
                 end
             else -- Default
@@ -865,13 +858,6 @@ local TargetInfo = {
                 for _, child in pairs(inventoryFrame:GetChildren()) do
                     if child:IsA("Frame") then
                         child.BackgroundTransparency = 1
-                        local textLabel = child:FindFirstChildWhichIsA("TextLabel")
-                        if textLabel then
-                            local bg = textLabel:FindFirstChild("LabelBackground")
-                            if bg then
-                                bg:Destroy() -- Убрали фоновый слой для текста
-                            end
-                        end
                     end
                 end
             end
@@ -897,8 +883,8 @@ local TargetInfo = {
                 end
                 local emptyLabel = Instance.new("Frame")
                 emptyLabel.Size = UDim2.new(1, 0, 0, 25)
-                emptyLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-                emptyLabel.BackgroundTransparency = 1 -- Убрали фон
+                emptyLabel.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
+                emptyLabel.BackgroundTransparency = TargetInventorySettings.UIStyle == "New" and 0.4 or 1
                 emptyLabel.BorderSizePixel = 0
                 emptyLabel.Visible = true
                 emptyLabel.Parent = inventoryFrame
@@ -949,8 +935,8 @@ local TargetInfo = {
                 for i, item in ipairs(inventory) do
                     local itemContainer = Instance.new("Frame")
                     itemContainer.Size = UDim2.new(1, 0, 0, 25)
-                    itemContainer.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-                    itemContainer.BackgroundTransparency = 1 -- Убрали фон
+                    itemContainer.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
+                    itemContainer.BackgroundTransparency = TargetInventorySettings.UIStyle == "New" and 0.4 or 1
                     itemContainer.BorderSizePixel = 0
                     itemContainer.LayoutOrder = i
                     itemContainer.Visible = true
@@ -983,8 +969,8 @@ local TargetInfo = {
             else
                 local emptyLabel = Instance.new("Frame")
                 emptyLabel.Size = UDim2.new(1, 0, 0, 25)
-                emptyLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-                emptyLabel.BackgroundTransparency = 1 -- Убрали фон
+                emptyLabel.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
+                emptyLabel.BackgroundTransparency = TargetInventorySettings.UIStyle == "New" and 0.4 or 1
                 emptyLabel.BorderSizePixel = 0
                 emptyLabel.Visible = true
                 emptyLabel.Parent = inventoryFrame
