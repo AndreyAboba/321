@@ -194,14 +194,14 @@ local TargetInfo = {
 
         local iconLabel = Instance.new("ImageLabel")
         iconLabel.Size = UDim2.new(0, 20, 0, 20)
-        iconLabel.Position = UDim2.new(0, 25, 0, 5) -- Сдвинуто левее на 25
+        iconLabel.Position = UDim2.new(0, 15, 0, 5) -- Сдвинуто ещё левее на 15 (было 25)
         iconLabel.BackgroundTransparency = 1
         iconLabel.Image = "rbxassetid://13289068576"
         iconLabel.Parent = headerFrame
 
         local titleLabel = Instance.new("TextLabel")
         titleLabel.Size = UDim2.new(0, 150, 0, 20)
-        titleLabel.Position = UDim2.new(0, 50, 0, 5) -- Скорректировано под новую позицию иконки
+        titleLabel.Position = UDim2.new(0, 40, 0, 5) -- Скорректировано под новую позицию иконки (было 50)
         titleLabel.BackgroundTransparency = 1
         titleLabel.Text = "Target Inventory"
         titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -266,7 +266,7 @@ local TargetInfo = {
         local inventoryFrame = Instance.new("ScrollingFrame")
         inventoryFrame.Size = UDim2.new(1, -20, 0, 75)
         inventoryFrame.Position = UDim2.new(0, 10, 0, 70) -- Сдвинут вниз
-        inventoryFrame.BackgroundTransparency = 1
+        inventoryFrame.BackgroundTransparency = 1 -- Убраны лишние слои фона
         inventoryFrame.BorderSizePixel = 0
         inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
         inventoryFrame.ScrollBarThickness = 5
