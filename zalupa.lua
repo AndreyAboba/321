@@ -37,7 +37,7 @@ local TargetInfo = {
             AlwaysVisible = true,
             DistanceLimit = 0,
             TargetMode = "GunSilent Target",
-            AnalysisMode = "Level 3 (ImageID + Description)", -- Обновлённый режим
+            AnalysisMode = "Level 3 (ImageID + Description)", -- По умолчанию Level 3
             Enabled = false,
             AppearAnim = true,
             FOV = { Value = 100, Default = 100 },
@@ -243,56 +243,6 @@ local TargetInfo = {
         local fovCircleCorner = Instance.new("UICorner")
         fovCircleCorner.CornerRadius = UDim.new(1, 0)
         fovCircleCorner.Parent = fovCircle
-
-        -- Консоль вывода с прокруткой
-        local logScreenGui = Instance.new("ScreenGui")
-        logScreenGui.Name = "OutputLogGui"
-        logScreenGui.Parent = CoreGuiService
-        logScreenGui.ResetOnSpawn = false
-        logScreenGui.IgnoreGuiInset = true
-
-        local logFrame = Instance.new("Frame")
-        logFrame.Size = UDim2.new(0, 500, 0, 200)
-        logFrame.Position = UDim2.new(0, 50, 0, 450)
-        logFrame.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
-        logFrame.BackgroundTransparency = 0.3
-        logFrame.BorderSizePixel = 0
-        logFrame.Parent = logScreenGui
-
-        local logCorner = Instance.new("UICorner")
-        logCorner.CornerRadius = UDim.new(0, 10)
-        logCorner.Parent = logFrame
-
-        local logScrollFrame = Instance.new("ScrollingFrame")
-        logScrollFrame.Size = UDim2.new(0, 480, 0, 180)
-        logScrollFrame.Position = UDim2.new(0, 10, 0, 10)
-        logScrollFrame.BackgroundTransparency = 1
-        logScrollFrame.BorderSizePixel = 0
-        logScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-        logScrollFrame.ScrollBarThickness = 5
-        logScrollFrame.Parent = logFrame
-
-        local logListLayout = Instance.new("UIListLayout")
-        logListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-        logListLayout.Padding = UDim.new(0, 2)
-        logListLayout.Parent = logScrollFrame
-
-        local function logMessage(message)
-            local timestamp = os.date("%H:%M:%S")
-            local logEntry = Instance.new("TextLabel")
-            logEntry.Size = UDim2.new(1, 0, 0, 14)
-            logEntry.BackgroundTransparency = 1
-            logEntry.Text = "[" .. timestamp .. "] " .. message
-            logEntry.TextColor3 = Color3.fromRGB(255, 255, 255)
-            logEntry.TextSize = 12
-            logEntry.Font = Enum.Font.Gotham
-            logEntry.TextXAlignment = Enum.TextXAlignment.Left
-            logEntry.TextWrapped = true
-            logEntry.Parent = logScrollFrame
-
-            local entryCount = #logScrollFrame:GetChildren() - 1
-            logScrollFrame.CanvasSize = UDim2.new(0, 0, 0, entryCount * 16)
-        end
 
         -- Функции TargetHud
         local function UpdatePlayerIcon(target)
@@ -541,7 +491,6 @@ local TargetInfo = {
             if not IconCache[itemName] then
                 local Items = ReplicatedStorage:WaitForChild("Items", 5)
                 if not Items then
-                    logMessage("ReplicatedStorage.Items not found")
                     return ""
                 end
                 local GunItems = Items:WaitForChild("gun", 5)
@@ -551,7 +500,6 @@ local TargetInfo = {
                 local MiscItems = Items:WaitForChild("misc", 5)
 
                 if not (GunItems and MeleeItems and ThrowableItems and ConsumableItems and MiscItems) then
-                    logMessage("Some item categories missing in ReplicatedStorage.Items")
                     return ""
                 end
 
@@ -567,13 +515,12 @@ local TargetInfo = {
                     IconCache[itemName] = "rbxassetid://6966623635"
                 else
                     IconCache[itemName] = ""
-                    logMessage("No icon found for item: " .. itemName)
                 end
             end
             return IconCache[itemName]
         end
 
-        local function getItemDescription(item, context, targetName)
+        local function getItemDescription(item)
             local descObj1 = item:FindFirstChild("Description")
             local descObj2 = item:FindFirstChild("description")
             local descValueFromAttr1 = item:GetAttribute("Description")
@@ -584,16 +531,10 @@ local TargetInfo = {
             if descObj1 then
                 if descObj1:IsA("StringValue") then
                     descValue = descObj1.Value
-                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has StringValue Description: " .. tostring(descValue))
-                else
-                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has Description but not StringValue, type: " .. descObj1.ClassName)
                 end
             elseif descObj2 then
                 if descObj2:IsA("StringValue") then
                     descValue = descObj2.Value
-                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has StringValue description: " .. tostring(descValue))
-                else
-                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has description but not StringValue, type: " .. descObj2.ClassName)
                 end
             end
 
@@ -601,21 +542,15 @@ local TargetInfo = {
             if not descValue then
                 if descValueFromAttr1 then
                     descValue = descValueFromAttr1
-                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has attribute Description: " .. tostring(descValue))
                 elseif descValueFromAttr2 then
                     descValue = descValueFromAttr2
-                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has attribute description: " .. tostring(descValue))
                 end
-            end
-
-            if not descValue then
-                logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has no Description or description")
             end
 
             return descValue
         end
 
-        local function getImageId(item, context, targetName)
+        local function getImageId(item)
             local imageObj1 = item:FindFirstChild("ImageID")
             local imageObj2 = item:FindFirstChild("imageID")
             local imageValueFromAttr1 = item:GetAttribute("ImageID")
@@ -626,16 +561,10 @@ local TargetInfo = {
             if imageObj1 then
                 if imageObj1:IsA("StringValue") then
                     imageId = imageObj1.Value
-                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has StringValue ImageID: " .. tostring(imageId))
-                else
-                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has ImageID but not StringValue, type: " .. imageObj1.ClassName)
                 end
             elseif imageObj2 then
                 if imageObj2:IsA("StringValue") then
                     imageId = imageObj2.Value
-                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has StringValue imageID: " .. tostring(imageId))
-                else
-                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has imageID but not StringValue, type: " .. imageObj2.ClassName)
                 end
             end
 
@@ -643,118 +572,101 @@ local TargetInfo = {
             if not imageId then
                 if imageValueFromAttr1 then
                     imageId = imageValueFromAttr1
-                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has attribute ImageID: " .. tostring(imageId))
                 elseif imageValueFromAttr2 then
                     imageId = imageValueFromAttr2
-                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has attribute imageID: " .. tostring(imageId))
                 end
-            end
-
-            if not imageId then
-                logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has no ImageID or imageID")
             end
 
             return imageId
         end
 
-        local function isLocked(item, context, targetName)
+        local function getRarityName(item)
+            local rarityValue = item:GetAttribute("RarityName")
+            return rarityValue
+        end
+
+        local function getRarityColor(rarityName)
+            if rarityName == "Common" then
+                return Color3.fromRGB(255, 255, 255) -- Белый
+            elseif rarityName == "Uncommon" then
+                return Color3.fromRGB(0, 255, 0) -- Зелёный
+            elseif rarityName == "Rare" then
+                return Color3.fromRGB(0, 0, 255) -- Синий
+            elseif rarityName == "Epic" then
+                return Color3.fromRGB(128, 0, 128) -- Пурпурный
+            elseif rarityName == "Legendary" then
+                return Color3.fromRGB(255, 215, 0) -- Золотой
+            else
+                return Color3.fromRGB(255, 255, 255) -- Белый по умолчанию
+            end
+        end
+
+        local function isLocked(item)
             local lockedValue = item:GetAttribute("Locked")
             if lockedValue == nil then
-                logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has no Locked attribute")
                 return false
             end
             local isLockedBool = (lockedValue == true)
-            logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has Locked: " .. tostring(lockedValue) .. " (interpreted as " .. tostring(isLockedBool) .. ")")
             return isLockedBool
         end
 
         local function initializeItemDatabase()
             local Items = ReplicatedStorage:WaitForChild("Items", 5)
             if not Items then
-                logMessage("ReplicatedStorage.Items not found during database initialization")
                 return
             end
 
             local categories = {"gun", "melee", "throwable", "consumable", "misc"}
-            local totalItems = 0
             for _, category in pairs(categories) do
                 local categoryFolder = Items:WaitForChild(category, 5)
                 if categoryFolder then
-                    totalItems = totalItems + #categoryFolder:GetChildren()
-                end
-            end
-            logMessage("Total items to process: " .. totalItems)
-
-            local processedItems = 0
-            for _, category in pairs(categories) do
-                local categoryFolder = Items:WaitForChild(category, 5)
-                if categoryFolder then
-                    logMessage("Initializing database for category " .. category .. " with " .. #categoryFolder:GetChildren() .. " items")
                     for _, item in pairs(categoryFolder:GetChildren()) do
                         if item:IsA("Tool") then
-                            local description = getItemDescription(item, "Item in ReplicatedStorage", nil)
-                            local imageId = getImageId(item, "Item in ReplicatedStorage", nil)
-                            local locked = isLocked(item, "Item in ReplicatedStorage", nil)
+                            local description = getItemDescription(item)
+                            local imageId = getImageId(item)
+                            local locked = isLocked(item)
                             -- Пропускаем предметы с Locked == true
                             if locked then
-                                logMessage("Skipping item " .. item.Name .. " (Locked: true)")
-                                processedItems = processedItems + 1
                                 continue
                             end
                             ItemDatabase[item.Name] = {
                                 Description = description,
                                 ImageId = imageId
                             }
-                            processedItems = processedItems + 1
-                            if processedItems % 10 == 0 then
-                                logMessage("Processed " .. processedItems .. "/" .. totalItems .. " items")
-                                task.wait()
-                            end
                         end
                     end
-                else
-                    logMessage("Category " .. category .. " not found in ReplicatedStorage.Items")
                 end
             end
-            logMessage("Item database initialized with " .. processedItems .. " entries")
         end
 
         local function getItemNameByDescriptionOrImageId(description, imageId)
             if not description and not imageId then
-                logMessage("No description or ImageID provided for item lookup")
                 return nil
             end
 
             local mode = TargetInventorySettings.AnalysisMode
-            logMessage("Using analysis mode: " .. mode)
 
             if mode == "Level 1 (Description)" then
                 -- Используем только Description
                 if not description then
-                    logMessage("No description provided in Level 1 mode")
                     return nil
                 end
                 for itemName, data in pairs(ItemDatabase) do
                     if data.Description and data.Description == description then
-                        logMessage("Found match by description: " .. itemName .. " for description " .. tostring(description))
                         return itemName
                     end
                 end
-                logMessage("No item found with description: " .. tostring(description))
                 return nil
             elseif mode == "Level 2 (ImageID)" then
                 -- Используем только ImageId
                 if not imageId then
-                    logMessage("No ImageID provided in Level 2 mode")
                     return nil
                 end
                 for itemName, data in pairs(ItemDatabase) do
                     if data.ImageId and data.ImageId == imageId then
-                        logMessage("Found match by ImageID: " .. itemName .. " for ImageID " .. tostring(imageId))
                         return itemName
                     end
                 end
-                logMessage("No item found with ImageID: " .. tostring(imageId))
                 return nil
             else
                 -- Level 3 (ImageID + Description)
@@ -762,7 +674,6 @@ local TargetInfo = {
                 if description then
                     for itemName, data in pairs(ItemDatabase) do
                         if data.Description and data.Description == description then
-                            logMessage("Found match by description: " .. itemName .. " for description " .. tostring(description))
                             return itemName
                         end
                     end
@@ -772,29 +683,25 @@ local TargetInfo = {
                 if imageId then
                     for itemName, data in pairs(ItemDatabase) do
                         if data.ImageId and data.ImageId == imageId then
-                            logMessage("Found match by ImageID: " .. itemName .. " for ImageID " .. tostring(imageId))
                             return itemName
                         end
                     end
                 end
 
-                logMessage("No item found with description: " .. tostring(description) .. " or ImageID: " .. tostring(imageId))
                 return nil
             end
         end
 
         local function getTargetEquippedItem(target)
             if not target or not target.Character then
-                logMessage("No target or character found for equipped item check")
-                return "None", nil
+                return "None", nil, nil
             end
             local character = target.Character
             local equippedItem = nil
             for _, item in pairs(character:GetChildren()) do
                 if item:IsA("Tool") then
-                    local locked = isLocked(item, "Equipped item", target.Name)
+                    local locked = isLocked(item)
                     if locked then
-                        logMessage("Ignoring item " .. item.Name .. " for target " .. target.Name .. " (Locked: true)")
                         continue
                     end
                     equippedItem = item
@@ -802,62 +709,53 @@ local TargetInfo = {
                 end
             end
             if not equippedItem then
-                logMessage("No equipped item found for target " .. target.Name)
-                return "None", nil
+                return "None", nil, nil
             end
 
-            local description = getItemDescription(equippedItem, "Equipped item", target.Name)
-            local imageId = getImageId(equippedItem, "Equipped item", target.Name)
+            local description = getItemDescription(equippedItem)
+            local imageId = getImageId(equippedItem)
+            local rarityName = getRarityName(equippedItem)
             local itemName
             if description or imageId then
                 itemName = getItemNameByDescriptionOrImageId(description, imageId) or equippedItem.Name
-                logMessage("Equipped item for " .. target.Name .. ": " .. itemName .. " (Description: " .. tostring(description) .. ", ImageID: " .. tostring(imageId) .. ")")
             else
                 itemName = equippedItem.Name
-                logMessage("Equipped item for " .. target.Name .. ": " .. itemName .. " (No description or ImageID found)")
             end
-            return itemName, itemName
+            return itemName, itemName, rarityName
         end
 
         local function getTargetInventory(target)
             if not target then
-                logMessage("No target for inventory check")
                 return {}
             end
             local backpack = target:FindFirstChild("Backpack")
             if not backpack then
-                logMessage("No backpack found for target " .. target.Name)
                 return {}
             end
             local _, equippedItemName = getTargetEquippedItem(target)
             local items = {}
             for _, item in pairs(backpack:GetChildren()) do
                 if item:IsA("Tool") then
-                    local locked = isLocked(item, "Inventory item", target.Name)
+                    local locked = isLocked(item)
                     if locked then
-                        logMessage("Ignoring item " .. item.Name .. " in inventory for target " .. target.Name .. " (Locked: true)")
                         continue
                     end
                     if item.Name ~= equippedItemName then
-                        local description = getItemDescription(item, "Inventory item", target.Name)
-                        local imageId = getImageId(item, "Inventory item", target.Name)
+                        local description = getItemDescription(item)
+                        local imageId = getImageId(item)
+                        local rarityName = getRarityName(item)
                         local itemName
                         if description or imageId then
                             itemName = getItemNameByDescriptionOrImageId(description, imageId) or item.Name
-                            logMessage("Inventory item for " .. target.Name .. ": " .. itemName .. " (Description: " .. tostring(description) .. ", ImageID: " .. tostring(imageId) .. ")")
                         else
                             itemName = item.Name
-                            logMessage("Inventory item for " .. target.Name .. ": " .. itemName .. " (No description or ImageID found)")
                         end
                         if itemName then
-                            table.insert(items, { Name = itemName, Icon = getItemIcon(itemName) })
-                        else
-                            logMessage("Skipping item with no valid name: " .. item.Name)
+                            table.insert(items, { Name = itemName, Icon = getItemIcon(itemName), Rarity = rarityName })
                         end
                     end
                 end
             end
-            logMessage("Total inventory items found for " .. target.Name .. ": " .. #items)
             return items
         end
 
@@ -865,7 +763,6 @@ local TargetInfo = {
             local localPlayer = Core.PlayerData.LocalPlayer
             local localCharacter = localPlayer.Character
             if not localCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") then
-                logMessage("No local character or HumanoidRootPart found")
                 return nil
             end
             local localPos = localCharacter.HumanoidRootPart.Position
@@ -894,31 +791,26 @@ local TargetInfo = {
                     end
                 end
             end
-            logMessage("Nearest player to mouse: " .. (nearestPlayer and nearestPlayer.Name or "None"))
             return nearestPlayer
         end
 
         local function isGunEquipped()
             local character = Core.PlayerData.LocalPlayer.Character
             if not character then
-                logMessage("No character found for gun check")
                 return false
             end
             for _, child in pairs(character:GetChildren()) do
                 if child:IsA("Tool") then
                     local Items = ReplicatedStorage:WaitForChild("Items", 5)
                     if not Items then
-                        logMessage("ReplicatedStorage.Items not found for gun check")
                         return false
                     end
                     local gunItem = Items:WaitForChild("gun", 5) and Items.gun:FindFirstChild(child.Name)
                     if gunItem then
-                        logMessage("Gun equipped: " .. child.Name)
                         return true
                     end
                 end
             end
-            logMessage("No gun equipped")
             return false
         end
 
@@ -991,7 +883,6 @@ local TargetInfo = {
         local function updateTargetInventoryView()
             if not TargetInventorySettings.Enabled then
                 invFrame.Visible = false
-                logMessage("TargetInventory disabled")
                 return
             end
 
@@ -1014,17 +905,14 @@ local TargetInfo = {
 
             if target and (not target.Character or not target.Character:FindFirstChild("Humanoid") or target.Character.Humanoid.Health <= 0) then
                 target = nil
-                logMessage("Target invalidated: No character, Humanoid, or health <= 0")
             end
 
             local shouldBeVisible = TargetInventorySettings.AlwaysVisible or (target ~= nil)
             if shouldBeVisible and not invFrame.Visible then
                 invFrame.Visible = true
                 playAppearAnimation()
-                logMessage("TargetInventory made visible for target: " .. (target and target.Name or "None"))
             elseif not shouldBeVisible then
                 invFrame.Visible = false
-                logMessage("TargetInventory hidden")
                 return
             end
 
@@ -1032,20 +920,18 @@ local TargetInfo = {
                 return
             end
             TargetInventorySettings.LastTarget = target
-            logMessage("New target detected: " .. (target and target.Name or "None"))
 
             if TargetInventorySettings.ShowNick then
                 nickLabel.Text = target and target.Name or "No Target"
                 nickLabel.Visible = true
-                logMessage("Showing nick: " .. (target and target.Name or "No Target"))
             else
                 nickLabel.Visible = false
-                logMessage("Nick hidden")
             end
 
             if not target then
                 equippedLabel.Text = "Equipped: No Target"
                 equippedIcon.Image = ""
+                equippedIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
                 equippedLabel.Position = UDim2.new(0, 0, 0, 0)
                 for _, child in pairs(inventoryFrame:GetChildren()) do
                     if child:IsA("Frame") then child:Destroy() end
@@ -1064,20 +950,19 @@ local TargetInfo = {
                 emptyText.TextXAlignment = Enum.TextXAlignment.Left
                 emptyText.Parent = emptyLabel
                 inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, 20)
-                logMessage("No target, setting default UI")
                 return
             end
 
-            local equippedItem, equippedItemName = getTargetEquippedItem(target)
+            local equippedItem, equippedItemName, rarityName = getTargetEquippedItem(target)
             equippedLabel.Text = "Equipped: " .. equippedItem
             if equippedItemName then
                 equippedIcon.Image = getItemIcon(equippedItemName)
+                equippedIcon.ImageColor3 = getRarityColor(rarityName)
                 equippedLabel.Position = UDim2.new(0, 25, 0, 0)
-                logMessage("Equipped item set: " .. equippedItem)
             else
                 equippedIcon.Image = ""
+                equippedIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
                 equippedLabel.Position = UDim2.new(0, 0, 0, 0)
-                logMessage("No equipped item found")
             end
 
             for _, child in pairs(inventoryFrame:GetChildren()) do
@@ -1098,6 +983,7 @@ local TargetInfo = {
                     itemIcon.Position = UDim2.new(0, 0, 0, 0)
                     itemIcon.BackgroundTransparency = 1
                     itemIcon.Image = item.Icon
+                    itemIcon.ImageColor3 = getRarityColor(item.Rarity)
                     itemIcon.Parent = itemContainer
 
                     local itemLabel = Instance.new("TextLabel")
@@ -1112,7 +998,6 @@ local TargetInfo = {
                     itemLabel.Parent = itemContainer
                 end
                 inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, #inventory * 22)
-                logMessage("Inventory updated with " .. #inventory .. " items")
             else
                 local emptyLabel = Instance.new("Frame")
                 emptyLabel.Size = UDim2.new(1, 0, 0, 20)
@@ -1128,7 +1013,6 @@ local TargetInfo = {
                 emptyText.TextXAlignment = Enum.TextXAlignment.Left
                 emptyText.Parent = emptyLabel
                 inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, 20)
-                logMessage("No inventory items found")
             end
         end
 
@@ -1165,39 +1049,6 @@ local TargetInfo = {
             end
         end)
 
-        -- Перетаскивание для Output Log
-        local logDragging = false
-        local logDragStart = nil
-        local logStartPos = nil
-
-        UserInputService.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 and logFrame.Visible then
-                local mousePos = UserInputService:GetMouseLocation()
-                local logPos = logFrame.Position
-                local logSize = logFrame.Size
-                if mousePos.X >= logPos.X.Offset and mousePos.X <= logPos.X.Offset + logSize.X.Offset and
-                   mousePos.Y >= logPos.Y.Offset and mousePos.Y <= logPos.Y.Offset + logSize.Y.Offset then
-                    logDragging = true
-                    logDragStart = mousePos
-                    logStartPos = logPos
-                end
-            end
-        end)
-
-        UserInputService.InputChanged:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseMovement and logDragging then
-                local mousePos = UserInputService:GetMouseLocation()
-                local delta = mousePos - logDragStart
-                logFrame.Position = UDim2.new(0, logStartPos.X.Offset + delta.X, 0, logStartPos.Y.Offset + delta.Y)
-            end
-        end)
-
-        UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                logDragging = false
-            end
-        end)
-
         -- UI для TargetHud
         if UI.Tabs.Visuals then
             UI.Sections.TargetHud = UI.Tabs.Visuals:Section({ Name = "Target HUD", Side = "Left" })
@@ -1210,7 +1061,6 @@ local TargetInfo = {
                         TargetHud.Settings.Enabled.Value = value
                         notify("Target HUD", "Target HUD " .. (value and "Enabled" or "Disabled"), true)
                         UpdateHudPreview()
-                        logMessage("Target HUD " .. (value and "enabled" or "disabled"))
                     end
                 }, 'TGEnabled')
                 UI.Sections.TargetHud:Toggle({
@@ -1220,7 +1070,6 @@ local TargetInfo = {
                         TargetHud.Settings.Preview.Value = value
                         notify("Target HUD", "Preview " .. (value and "Enabled" or "Disabled"), true)
                         UpdateHudPreview()
-                        logMessage("Target HUD Preview " .. (value and "enabled" or "disabled"))
                     end
                 }, 'TPreview')
                 UI.Sections.TargetHud:Slider({
@@ -1232,7 +1081,6 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetHud.Settings.AvatarPulseDuration.Value = value
                         notify("Target HUD", "Avatar Pulse Duration set to: " .. value)
-                        logMessage("Avatar Pulse CD set to: " .. value)
                     end
                 }, 'TAvatarPulseCD')
                 UI.Sections.TargetHud:Slider({
@@ -1244,7 +1092,6 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetHud.Settings.DamageAnimationCooldown.Value = value
                         notify("Target HUD", "Damage Animation Cooldown set to: " .. value)
-                        logMessage("DamageAnim Cd set to: " .. value)
                     end
                 }, 'TDamageAnimCD')
                 UI.Sections.TargetHud:Toggle({
@@ -1253,7 +1100,6 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetHud.Settings.OrbsEnabled.Value = value
                         notify("Target HUD", "Orbs " .. (value and "Enabled" or "Disabled"), true)
-                        logMessage("Orbs " .. (value and "enabled" or "disabled"))
                     end
                 }, 'TOrbsEnabled')
                 UI.Sections.TargetHud:Slider({
@@ -1265,7 +1111,6 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetHud.Settings.OrbCount.Value = value
                         notify("Target HUD", "Orb Count set to: " .. value)
-                        logMessage("Orb Count set to: " .. value)
                     end
                 }, 'TORBCount')
                 UI.Sections.TargetHud:Slider({
@@ -1277,7 +1122,6 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetHud.Settings.OrbLifetime.Value = value
                         notify("Target HUD", "Orb Lifetime set to: " .. value)
-                        logMessage("Orb Lifetime set to: " .. value)
                     end
                 }, 'TOrbLifetime')
                 UI.Sections.TargetHud:Slider({
@@ -1289,7 +1133,6 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetHud.Settings.OrbFadeDuration.Value = value
                         notify("Target HUD", "Orb Fade Duration set to: " .. value)
-                        logMessage("OrbFade Duration set to: " .. value)
                     end
                 }, 'TOrbFadeDuration')
                 UI.Sections.TargetHud:Slider({
@@ -1301,7 +1144,6 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetHud.Settings.OrbMoveDistance.Value = value
                         notify("Target HUD", "Orb Move Distance set to: " .. value)
-                        logMessage("Orb Move Distance set to: " .. value)
                     end
                 }, 'TOrbMoveDistance')
             end
@@ -1317,7 +1159,6 @@ local TargetInfo = {
                         TargetInventorySettings.Enabled = value
                         invFrame.Visible = value and TargetInventorySettings.AlwaysVisible
                         notify("Target Inventory", "Target Inventory " .. (value and "Enabled" or "Disabled"), true)
-                        logMessage("Target Inventory " .. (value and "enabled" or "disabled"))
                     end
                 }, 'TEnabled')
                 UI.Sections.TargetInventory:Toggle({
@@ -1326,7 +1167,6 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetInventorySettings.ShowNick = value
                         notify("Target Inventory", "Show Nick " .. (value and "Enabled" or "Disabled"), true)
-                        logMessage("Show Nick " .. (value and "enabled" or "disabled"))
                     end
                 }, 'ShowNickT')
                 UI.Sections.TargetInventory:Toggle({
@@ -1338,7 +1178,6 @@ local TargetInfo = {
                             invFrame.Visible = value
                         end
                         notify("Target Inventory", "Always Visible " .. (value and "Enabled" or "Disabled"), true)
-                        logMessage("Always Visible " .. (value and "enabled" or "disabled"))
                     end
                 }, 'AlwaysVisible')
                 UI.Sections.TargetInventory:Slider({
@@ -1350,7 +1189,6 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetInventorySettings.DistanceLimit = value
                         notify("Target Inventory", "Distance Limit set to " .. value)
-                        logMessage("Distance Limit set to: " .. value)
                     end
                 }, 'TDistanceLimit')
                 UI.Sections.TargetInventory:Dropdown({
@@ -1360,17 +1198,15 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetInventorySettings.TargetMode = value
                         notify("Target Inventory", "Target Mode set to " .. value, true)
-                        logMessage("Target Mode set to: " .. value)
                     end
                 }, 'GTargetMode')
                 UI.Sections.TargetInventory:Dropdown({
                     Name = "Analysis Mode",
-                    Options = {"Level 1 (Description)", "Level 2 (ImageID)", "Level 3 (ImageID + Description)"},
+                    Options = {"Level 3 (ImageID + Description)", "Level 1 (Description)", "Level 2 (ImageID)"},
                     Default = TargetInventorySettings.AnalysisMode,
                     Callback = function(value)
                         TargetInventorySettings.AnalysisMode = value
                         notify("Target Inventory", "Analysis Mode set to " .. value, true)
-                        logMessage("Analysis Mode set to: " .. value)
                     end
                 }, 'AnalysisMode')
                 UI.Sections.TargetInventory:Slider({
@@ -1382,7 +1218,6 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetInventorySettings.FOV.Value = value
                         notify("Target Inventory", "FOV set to: " .. value)
-                        logMessage("FOV set to: " .. value)
                     end
                 }, 'TFOV')
                 UI.Sections.TargetInventory:Toggle({
@@ -1391,7 +1226,6 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetInventorySettings.ShowCircle.Value = value
                         notify("Target Inventory", "FOV Circle " .. (value and "Enabled" or "Disabled"), true)
-                        logMessage("Show FOV Circle " .. (value and "enabled" or "disabled"))
                     end
                 }, 'TShowFOVCircle')
                 UI.Sections.TargetInventory:Toggle({
@@ -1400,7 +1234,6 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetInventorySettings.CircleGradient.Value = value
                         notify("Target Inventory", "Circle Gradient " .. (value and "Enabled" or "Disabled"), true)
-                        logMessage("Circle Gradient " .. (value and "enabled" or "disabled"))
                     end
                 }, 'CircleTGradient')
                 UI.Sections.TargetInventory:Dropdown({
@@ -1410,23 +1243,8 @@ local TargetInfo = {
                     Callback = function(value)
                         TargetInventorySettings.CircleMethod.Value = value
                         notify("Target Inventory", "Circle Method set to: " .. value, true)
-                        logMessage("Circle Method set to: " .. value)
                     end
                 }, 'CircleMethod')
-            end
-
-            -- UI для Output Log
-            UI.Sections.OutputLog = UI.Tabs.Visuals:Section({ Name = "Output Log", Side = "Right" })
-            if UI.Sections.OutputLog then
-                UI.Sections.OutputLog:Header({ Name = "Output Log" })
-                UI.Sections.OutputLog:Toggle({
-                    Name = "Visible",
-                    Default = true,
-                    Callback = function(value)
-                        logFrame.Visible = value
-                        logMessage("Output Log " .. (value and "shown" or "hidden"))
-                    end
-                }, 'LogVisible')
             end
         end
 
