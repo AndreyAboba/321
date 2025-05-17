@@ -722,7 +722,6 @@ local TargetInfo = {
             TargetInventorySettings.LastFovUpdateTime = currentTime
 
             local mousePos = TargetInventorySettings.LastMousePosition or UserInputService:GetMouseLocation()
-            TargetInventorySettings.LastMousePosition = mousePos
 
             fovCircle.Visible = true
             fovCircle.Size = UDim2.new(0, TargetInventorySettings.FOV.Value, 0, TargetInventorySettings.FOV.Value)
@@ -892,11 +891,13 @@ local TargetInfo = {
         end)
 
         UserInputService.InputChanged:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseMovement and invDragging then
-                local mousePos = UserInputService:GetMouseLocation()
-                TargetInventorySettings.LastMousePosition = mousePos
-                local delta = mousePos - invDragStart
-                invFrame.Position = UDim2.new(0, invStartPos.X.Offset + delta.X, 0, invStartPos.Y.Offset + delta.Y)
+            if input.UserInputType == Enum.UserInputType.MouseMovement then
+                TargetInventorySettings.LastMousePosition = UserInputService:GetMouseLocation()
+                if invDragging then
+                    local mousePos = TargetInventorySettings.LastMousePosition
+                    local delta = mousePos - invDragStart
+                    invFrame.Position = UDim2.new(0, invStartPos.X.Offset + delta.X, 0, invStartPos.Y.Offset + delta.Y)
+                end
             end
         end)
 
@@ -1108,14 +1109,14 @@ local TargetInfo = {
         -- Инициализация базы данных
         initializeItemDatabase()
 
-        -- Обновление TargetInventory, TargetHud и позиции круга FOV
+        -- Обновление TargetInventory и TargetHud
         RunService.Stepped:Connect(function()
             if TargetHud.Settings.Enabled.Value then UpdateTargetHud() end
-            if TargetInventorySettings.Enabled then
-                updateTargetInventoryView()
-                updateFovCirclePosition()
-            end
+            if TargetInventorySettings.Enabled then updateTargetInventoryView() end
         end)
+
+        -- Обновление позиции круга FOV
+        RunService.RenderStepped:Connect(updateFovCirclePosition)
 
         -- Очистка при выгрузке
     end
