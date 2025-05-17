@@ -45,9 +45,9 @@ local TargetInfo = {
             CircleGradient = { Value = false, Default = false },
             LastTarget = nil,
             LastUpdateTime = 0,
-            UpdateInterval = 0.5, -- Оптимизированный интервал
+            UpdateInterval = 0.5,
             LastFovUpdateTime = 0,
-            FovUpdateInterval = 1/30 -- ~30 FPS для круга FOV
+            FovUpdateInterval = 1/30
         }
 
         -- База данных предметов
@@ -243,7 +243,7 @@ local TargetInfo = {
         fovCircleCorner.CornerRadius = UDim.new(1, 0)
         fovCircleCorner.Parent = fovCircle
 
-        -- Консоль вывода с прокруткой (увеличиваем ширину)
+        -- Консоль вывода с прокруткой
         local logScreenGui = Instance.new("ScreenGui")
         logScreenGui.Name = "OutputLogGui"
         logScreenGui.Parent = Core.Services.CoreGuiService
@@ -251,7 +251,7 @@ local TargetInfo = {
         logScreenGui.IgnoreGuiInset = true
 
         local logFrame = Instance.new("Frame")
-        logFrame.Size = UDim2.new(0, 500, 0, 200) -- Увеличиваем ширину до 500
+        logFrame.Size = UDim2.new(0, 500, 0, 200)
         logFrame.Position = UDim2.new(0, 50, 0, 450)
         logFrame.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
         logFrame.BackgroundTransparency = 0.3
@@ -263,7 +263,7 @@ local TargetInfo = {
         logCorner.Parent = logFrame
 
         local logScrollFrame = Instance.new("ScrollingFrame")
-        logScrollFrame.Size = UDim2.new(0, 480, 0, 180) -- Увеличиваем ширину до 480
+        logScrollFrame.Size = UDim2.new(0, 480, 0, 180)
         logScrollFrame.Position = UDim2.new(0, 10, 0, 10)
         logScrollFrame.BackgroundTransparency = 1
         logScrollFrame.BorderSizePixel = 0
@@ -289,7 +289,7 @@ local TargetInfo = {
             logEntry.TextWrapped = true
             logEntry.Parent = logScrollFrame
 
-            local entryCount = #logScrollFrame:GetChildren() - 1 -- Вычитаем UIListLayout
+            local entryCount = #logScrollFrame:GetChildren() - 1
             logScrollFrame.CanvasSize = UDim2.new(0, 0, 0, entryCount * 16)
         end
 
@@ -574,14 +574,18 @@ local TargetInfo = {
 
         local function getItemTextureId(item, context, targetName)
             local textureId = nil
-            -- Проверяем атрибут TextureId
-            textureId = item:GetAttribute("TextureId")
-            if textureId then
-                logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has attribute TextureId: " .. tostring(textureId))
-                return textureId
+            -- Проверяем Data у предмета
+            local data = item:FindFirstChild("Data")
+            if data then
+                textureId = data:FindFirstChild("TextureId")
+                if textureId and textureId:IsA("StringValue") then
+                    textureId = textureId.Value
+                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has TextureId in Data: " .. tostring(textureId))
+                    return textureId
+                end
             end
 
-            -- Проверяем дочерние объекты (например, Handle с Decal)
+            -- Проверяем Handle с Decal
             local handle = item:FindFirstChild("Handle")
             if handle then
                 local decal = handle:FindFirstChildOfClass("Decal")
@@ -592,13 +596,17 @@ local TargetInfo = {
                 end
             end
 
-            -- Проверяем в Configuration
+            -- Проверяем Data в Configuration
             local config = item:FindFirstChild("Configuration")
             if config then
-                textureId = config:GetAttribute("TextureId")
-                if textureId then
-                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has attribute TextureId in Configuration: " .. tostring(textureId))
-                    return textureId
+                local configData = config:FindFirstChild("Data")
+                if configData then
+                    textureId = configData:FindFirstChild("TextureId")
+                    if textureId and textureId:IsA("StringValue") then
+                        textureId = textureId.Value
+                        logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has TextureId in Configuration Data: " .. tostring(textureId))
+                        return textureId
+                    end
                 end
             end
 
@@ -641,18 +649,21 @@ local TargetInfo = {
                 end
             end
 
-            -- Проверяем другие дочерние объекты, которые могут содержать описание
+            -- Проверяем Data в Configuration
             if not descValue then
                 local config = item:FindFirstChild("Configuration")
                 if config then
-                    local configDesc1 = config:FindFirstChild("Description")
-                    local configDesc2 = config:FindFirstChild("description")
-                    if configDesc1 and configDesc1:IsA("StringValue") then
-                        descValue = configDesc1.Value
-                        logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has StringValue Description in Configuration: " .. tostring(descValue))
-                    elseif configDesc2 and configDesc2:IsA("StringValue") then
-                        descValue = configDesc2.Value
-                        logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has StringValue description in Configuration: " .. tostring(descValue))
+                    local configData = config:FindFirstChild("Data")
+                    if configData then
+                        local configDesc1 = configData:FindFirstChild("Description")
+                        local configDesc2 = configData:FindFirstChild("description")
+                        if configDesc1 and configDesc1:IsA("StringValue") then
+                            descValue = configDesc1.Value
+                            logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has StringValue Description in Configuration Data: " .. tostring(descValue))
+                        elseif configDesc2 and configDesc2:IsA("StringValue") then
+                            descValue = configDesc2.Value
+                            logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has StringValue description in Configuration Data: " .. tostring(descValue))
+                        end
                     end
                 end
             end
@@ -695,7 +706,7 @@ local TargetInfo = {
                                 TextureId = textureId
                             }
                             processedItems = processedItems + 1
-                            if processedItems % 10 == 0 then -- Логируем прогресс каждые 10 предметов
+                            if processedItems % 10 == 0 then
                                 logMessage("Processed " .. processedItems .. "/" .. totalItems .. " items")
                                 task.wait() -- Даем время на обработку, чтобы избежать лагов
                             end
@@ -739,7 +750,7 @@ local TargetInfo = {
                     local textureId = getItemTextureId(item, "Equipped item", target.Name)
                     if textureId == "rbxassetid://116170302967943" then
                         logMessage("Ignoring Fists for target " .. target.Name)
-                        continue -- Игнорируем Fists
+                        continue
                     end
                     if item.Name:lower() ~= "fists" then
                         equippedItem = item
@@ -782,7 +793,7 @@ local TargetInfo = {
                     local textureId = getItemTextureId(item, "Inventory item", target.Name)
                     if textureId == "rbxassetid://116170302967943" then
                         logMessage("Ignoring Fists in inventory for target " .. target.Name)
-                        continue -- Игнорируем Fists
+                        continue
                     end
                     if item.Name:lower() ~= "fists" and item.Name ~= equippedItemName then
                         local description = getItemDescription(item, "Inventory item", target.Name)
@@ -974,7 +985,7 @@ local TargetInfo = {
             end
 
             if TargetInventorySettings.LastTarget == target then
-                return -- Кэшируем, если цель не изменилась
+                return
             end
             TargetInventorySettings.LastTarget = target
             logMessage("New target detected: " .. (target and target.Name or "None"))
