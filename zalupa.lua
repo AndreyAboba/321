@@ -591,19 +591,28 @@ local TargetInfo = {
                 end
                 for _, item in pairs(categoryFolder:GetChildren()) do
                     if item:IsA("Tool") then
-                        -- Проверяем атрибуты через GetAttribute
-                        local possibleDescriptions = {"Description", "description", "Desc", "desc"}
+                        local descObj1 = item:FindFirstChild("Description")
+                        local descObj2 = item:FindFirstChild("description")
+                        local descValueFromAttr1 = item:GetAttribute("Description")
+                        local descValueFromAttr2 = item:GetAttribute("description")
                         local descValue = nil
-                        for _, attrName in pairs(possibleDescriptions) do
-                            descValue = item:GetAttribute(attrName)
-                            if descValue then
-                                logMessage("Item " .. item.Name .. " in category " .. category .. " has attribute " .. attrName .. ": " .. tostring(descValue))
-                                break
-                            end
+
+                        if descObj1 and descObj1:IsA("StringValue") then
+                            descValue = descObj1.Value
+                            logMessage("Item " .. item.Name .. " in category " .. category .. " has StringValue Description: " .. tostring(descValue))
+                        elseif descObj2 and descObj2:IsA("StringValue") then
+                            descValue = descObj2.Value
+                            logMessage("Item " .. item.Name .. " in category " .. category .. " has StringValue description: " .. tostring(descValue))
+                        elseif descValueFromAttr1 then
+                            descValue = descValueFromAttr1
+                            logMessage("Item " .. item.Name .. " in category " .. category .. " has attribute Description: " .. tostring(descValue))
+                        elseif descValueFromAttr2 then
+                            descValue = descValueFromAttr2
+                            logMessage("Item " .. item.Name .. " in category " .. category .. " has attribute description: " .. tostring(descValue))
+                        else
+                            logMessage("Item " .. item.Name .. " in category " .. category .. " has no Description or description")
                         end
-                        -- Дополнительно логируем все атрибуты предмета
-                        local allAttributes = item:GetAttributes()
-                        logMessage("All attributes for item " .. item.Name .. " in category " .. category .. ": " .. (next(allAttributes) and table.concat(table.create(0, allAttributes), ", ") or "none"))
+
                         if descValue and descValue == description then
                             logMessage("Matched description for item " .. item.Name)
                             return item.Name
@@ -633,20 +642,28 @@ local TargetInfo = {
                 return "None", nil
             end
 
-            -- Проверяем атрибуты через GetAttribute
-            local possibleDescriptions = {"Description", "description", "Desc", "desc"}
+            local descObj1 = equippedItem:FindFirstChild("Description")
+            local descObj2 = equippedItem:FindFirstChild("description")
+            local descValueFromAttr1 = equippedItem:GetAttribute("Description")
+            local descValueFromAttr2 = equippedItem:GetAttribute("description")
             local description = nil
-            for _, attrName in pairs(possibleDescriptions) do
-                description = equippedItem:GetAttribute(attrName)
-                if description then
-                    logMessage("Equipped item " .. equippedItem.Name .. " for " .. target.Name .. " has attribute " .. attrName .. ": " .. tostring(description))
-                    break
-                end
+
+            if descObj1 and descObj1:IsA("StringValue") then
+                description = descObj1.Value
+                logMessage("Equipped item " .. equippedItem.Name .. " for " .. target.Name .. " has StringValue Description: " .. tostring(description))
+            elseif descObj2 and descObj2:IsA("StringValue") then
+                description = descObj2.Value
+                logMessage("Equipped item " .. equippedItem.Name .. " for " .. target.Name .. " has StringValue description: " .. tostring(description))
+            elseif descValueFromAttr1 then
+                description = descValueFromAttr1
+                logMessage("Equipped item " .. equippedItem.Name .. " for " .. target.Name .. " has attribute Description: " .. tostring(description))
+            elseif descValueFromAttr2 then
+                description = descValueFromAttr2
+                logMessage("Equipped item " .. equippedItem.Name .. " for " .. target.Name .. " has attribute description: " .. tostring(description))
+            else
+                logMessage("Equipped item " .. equippedItem.Name .. " for " .. target.Name .. " has no Description or description")
             end
-            -- Логируем все атрибуты предмета
-            local allAttributes = equippedItem:GetAttributes()
-            logMessage("All attributes for equipped item " .. equippedItem.Name .. " of " .. target.Name .. ": " .. (next(allAttributes) and table.concat(table.create(0, allAttributes), ", ") or "none"))
-            
+
             local itemName
             if description then
                 itemName = getItemNameByDescription(description) or equippedItem.Name
@@ -672,20 +689,28 @@ local TargetInfo = {
             local items = {}
             for _, item in pairs(backpack:GetChildren()) do
                 if item:IsA("Tool") and item.Name:lower() ~= "fists" and item.Name ~= equippedItemName then
-                    -- Проверяем атрибуты через GetAttribute
-                    local possibleDescriptions = {"Description", "description", "Desc", "desc"}
+                    local descObj1 = item:FindFirstChild("Description")
+                    local descObj2 = item:FindFirstChild("description")
+                    local descValueFromAttr1 = item:GetAttribute("Description")
+                    local descValueFromAttr2 = item:GetAttribute("description")
                     local description = nil
-                    for _, attrName in pairs(possibleDescriptions) do
-                        description = item:GetAttribute(attrName)
-                        if description then
-                            logMessage("Inventory item " .. item.Name .. " for " .. target.Name .. " has attribute " .. attrName .. ": " .. tostring(description))
-                            break
-                        end
+
+                    if descObj1 and descObj1:IsA("StringValue") then
+                        description = descObj1.Value
+                        logMessage("Inventory item " .. item.Name .. " for " .. target.Name .. " has StringValue Description: " .. tostring(description))
+                    elseif descObj2 and descObj2:IsA("StringValue") then
+                        description = descObj2.Value
+                        logMessage("Inventory item " .. item.Name .. " for " .. target.Name .. " has StringValue description: " .. tostring(description))
+                    elseif descValueFromAttr1 then
+                        description = descValueFromAttr1
+                        logMessage("Inventory item " .. item.Name .. " for " .. target.Name .. " has attribute Description: " .. tostring(description))
+                    elseif descValueFromAttr2 then
+                        description = descValueFromAttr2
+                        logMessage("Inventory item " .. item.Name .. " for " .. target.Name .. " has attribute description: " .. tostring(description))
+                    else
+                        logMessage("Inventory item " .. item.Name .. " for " .. target.Name .. " has no Description or description")
                     end
-                    -- Логируем все атрибуты предмета
-                    local allAttributes = item:GetAttributes()
-                    logMessage("All attributes for inventory item " .. item.Name .. " of " .. target.Name .. ": " .. (next(allAttributes) and table.concat(table.create(0, allAttributes), ", ") or "none"))
-                    
+
                     local itemName
                     if description then
                         itemName = getItemNameByDescription(description) or item.Name
@@ -1275,17 +1300,27 @@ local TargetInfo = {
                 if folder then
                     logMessage("Found category " .. category .. " with " .. #folder:GetChildren() .. " items")
                     for _, item in pairs(folder:GetChildren()) do
-                        local possibleDescriptions = {"Description", "description", "Desc", "desc"}
+                        local descObj1 = item:FindFirstChild("Description")
+                        local descObj2 = item:FindFirstChild("description")
+                        local descValueFromAttr1 = item:GetAttribute("Description")
+                        local descValueFromAttr2 = item:GetAttribute("description")
                         local descValue = nil
-                        for _, attrName in pairs(possibleDescriptions) do
-                            descValue = item:GetAttribute(attrName)
-                            if descValue then
-                                logMessage("Item " .. item.Name .. " in category " .. category .. " has attribute " .. attrName .. ": " .. tostring(descValue))
-                                break
-                            end
+
+                        if descObj1 and descObj1:IsA("StringValue") then
+                            descValue = descObj1.Value
+                            logMessage("Item " .. item.Name .. " in category " .. category .. " has StringValue Description: " .. tostring(descValue))
+                        elseif descObj2 and descObj2:IsA("StringValue") then
+                            descValue = descObj2.Value
+                            logMessage("Item " .. item.Name .. " in category " .. category .. " has StringValue description: " .. tostring(descValue))
+                        elseif descValueFromAttr1 then
+                            descValue = descValueFromAttr1
+                            logMessage("Item " .. item.Name .. " in category " .. category .. " has attribute Description: " .. tostring(descValue))
+                        elseif descValueFromAttr2 then
+                            descValue = descValueFromAttr2
+                            logMessage("Item " .. item.Name .. " in category " .. category .. " has attribute description: " .. tostring(descValue))
+                        else
+                            logMessage("Item " .. item.Name .. " in category " .. category .. " has no Description or description")
                         end
-                        local allAttributes = item:GetAttributes()
-                        logMessage("All attributes for item " .. item.Name .. " in category " .. category .. ": " .. (next(allAttributes) and table.concat(table.create(0, allAttributes), ", ") or "none"))
                     end
                 else
                     logMessage("Category " .. category .. " not found in ReplicatedStorage.Items")
