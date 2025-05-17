@@ -37,7 +37,7 @@ local TargetInfo = {
             AlwaysVisible = true,
             DistanceLimit = 0,
             TargetMode = "GunSilent Target",
-            AnalysisMode = "Level 1 (Description)", -- Изменено на Level 1 по умолчанию
+            AnalysisMode = "Level 1 (Description)", -- Оставляем как Level 1 по умолчанию
             Enabled = false,
             AppearAnim = true,
             FOV = { Value = 100, Default = 100 },
@@ -181,44 +181,63 @@ local TargetInfo = {
         invFrame.Visible = false
         invFrame.Parent = invScreenGui
 
+        local invGradient = Instance.new("UIGradient")
+        invGradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(20, 30, 50)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(30, 40, 60)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 30, 50))
+        })
+        invGradient.Rotation = 90
+        invGradient.Parent = invFrame
+
         local invCorner = Instance.new("UICorner")
         invCorner.CornerRadius = UDim.new(0, 10)
         invCorner.Parent = invFrame
 
-        -- Верхняя полоска для стиля New (обновлённый стиль)
+        -- Верхняя полоска для стиля New (с улучшенным дизайном)
         local headerFrame = Instance.new("Frame")
         headerFrame.Size = UDim2.new(1, 0, 0, 30)
         headerFrame.Position = UDim2.new(0, 0, 0, 0)
-        headerFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10) -- Тёмный фон
-        headerFrame.BackgroundTransparency = 0
+        headerFrame.BackgroundColor3 = Color3.fromRGB(30, 40, 60)
+        headerFrame.BackgroundTransparency = 0.2
         headerFrame.BorderSizePixel = 0
         headerFrame.Visible = TargetInventorySettings.UIStyle == "New"
         headerFrame.Parent = invFrame
 
         local headerGradient = Instance.new("UIGradient")
         headerGradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 255, 255)), -- Неоновый циан
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 128, 255))  -- Неоновый синий
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(40, 50, 70)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(50, 60, 80)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(40, 50, 70))
         })
         headerGradient.Rotation = 45
         headerGradient.Parent = headerFrame
 
-        local headerStroke = Instance.new("UIStroke")
-        headerStroke.Color = Color3.fromRGB(0, 255, 255)
-        headerStroke.Thickness = 1
-        headerStroke.Transparency = 0.5
-        headerStroke.Parent = headerFrame
+        local headerShadow = Instance.new("UIShadow")
+        headerShadow.Color = Color3.fromRGB(0, 0, 0)
+        headerShadow.Offset = Vector2.new(2, 2)
+        headerShadow.Opacity = 0.5
+        headerShadow.Parent = headerFrame
 
         local headerCorner = Instance.new("UICorner")
         headerCorner.CornerRadius = UDim.new(0, 10)
         headerCorner.Parent = headerFrame
+
+        -- Анимация "дыхания" для headerFrame
+        local function animateHeader()
+            local tweenInfo = TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+            TweenService:Create(headerFrame, tweenInfo, { BackgroundTransparency = 0.4 }):Play()
+        end
+        if TargetInventorySettings.UIStyle == "New" then
+            animateHeader()
+        end
 
         local iconLabel = Instance.new("ImageLabel")
         iconLabel.Size = UDim2.new(0, 20, 0, 20)
         iconLabel.Position = UDim2.new(0, 10, 0, 5)
         iconLabel.BackgroundTransparency = 1
         iconLabel.Image = "rbxassetid://13289068576"
-        iconLabel.ImageColor3 = Color3.fromRGB(0, 255, 255) -- Неоновый циан
+        iconLabel.ImageColor3 = Color3.fromRGB(200, 200, 200)
         iconLabel.Parent = headerFrame
 
         local titleLabel = Instance.new("TextLabel")
@@ -226,17 +245,20 @@ local TargetInfo = {
         titleLabel.Position = UDim2.new(0, 50, 0, 5)
         titleLabel.BackgroundTransparency = 1
         titleLabel.Text = "Target Inventory"
-        titleLabel.TextColor3 = Color3.fromRGB(0, 255, 255) -- Неоновый циан
+        titleLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
         titleLabel.TextSize = 16
-        titleLabel.Font = Enum.Font.Code -- Технологичный шрифт
+        titleLabel.Font = Enum.Font.GothamBold
         titleLabel.TextXAlignment = Enum.TextXAlignment.Left
         titleLabel.Parent = headerFrame
 
-        local titleStroke = Instance.new("UIStroke")
-        titleStroke.Color = Color3.fromRGB(0, 128, 255)
-        titleStroke.Thickness = 1
-        titleStroke.Transparency = 0.7
-        titleStroke.Parent = titleLabel
+        -- Декоративная линия под headerFrame
+        local headerLine = Instance.new("Frame")
+        headerLine.Size = UDim2.new(1, -20, 0, 1)
+        headerLine.Position = UDim2.new(0, 10, 1, -2)
+        headerLine.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+        headerLine.BackgroundTransparency = 0.5
+        headerLine.BorderSizePixel = 0
+        headerLine.Parent = headerFrame
 
         -- Симметричное место (правый верхний угол)
         local placeholderFrame = Instance.new("Frame")
@@ -264,16 +286,16 @@ local TargetInfo = {
         equippedContainer.Size = UDim2.new(1, -20, 0, 25)
         equippedContainer.Position = UDim2.new(0, 10, 0, 40)
         equippedContainer.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
-        equippedContainer.BackgroundTransparency = TargetInventorySettings.UIStyle == "New" and 0.2 or 0.4
+        equippedContainer.BackgroundTransparency = 0.4
         equippedContainer.BorderSizePixel = 0
         equippedContainer.Visible = true
         equippedContainer.Parent = invFrame
 
-        local equippedStroke = Instance.new("UIStroke")
-        equippedStroke.Color = Color3.fromRGB(0, 255, 255)
-        equippedStroke.Thickness = 1
-        equippedStroke.Transparency = TargetInventorySettings.UIStyle == "New" and 0.5 or 1
-        equippedStroke.Parent = equippedContainer
+        local equippedShadow = Instance.new("UIShadow")
+        equippedShadow.Color = Color3.fromRGB(0, 0, 0)
+        equippedShadow.Offset = Vector2.new(1, 1)
+        equippedShadow.Opacity = 0.3
+        equippedShadow.Parent = equippedContainer
 
         local equippedCorner = Instance.new("UICorner")
         equippedCorner.CornerRadius = UDim.new(0, 5)
@@ -293,16 +315,10 @@ local TargetInfo = {
         equippedLabel.Text = " | Equipped: None"
         equippedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
         equippedLabel.TextSize = 14
-        equippedLabel.Font = TargetInventorySettings.UIStyle == "New" and Enum.Font.Code or Enum.Font.Gotham
+        equippedLabel.Font = Enum.Font.Gotham
         equippedLabel.TextXAlignment = Enum.TextXAlignment.Left
         equippedLabel.TextTruncate = Enum.TextTruncate.AtEnd
         equippedLabel.Parent = equippedContainer
-
-        local equippedLabelStroke = Instance.new("UIStroke")
-        equippedLabelStroke.Color = Color3.fromRGB(0, 255, 255)
-        equippedLabelStroke.Thickness = 1
-        equippedLabelStroke.Transparency = TargetInventorySettings.UIStyle == "New" and 0.7 or 1
-        equippedLabelStroke.Parent = equippedLabel
 
         local inventoryFrame = Instance.new("ScrollingFrame")
         inventoryFrame.Size = UDim2.new(1, -20, 0, 75)
@@ -325,15 +341,9 @@ local TargetInfo = {
         nickLabel.Text = ""
         nickLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
         nickLabel.TextSize = 14
-        nickLabel.Font = TargetInventorySettings.UIStyle == "New" and Enum.Font.Code or Enum.Font.GothamBold
+        nickLabel.Font = Enum.Font.GothamBold
         nickLabel.TextXAlignment = Enum.TextXAlignment.Center
         nickLabel.Parent = invFrame
-
-        local nickLabelStroke = Instance.new("UIStroke")
-        nickLabelStroke.Color = Color3.fromRGB(0, 255, 255)
-        nickLabelStroke.Thickness = 1
-        nickLabelStroke.Transparency = TargetInventorySettings.UIStyle == "New" and 0.7 or 1
-        nickLabelStroke.Parent = nickLabel
 
         -- Круг FOV для TargetInventory
         local fovCircle = Instance.new("Frame")
@@ -831,18 +841,18 @@ local TargetInfo = {
                 local emptyLabel = Instance.new("Frame")
                 emptyLabel.Size = UDim2.new(1, 0, 0, 25)
                 emptyLabel.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
-                emptyLabel.BackgroundTransparency = TargetInventorySettings.UIStyle == "New" and 0.2 or 1
+                emptyLabel.BackgroundTransparency = TargetInventorySettings.UIStyle == "New" and 0.4 or 1
                 emptyLabel.BorderSizePixel = 0
                 emptyLabel.Visible = true
                 emptyLabel.Parent = inventoryFrame
                 local emptyCorner = Instance.new("UICorner")
                 emptyCorner.CornerRadius = UDim.new(0, 5)
                 emptyCorner.Parent = emptyLabel
-                local emptyStroke = Instance.new("UIStroke")
-                emptyStroke.Color = Color3.fromRGB(0, 255, 255)
-                emptyStroke.Thickness = 1
-                emptyStroke.Transparency = TargetInventorySettings.UIStyle == "New" and 0.5 or 1
-                emptyStroke.Parent = emptyLabel
+                local emptyShadow = Instance.new("UIShadow")
+                emptyShadow.Color = Color3.fromRGB(0, 0, 0)
+                emptyShadow.Offset = Vector2.new(1, 1)
+                emptyShadow.Opacity = 0.3
+                emptyShadow.Parent = emptyLabel
                 local emptyIcon = Instance.new("ImageLabel")
                 emptyIcon.Size = UDim2.new(0, 20, 0, 20)
                 emptyIcon.Position = UDim2.new(0, 5, 0, 2.5)
@@ -857,14 +867,9 @@ local TargetInfo = {
                 emptyText.Text = " | Items: No Target"
                 emptyText.TextColor3 = Color3.fromRGB(255, 255, 255)
                 emptyText.TextSize = 14
-                emptyText.Font = TargetInventorySettings.UIStyle == "New" and Enum.Font.Code or Enum.Font.Gotham
+                emptyText.Font = Enum.Font.Gotham
                 emptyText.TextXAlignment = Enum.TextXAlignment.Left
                 emptyText.Parent = emptyLabel
-                local emptyTextStroke = Instance.new("UIStroke")
-                emptyTextStroke.Color = Color3.fromRGB(0, 255, 255)
-                emptyTextStroke.Thickness = 1
-                emptyTextStroke.Transparency = TargetInventorySettings.UIStyle == "New" and 0.7 or 1
-                emptyTextStroke.Parent = emptyText
                 inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, 25)
                 return
             end
@@ -873,7 +878,7 @@ local TargetInfo = {
             if equippedItemName then
                 equippedIcon.Image = getItemIcon(equippedItemName)
                 equippedIcon.ImageColor3 = getRarityColor(rarityName)
-                equippedLabel.TextColor3 = TargetInventorySettings.UIStyle == "New" and Color3.fromRGB(0, 255, 255) or getRarityColor(rarityName)
+                equippedLabel.TextColor3 = getRarityColor(rarityName)
                 equippedLabel.Position = UDim2.new(0, 30, 0, 2.5)
             else
                 equippedIcon.Image = "rbxassetid://18821914323"
@@ -890,7 +895,7 @@ local TargetInfo = {
                     local itemContainer = Instance.new("Frame")
                     itemContainer.Size = UDim2.new(1, 0, 0, 25)
                     itemContainer.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
-                    itemContainer.BackgroundTransparency = TargetInventorySettings.UIStyle == "New" and 0.2 or 1
+                    itemContainer.BackgroundTransparency = TargetInventorySettings.UIStyle == "New" and 0.4 or 1
                     itemContainer.BorderSizePixel = 0
                     itemContainer.LayoutOrder = i
                     itemContainer.Visible = true
@@ -898,11 +903,11 @@ local TargetInfo = {
                     local itemCorner = Instance.new("UICorner")
                     itemCorner.CornerRadius = UDim.new(0, 5)
                     itemCorner.Parent = itemContainer
-                    local itemStroke = Instance.new("UIStroke")
-                    itemStroke.Color = Color3.fromRGB(0, 255, 255)
-                    itemStroke.Thickness = 1
-                    itemStroke.Transparency = TargetInventorySettings.UIStyle == "New" and 0.5 or 1
-                    itemStroke.Parent = itemContainer
+                    local itemShadow = Instance.new("UIShadow")
+                    itemShadow.Color = Color3.fromRGB(0, 0, 0)
+                    itemShadow.Offset = Vector2.new(1, 1)
+                    itemShadow.Opacity = 0.3
+                    itemShadow.Parent = itemContainer
                     local itemIcon = Instance.new("ImageLabel")
                     itemIcon.Size = UDim2.new(0, 20, 0, 20)
                     itemIcon.Position = UDim2.new(0, 5, 0, 2.5)
@@ -915,34 +920,29 @@ local TargetInfo = {
                     itemLabel.Position = UDim2.new(0, 30, 0, 2.5)
                     itemLabel.BackgroundTransparency = 1
                     itemLabel.Text = " | " .. item.Name
-                    itemLabel.TextColor3 = TargetInventorySettings.UIStyle == "New" and Color3.fromRGB(0, 255, 255) or getRarityColor(item.Rarity)
+                    itemLabel.TextColor3 = getRarityColor(item.Rarity)
                     itemLabel.TextSize = 14
-                    itemLabel.Font = TargetInventorySettings.UIStyle == "New" and Enum.Font.Code or Enum.Font.Gotham
+                    itemLabel.Font = Enum.Font.Gotham
                     itemLabel.TextXAlignment = Enum.TextXAlignment.Left
                     itemLabel.Parent = itemContainer
-                    local itemLabelStroke = Instance.new("UIStroke")
-                    itemLabelStroke.Color = Color3.fromRGB(0, 255, 255)
-                    itemLabelStroke.Thickness = 1
-                    itemLabelStroke.Transparency = TargetInventorySettings.UIStyle == "New" and 0.7 or 1
-                    itemLabelStroke.Parent = itemLabel
                 end
                 inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, #inventory * 27)
             else
                 local emptyLabel = Instance.new("Frame")
                 emptyLabel.Size = UDim2.new(1, 0, 0, 25)
                 emptyLabel.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
-                emptyLabel.BackgroundTransparency = TargetInventorySettings.UIStyle == "New" and 0.2 or 1
+                emptyLabel.BackgroundTransparency = TargetInventorySettings.UIStyle == "New" and 0.4 or 1
                 emptyLabel.BorderSizePixel = 0
                 emptyLabel.Visible = true
                 emptyLabel.Parent = inventoryFrame
                 local emptyCorner = Instance.new("UICorner")
                 emptyCorner.CornerRadius = UDim.new(0, 5)
                 emptyCorner.Parent = emptyLabel
-                local emptyStroke = Instance.new("UIStroke")
-                emptyStroke.Color = Color3.fromRGB(0, 255, 255)
-                emptyStroke.Thickness = 1
-                emptyStroke.Transparency = TargetInventorySettings.UIStyle == "New" and 0.5 or 1
-                emptyStroke.Parent = emptyLabel
+                local emptyShadow = Instance.new("UIShadow")
+                emptyShadow.Color = Color3.fromRGB(0, 0, 0)
+                emptyShadow.Offset = Vector2.new(1, 1)
+                emptyShadow.Opacity = 0.3
+                emptyShadow.Parent = emptyLabel
                 local emptyIcon = Instance.new("ImageLabel")
                 emptyIcon.Size = UDim2.new(0, 20, 0, 20)
                 emptyIcon.Position = UDim2.new(0, 5, 0, 2.5)
@@ -957,14 +957,9 @@ local TargetInfo = {
                 emptyText.Text = " | Items: None"
                 emptyText.TextColor3 = Color3.fromRGB(255, 255, 255)
                 emptyText.TextSize = 14
-                emptyText.Font = TargetInventorySettings.UIStyle == "New" and Enum.Font.Code or Enum.Font.Gotham
+                emptyText.Font = Enum.Font.Gotham
                 emptyText.TextXAlignment = Enum.TextXAlignment.Left
                 emptyText.Parent = emptyLabel
-                local emptyTextStroke = Instance.new("UIStroke")
-                emptyTextStroke.Color = Color3.fromRGB(0, 255, 255)
-                emptyTextStroke.Thickness = 1
-                emptyTextStroke.Transparency = TargetInventorySettings.UIStyle == "New" and 0.7 or 1
-                emptyTextStroke.Parent = emptyText
                 inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, 25)
             end
         end
@@ -1123,12 +1118,9 @@ local TargetInfo = {
                         notify("Target Inventory", "UI Style set to " .. value, true)
                         headerFrame.Visible = value == "New"
                         defaultTitleLabel.Visible = value == "Default"
-                        equippedContainer.BackgroundTransparency = value == "New" and 0.2 or 0.4
-                        equippedStroke.Transparency = value == "New" and 0.5 or 1
-                        equippedLabel.Font = value == "New" and Enum.Font.Code or Enum.Font.Gotham
-                        equippedLabelStroke.Transparency = value == "New" and 0.7 or 1
-                        nickLabel.Font = value == "New" and Enum.Font.Code or Enum.Font.GothamBold
-                        nickLabelStroke.Transparency = value == "New" and 0.7 or 1
+                        if value == "New" then
+                            animateHeader()
+                        end
                         updateTargetInventoryView()
                     end
                 }, 'UIStyle')
