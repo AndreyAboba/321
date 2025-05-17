@@ -166,7 +166,7 @@ local TargetInfo = {
         invScreenGui.Parent = CoreGuiService
 
         local invFrame = Instance.new("Frame")
-        invFrame.Size = UDim2.new(0, 220, 0, 160) -- Уменьшена высота до 160
+        invFrame.Size = UDim2.new(0, 220, 0, 160)
         invFrame.Position = UDim2.new(0, 50, 0, 250)
         invFrame.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
         invFrame.BackgroundTransparency = 0.3
@@ -178,28 +178,25 @@ local TargetInfo = {
         invCorner.CornerRadius = UDim.new(0, 10)
         invCorner.Parent = invFrame
 
-        -- Верхняя полоска для нового стиля
+        -- Верхняя полоска для стиля New
         local headerFrame = Instance.new("Frame")
         headerFrame.Size = UDim2.new(1, 0, 0, 30)
         headerFrame.Position = UDim2.new(0, 0, 0, 0)
         headerFrame.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
         headerFrame.BackgroundTransparency = 0.2
         headerFrame.BorderSizePixel = 0
-        headerFrame.Visible = false -- По умолчанию скрыт для Default
+        headerFrame.Visible = false
         headerFrame.Parent = invFrame
 
         local headerCorner = Instance.new("UICorner")
         headerCorner.CornerRadius = UDim.new(0, 10)
         headerCorner.Parent = headerFrame
 
-        local iconLabel = Instance.new("TextLabel")
+        local iconLabel = Instance.new("ImageLabel")
         iconLabel.Size = UDim2.new(0, 20, 0, 20)
         iconLabel.Position = UDim2.new(0, 5, 0, 5)
         iconLabel.BackgroundTransparency = 1
-        iconLabel.Text = "L"
-        iconLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        iconLabel.TextSize = 16
-        iconLabel.Font = Enum.Font.GothamBold
+        iconLabel.Image = "rbxassetid://13289068576"
         iconLabel.Parent = headerFrame
 
         local titleLabel = Instance.new("TextLabel")
@@ -213,9 +210,22 @@ local TargetInfo = {
         titleLabel.TextXAlignment = Enum.TextXAlignment.Left
         titleLabel.Parent = headerFrame
 
+        -- Текст "Target Inventory" для стиля Default
+        local defaultTitleLabel = Instance.new("TextLabel")
+        defaultTitleLabel.Size = UDim2.new(1, 0, 0, 20)
+        defaultTitleLabel.Position = UDim2.new(0, 0, 0, 5)
+        defaultTitleLabel.BackgroundTransparency = 1
+        defaultTitleLabel.Text = "Target Inventory"
+        defaultTitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        defaultTitleLabel.TextSize = 16
+        defaultTitleLabel.Font = Enum.Font.GothamBold
+        defaultTitleLabel.TextXAlignment = Enum.TextXAlignment.Center
+        defaultTitleLabel.Visible = true
+        defaultTitleLabel.Parent = invFrame
+
         local equippedContainer = Instance.new("Frame")
         equippedContainer.Size = UDim2.new(1, -20, 0, 25)
-        equippedContainer.Position = UDim2.new(0, 10, 0, 40)
+        equippedContainer.Position = UDim2.new(0, 10, 0, 30)
         equippedContainer.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
         equippedContainer.BackgroundTransparency = 0.4
         equippedContainer.BorderSizePixel = 0
@@ -230,7 +240,7 @@ local TargetInfo = {
         equippedIcon.Size = UDim2.new(0, 20, 0, 20)
         equippedIcon.Position = UDim2.new(0, 5, 0, 2.5)
         equippedIcon.BackgroundTransparency = 1
-        equippedIcon.Image = "rbxassetid://18821914323" -- Иконка по умолчанию
+        equippedIcon.Image = "rbxassetid://18821914323"
         equippedIcon.Parent = equippedContainer
 
         local equippedLabel = Instance.new("TextLabel")
@@ -245,8 +255,8 @@ local TargetInfo = {
         equippedLabel.Parent = equippedContainer
 
         local inventoryFrame = Instance.new("ScrollingFrame")
-        inventoryFrame.Size = UDim2.new(1, -20, 0, 75) -- Уменьшена высота, ширина как у equippedContainer
-        inventoryFrame.Position = UDim2.new(0, 10, 0, 70)
+        inventoryFrame.Size = UDim2.new(1, -20, 0, 75)
+        inventoryFrame.Position = UDim2.new(0, 10, 0, 60)
         inventoryFrame.BackgroundTransparency = 1
         inventoryFrame.BorderSizePixel = 0
         inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
@@ -260,7 +270,7 @@ local TargetInfo = {
 
         local nickLabel = Instance.new("TextLabel")
         nickLabel.Size = UDim2.new(0, 200, 0, 20)
-        nickLabel.Position = UDim2.new(0, 10, 0, 140) -- Подвинут выше
+        nickLabel.Position = UDim2.new(0, 10, 0, 140)
         nickLabel.BackgroundTransparency = 1
         nickLabel.Text = ""
         nickLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -817,6 +827,7 @@ local TargetInfo = {
             -- Переключение стилей UI
             if TargetInventorySettings.UIStyle == "New" then
                 headerFrame.Visible = true
+                defaultTitleLabel.Visible = false
                 equippedContainer.Position = UDim2.new(0, 10, 0, 40)
                 inventoryFrame.Position = UDim2.new(0, 10, 0, 70)
                 for _, child in pairs(inventoryFrame:GetChildren()) do
@@ -829,8 +840,9 @@ local TargetInfo = {
                 equippedContainer.BackgroundTransparency = 0.4
             else -- Default
                 headerFrame.Visible = false
-                equippedContainer.Position = UDim2.new(0, 10, 0, 10)
-                inventoryFrame.Position = UDim2.new(0, 10, 0, 35)
+                defaultTitleLabel.Visible = true
+                equippedContainer.Position = UDim2.new(0, 10, 0, 30)
+                inventoryFrame.Position = UDim2.new(0, 10, 0, 60)
                 for _, child in pairs(inventoryFrame:GetChildren()) do
                     if child:IsA("Frame") then
                         child.BackgroundTransparency = 1
@@ -868,15 +880,22 @@ local TargetInfo = {
                 local emptyCorner = Instance.new("UICorner")
                 emptyCorner.CornerRadius = UDim.new(0, 5)
                 emptyCorner.Parent = emptyLabel
+                local emptyIcon = Instance.new("ImageLabel")
+                emptyIcon.Size = UDim2.new(0, 20, 0, 20)
+                emptyIcon.Position = UDim2.new(0, 5, 0, 2.5)
+                emptyIcon.BackgroundTransparency = 1
+                emptyIcon.Image = "rbxassetid://18821914323"
+                emptyIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
+                emptyIcon.Parent = emptyLabel
                 local emptyText = Instance.new("TextLabel")
-                emptyText.Size = UDim2.new(1, 0, 1, 0)
+                emptyText.Size = UDim2.new(0, 170, 0, 20)
+                emptyText.Position = UDim2.new(0, 30, 0, 2.5)
                 emptyText.BackgroundTransparency = 1
                 emptyText.Text = " | Items: No Target"
                 emptyText.TextColor3 = Color3.fromRGB(255, 255, 255)
                 emptyText.TextSize = 14
                 emptyText.Font = Enum.Font.Gotham
                 emptyText.TextXAlignment = Enum.TextXAlignment.Left
-                emptyText.Position = UDim2.new(0, 5, 0, 0)
                 emptyText.Parent = emptyLabel
                 inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, 25)
                 return
@@ -947,15 +966,22 @@ local TargetInfo = {
                 local emptyCorner = Instance.new("UICorner")
                 emptyCorner.CornerRadius = UDim.new(0, 5)
                 emptyCorner.Parent = emptyLabel
+                local emptyIcon = Instance.new("ImageLabel")
+                emptyIcon.Size = UDim2.new(0, 20, 0, 20)
+                emptyIcon.Position = UDim2.new(0, 5, 0, 2.5)
+                emptyIcon.BackgroundTransparency = 1
+                emptyIcon.Image = "rbxassetid://18821914323"
+                emptyIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
+                emptyIcon.Parent = emptyLabel
                 local emptyText = Instance.new("TextLabel")
-                emptyText.Size = UDim2.new(1, 0, 1, 0)
+                emptyText.Size = UDim2.new(0, 170, 0, 20)
+                emptyText.Position = UDim2.new(0, 30, 0, 2.5)
                 emptyText.BackgroundTransparency = 1
                 emptyText.Text = " | Items: None"
                 emptyText.TextColor3 = Color3.fromRGB(255, 255, 255)
                 emptyText.TextSize = 14
                 emptyText.Font = Enum.Font.Gotham
                 emptyText.TextXAlignment = Enum.TextXAlignment.Left
-                emptyText.Position = UDim2.new(0, 5, 0, 0)
                 emptyText.Parent = emptyLabel
                 inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, 25)
             end
