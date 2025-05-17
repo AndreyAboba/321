@@ -166,7 +166,7 @@ local TargetInfo = {
         invScreenGui.Parent = CoreGuiService
 
         local invFrame = Instance.new("Frame")
-        invFrame.Size = UDim2.new(0, 220, 0, 180) -- Увеличен размер для большего пространства
+        invFrame.Size = UDim2.new(0, 220, 0, 160) -- Уменьшена высота до 160
         invFrame.Position = UDim2.new(0, 50, 0, 250)
         invFrame.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
         invFrame.BackgroundTransparency = 0.3
@@ -185,6 +185,7 @@ local TargetInfo = {
         headerFrame.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
         headerFrame.BackgroundTransparency = 0.2
         headerFrame.BorderSizePixel = 0
+        headerFrame.Visible = false -- По умолчанию скрыт для Default
         headerFrame.Parent = invFrame
 
         local headerCorner = Instance.new("UICorner")
@@ -213,12 +214,12 @@ local TargetInfo = {
         titleLabel.Parent = headerFrame
 
         local equippedContainer = Instance.new("Frame")
-        equippedContainer.Size = UDim2.new(1, -10, 0, 25)
+        equippedContainer.Size = UDim2.new(1, -20, 0, 25)
         equippedContainer.Position = UDim2.new(0, 10, 0, 40)
         equippedContainer.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
         equippedContainer.BackgroundTransparency = 0.4
         equippedContainer.BorderSizePixel = 0
-        equippedContainer.Visible = true -- Фон виден сразу
+        equippedContainer.Visible = true
         equippedContainer.Parent = invFrame
 
         local equippedCorner = Instance.new("UICorner")
@@ -229,14 +230,14 @@ local TargetInfo = {
         equippedIcon.Size = UDim2.new(0, 20, 0, 20)
         equippedIcon.Position = UDim2.new(0, 5, 0, 2.5)
         equippedIcon.BackgroundTransparency = 1
-        equippedIcon.Image = ""
+        equippedIcon.Image = "rbxassetid://18821914323" -- Иконка по умолчанию
         equippedIcon.Parent = equippedContainer
 
         local equippedLabel = Instance.new("TextLabel")
         equippedLabel.Size = UDim2.new(0, 170, 0, 20)
         equippedLabel.Position = UDim2.new(0, 30, 0, 2.5)
         equippedLabel.BackgroundTransparency = 1
-        equippedLabel.Text = "Equipped: None"
+        equippedLabel.Text = " | Equipped: None"
         equippedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
         equippedLabel.TextSize = 14
         equippedLabel.Font = Enum.Font.Gotham
@@ -244,7 +245,7 @@ local TargetInfo = {
         equippedLabel.Parent = equippedContainer
 
         local inventoryFrame = Instance.new("ScrollingFrame")
-        inventoryFrame.Size = UDim2.new(0, 200, 0, 95) -- Сдвинут ниже, увеличен размер
+        inventoryFrame.Size = UDim2.new(1, -20, 0, 75) -- Уменьшена высота, ширина как у equippedContainer
         inventoryFrame.Position = UDim2.new(0, 10, 0, 70)
         inventoryFrame.BackgroundTransparency = 1
         inventoryFrame.BorderSizePixel = 0
@@ -259,7 +260,7 @@ local TargetInfo = {
 
         local nickLabel = Instance.new("TextLabel")
         nickLabel.Size = UDim2.new(0, 200, 0, 20)
-        nickLabel.Position = UDim2.new(0, 10, 0, 170) -- Сдвинут ниже
+        nickLabel.Position = UDim2.new(0, 10, 0, 140) -- Подвинут выше
         nickLabel.BackgroundTransparency = 1
         nickLabel.Text = ""
         nickLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -715,26 +716,38 @@ local TargetInfo = {
 
         local function playAppearAnimation()
             if not TargetInventorySettings.AppearAnim then
-                invFrame.Size = UDim2.new(0, 220, 0, 180)
+                invFrame.Size = UDim2.new(0, 220, 0, 160)
                 invFrame.BackgroundTransparency = 0.3
                 for _, child in pairs(invFrame:GetDescendants()) do
-                    if child:IsA("TextLabel") or child:IsA("ImageLabel") or child:IsA("Frame") then child.Visible = true end
+                    if child:IsA("TextLabel") or child:IsA("ImageLabel") or child:IsA("Frame") then
+                        if child.Name ~= "headerFrame" and child.Name ~= "iconLabel" and child.Name ~= "titleLabel" then
+                            child.Visible = true
+                        end
+                    end
                 end
                 return
             end
 
             for _, child in pairs(invFrame:GetDescendants()) do
-                if child:IsA("TextLabel") or child:IsA("ImageLabel") or child:IsA("Frame") then child.Visible = false end
+                if child:IsA("TextLabel") or child:IsA("ImageLabel") or child:IsA("Frame") then
+                    if child.Name ~= "headerFrame" and child.Name ~= "iconLabel" and child.Name ~= "titleLabel" then
+                        child.Visible = false
+                    end
+                end
             end
 
-            invFrame.Size = UDim2.new(0, 220 * 0.5, 0, 180 * 0.5)
+            invFrame.Size = UDim2.new(0, 220 * 0.5, 0, 160 * 0.5)
             invFrame.BackgroundTransparency = 1
 
             local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-            TweenService:Create(invFrame, tweenInfo, { Size = UDim2.new(0, 220, 0, 180), BackgroundTransparency = 0.3 }):Play()
+            TweenService:Create(invFrame, tweenInfo, { Size = UDim2.new(0, 220, 0, 160), BackgroundTransparency = 0.3 }):Play()
             task.delay(0.5, function()
                 for _, child in pairs(invFrame:GetDescendants()) do
-                    if child:IsA("TextLabel") or child:IsA("ImageLabel") or child:IsA("Frame") then child.Visible = true end
+                    if child:IsA("TextLabel") or child:IsA("ImageLabel") or child:IsA("Frame") then
+                        if child.Name ~= "headerFrame" and child.Name ~= "iconLabel" and child.Name ~= "titleLabel" then
+                            child.Visible = true
+                        end
+                    end
                 end
             end)
         end
@@ -801,6 +814,31 @@ local TargetInfo = {
                 return
             end
 
+            -- Переключение стилей UI
+            if TargetInventorySettings.UIStyle == "New" then
+                headerFrame.Visible = true
+                equippedContainer.Position = UDim2.new(0, 10, 0, 40)
+                inventoryFrame.Position = UDim2.new(0, 10, 0, 70)
+                for _, child in pairs(inventoryFrame:GetChildren()) do
+                    if child:IsA("Frame") then
+                        child.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
+                        child.BackgroundTransparency = 0.4
+                    end
+                end
+                equippedContainer.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
+                equippedContainer.BackgroundTransparency = 0.4
+            else -- Default
+                headerFrame.Visible = false
+                equippedContainer.Position = UDim2.new(0, 10, 0, 10)
+                inventoryFrame.Position = UDim2.new(0, 10, 0, 35)
+                for _, child in pairs(inventoryFrame:GetChildren()) do
+                    if child:IsA("Frame") then
+                        child.BackgroundTransparency = 1
+                    end
+                end
+                equippedContainer.BackgroundTransparency = 1
+            end
+
             if TargetInventorySettings.LastTarget == target then return end
             TargetInventorySettings.LastTarget = target
 
@@ -812,8 +850,8 @@ local TargetInfo = {
             end
 
             if not target then
-                equippedLabel.Text = "Equipped: None"
-                equippedIcon.Image = ""
+                equippedLabel.Text = " | Equipped: None"
+                equippedIcon.Image = "rbxassetid://18821914323"
                 equippedIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
                 equippedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
                 equippedLabel.Position = UDim2.new(0, 30, 0, 2.5)
@@ -821,11 +859,11 @@ local TargetInfo = {
                     if child:IsA("Frame") then child:Destroy() end
                 end
                 local emptyLabel = Instance.new("Frame")
-                emptyLabel.Size = UDim2.new(1, -10, 0, 25)
+                emptyLabel.Size = UDim2.new(1, 0, 0, 25)
                 emptyLabel.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
-                emptyLabel.BackgroundTransparency = 0.4
+                emptyLabel.BackgroundTransparency = TargetInventorySettings.UIStyle == "New" and 0.4 or 1
                 emptyLabel.BorderSizePixel = 0
-                emptyLabel.Visible = true -- Фон виден сразу
+                emptyLabel.Visible = true
                 emptyLabel.Parent = inventoryFrame
                 local emptyCorner = Instance.new("UICorner")
                 emptyCorner.CornerRadius = UDim.new(0, 5)
@@ -852,7 +890,7 @@ local TargetInfo = {
                 equippedLabel.TextColor3 = getRarityColor(rarityName)
                 equippedLabel.Position = UDim2.new(0, 30, 0, 2.5)
             else
-                equippedIcon.Image = ""
+                equippedIcon.Image = "rbxassetid://18821914323"
                 equippedIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
                 equippedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
                 equippedLabel.Position = UDim2.new(0, 30, 0, 2.5)
@@ -866,12 +904,12 @@ local TargetInfo = {
             if #inventory > 0 then
                 for i, item in ipairs(inventory) do
                     local itemContainer = Instance.new("Frame")
-                    itemContainer.Size = UDim2.new(1, -10, 0, 25)
+                    itemContainer.Size = UDim2.new(1, 0, 0, 25)
                     itemContainer.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
-                    itemContainer.BackgroundTransparency = 0.4
+                    itemContainer.BackgroundTransparency = TargetInventorySettings.UIStyle == "New" and 0.4 or 1
                     itemContainer.BorderSizePixel = 0
                     itemContainer.LayoutOrder = i
-                    if i == 1 then itemContainer.Visible = true end -- Первый фон виден сразу
+                    if i == 1 then itemContainer.Visible = true end
                     itemContainer.Parent = inventoryFrame
 
                     local itemCorner = Instance.new("UICorner")
@@ -900,11 +938,11 @@ local TargetInfo = {
                 inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, #inventory * 27)
             else
                 local emptyLabel = Instance.new("Frame")
-                emptyLabel.Size = UDim2.new(1, -10, 0, 25)
+                emptyLabel.Size = UDim2.new(1, 0, 0, 25)
                 emptyLabel.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
-                emptyLabel.BackgroundTransparency = 0.4
+                emptyLabel.BackgroundTransparency = TargetInventorySettings.UIStyle == "New" and 0.4 or 1
                 emptyLabel.BorderSizePixel = 0
-                emptyLabel.Visible = true -- Фон виден сразу
+                emptyLabel.Visible = true
                 emptyLabel.Parent = inventoryFrame
                 local emptyCorner = Instance.new("UICorner")
                 emptyCorner.CornerRadius = UDim.new(0, 5)
