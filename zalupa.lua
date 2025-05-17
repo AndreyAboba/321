@@ -57,7 +57,7 @@ local TargetInfo = {
         -- Создание ScreenGui для TargetHud
         local hudScreenGui = Instance.new("ScreenGui")
         hudScreenGui.Name = "TargetHUDGui"
-        hudScreenGui.Parent = Core.Services.CoreGuiService
+        hudScreenGui.Parent = CoreGuiService
         hudScreenGui.ResetOnSpawn = false
         hudScreenGui.IgnoreGuiInset = true
 
@@ -150,7 +150,7 @@ local TargetInfo = {
         invScreenGui.Name = "TargetInventoryGui"
         invScreenGui.ResetOnSpawn = false
         invScreenGui.IgnoreGuiInset = true
-        invScreenGui.Parent = Core.Services.CoreGuiService
+        invScreenGui.Parent = CoreGuiService
 
         local invFrame = Instance.new("Frame")
         invFrame.Size = UDim2.new(0, 220, 0, 150)
@@ -246,7 +246,7 @@ local TargetInfo = {
         -- Консоль вывода с прокруткой
         local logScreenGui = Instance.new("ScreenGui")
         logScreenGui.Name = "OutputLogGui"
-        logScreenGui.Parent = Core.Services.CoreGuiService
+        logScreenGui.Parent = CoreGuiService
         logScreenGui.ResetOnSpawn = false
         logScreenGui.IgnoreGuiInset = true
 
@@ -309,7 +309,7 @@ local TargetInfo = {
             end
 
             local success, thumbnailUrl = pcall(function()
-                return Core.Services.Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+                return Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
             end)
 
             if success and thumbnailUrl then
@@ -354,8 +354,8 @@ local TargetInfo = {
 
             local orbGradient = Instance.new("UIGradient")
             orbGradient.Color = ColorSequence.new({
-                ColorSequenceKeypoint.new(0, Core.GradientColors.Color1.Value),
-                ColorSequenceKeypoint.new(1, Core.GradientColors.Color2.Value)
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 255))
             })
             orbGradient.Rotation = 45
             orbGradient.Parent = orb
@@ -574,37 +574,40 @@ local TargetInfo = {
 
         local function getItemTextureId(item, context, targetName)
             local textureId = nil
+
             -- Проверяем Data у предмета
             local data = item:FindFirstChild("Data")
             if data then
-                textureId = data:FindFirstChild("TextureId")
-                if textureId and textureId:IsA("StringValue") then
-                    textureId = textureId.Value
-                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has TextureId in Data: " .. tostring(textureId))
-                    return textureId
+                -- Проверяем разные варианты написания TextureId
+                local possibleNames = {"TextureId", "textureId", "TextureID", "texture_id", "Texture", "texture"}
+                for _, name in pairs(possibleNames) do
+                    local textureObj = data:FindFirstChild(name)
+                    if textureObj and textureObj:IsA("StringValue") then
+                        textureId = textureObj.Value
+                        logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has " .. name .. " in Data: " .. tostring(textureId))
+                        return textureId
+                    elseif textureObj then
+                        logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has " .. name .. " in Data but not StringValue, type: " .. textureObj.ClassName)
+                    end
                 end
+
+                -- Логируем содержимое Data для отладки
+                logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " Data children: " .. #data:GetChildren())
+                for _, child in pairs(data:GetChildren()) do
+                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " Data contains: " .. child.Name .. " (Class: " .. child.ClassName .. ")")
+                end
+            else
+                logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has no Data object")
             end
 
-            -- Проверяем Handle с Decal
+            -- Проверяем Handle с Decal как резервный вариант
             local handle = item:FindFirstChild("Handle")
             if handle then
                 local decal = handle:FindFirstChildOfClass("Decal")
                 if decal then
                     textureId = decal.Texture
-                    logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has Decal Texture: " .. tostring(textureId))
-                    return textureId
-                end
-            end
-
-            -- Проверяем Data в Configuration
-            local config = item:FindFirstChild("Configuration")
-            if config then
-                local configData = config:FindFirstChild("Data")
-                if configData then
-                    textureId = configData:FindFirstChild("TextureId")
-                    if textureId and textureId:IsA("StringValue") then
-                        textureId = textureId.Value
-                        logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has TextureId in Configuration Data: " .. tostring(textureId))
+                    if textureId and textureId ~= "" then
+                        logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has Decal Texture: " .. tostring(textureId))
                         return textureId
                     end
                 end
@@ -649,25 +652,6 @@ local TargetInfo = {
                 end
             end
 
-            -- Проверяем Data в Configuration
-            if not descValue then
-                local config = item:FindFirstChild("Configuration")
-                if config then
-                    local configData = config:FindFirstChild("Data")
-                    if configData then
-                        local configDesc1 = configData:FindFirstChild("Description")
-                        local configDesc2 = configData:FindFirstChild("description")
-                        if configDesc1 and configDesc1:IsA("StringValue") then
-                            descValue = configDesc1.Value
-                            logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has StringValue Description in Configuration Data: " .. tostring(descValue))
-                        elseif configDesc2 and configDesc2:IsA("StringValue") then
-                            descValue = configDesc2.Value
-                            logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has StringValue description in Configuration Data: " .. tostring(descValue))
-                        end
-                    end
-                end
-            end
-
             if not descValue then
                 logMessage(context .. " " .. item.Name .. (targetName and " for " .. targetName or "") .. " has no Description or description")
             end
@@ -708,7 +692,7 @@ local TargetInfo = {
                             processedItems = processedItems + 1
                             if processedItems % 10 == 0 then
                                 logMessage("Processed " .. processedItems .. "/" .. totalItems .. " items")
-                                task.wait() -- Даем время на обработку, чтобы избежать лагов
+                                task.wait()
                             end
                         end
                     end
@@ -938,7 +922,7 @@ local TargetInfo = {
 
             if TargetInventorySettings.CircleGradient.Value then
                 local t = (math.sin(currentTime * 2) + 1) / 2
-                fovCircleBorder.Color = Core.GradientColors.Color1.Value:Lerp(Core.GradientColors.Color2.Value, t)
+                fovCircleBorder.Color = Color3.fromRGB(255, 0, 0):Lerp(Color3.fromRGB(0, 0, 255), t)
             else
                 fovCircleBorder.Color = Color3.fromRGB(255, 255, 255)
             end
