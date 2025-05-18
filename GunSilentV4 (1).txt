@@ -1,0 +1,1446 @@
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+local GunSilent = {
+    Settings = {
+        Enabled = { Value = false, Default = false },
+        RangePlus = { Value = 200, Default = 200 },
+        HitPart = { Value = "Head", Default = "Head" },
+        BulletSpeed = { Value = 2500, Default = 2500 },
+        UseFOV = { Value = true, Default = true },
+        FOV = { Value = 120, Default = 120 },
+        ShowCircle = { Value = true, Default = true },
+        CircleMethod = { Value = "Center", Default = "Center", Options = {"Center", "Cursor"} },
+        PredictVisual = { Value = true, Default = true },
+        TrajectoryBeam = { Value = true, Default = true },
+        BulletTrailsEnabled = { Value = false, Default = false },
+        BulletTrailsFadeTime = { Value = 1, Default = 1 },
+        BulletTrailsColor = { Value = Color3.fromRGB(147, 112, 219), Default = Color3.fromRGB(147, 112, 219) },
+        HitChance = { Value = 100, Default = 100 },
+        PredictionStrength = { Value = 1.0, Default = 1.0 },
+        PingCompensation = { Value = 0.1, Default = 0.1 },
+        SmoothingFactor = { Value = 0.05, Default = 0.05 },
+        ResolverEnabled = { Value = true, Default = true },
+        ResolverThreshold = { Value = 0.3, Default = 0.3 },
+        PositionHistorySize = { Value = 30, Default = 30 },
+        SortMethod = { Value = "Mouse&Distance", Default = "Mouse&Distance" },
+        ShotgunSupport = { Value = false, Default = false },
+        GenBullet = { Value = 4, Default = 4 },
+        TestGenBullet = { Value = false, Default = false },
+        -- Новые настройки для HitParticles
+        HitParticlesEnabled = { Value = false, Default = false },
+        HitParticlesMode = { Value = "Orbs", Default = "Orbs", Options = {"Orbs", "Sparks"} },
+        HitParticlesCount = { Value = 6, Default = 6 },
+        HitParticlesLifetime = { Value = 0.8, Default = 0.8 },
+        HitParticlesMoveDistance = { Value = 5, Default = 5 },
+        HitParticlesColor = { Value = Color3.fromRGB(255, 0, 0), Default = Color3.fromRGB(255, 0, 0) }
+    },
+    State = {
+        LastEventId = 0,
+        LastTool = nil,
+        PredictVisualPart = nil,
+        TrajectoryBeam = nil,
+        TrajectoryAttachment0 = nil,
+        TrajectoryAttachment1 = nil,
+        FovCircle = nil,
+        V_U_4 = nil,
+        Connection = nil,
+        OldFireServer = nil,
+        PositionHistory = {},
+        LastVisualUpdateTime = 0,
+        LastTargetPosition = {},
+        LocalCharacter = nil,
+        LocalRoot = nil,
+        LastTargetPos = nil,
+        LastPredictionPos = nil,
+        LastTargetUpdate = 0,
+        TargetUpdateInterval = 0.2,
+        LastFriendsList = nil,
+        BulletTrails = {},
+        TrailFadeConnections = {},
+        CurrentToolRangeApplied = nil,
+        BaseRangeCache = {},
+        LastHitTarget = nil,
+        LastHitPosition = nil
+    }
+}
+
+local function safeNotify(notifyFunc, prefix, message, isImportant)
+    if notifyFunc then
+        local success, errorMsg = pcall(function()
+            notifyFunc(prefix, message, isImportant)
+        end)
+        if not success then
+            warn(string.format("[GunSilent] Notify failed: %s", errorMsg))
+        end
+    end
+end
+
+local function safeCreateInstance(className, properties)
+    local success, result = pcall(function()
+        local instance = Instance.new(className)
+        if properties then
+            for prop, value in pairs(properties) do
+                instance[prop] = value
+            end
+        end
+        return instance
+    end)
+    if success then
+        return result
+    else
+        warn(string.format("[GunSilent] Failed to create %s: %s", className, result))
+        return nil
+    end
+end
+
+-- Функции для HitParticles
+local function createOrb(position)
+    local orb = safeCreateInstance("Part", {
+        Shape = Enum.PartType.Ball,
+        Size = Vector3.new(0.3, 0.3, 0.3),
+        Position = position,
+        Anchored = true,
+        CanCollide = false,
+        Transparency = 0,
+        Color = GunSilent.Settings.HitParticlesColor.Value,
+        Parent = Workspace
+    })
+    return orb
+end
+
+local function createSpark(position)
+    local spark = safeCreateInstance("Part", {
+        Shape = Enum.PartType.Block,
+        Size = Vector3.new(0.1, 0.1, 0.5),
+        Position = position,
+        Anchored = true,
+        CanCollide = false,
+        Transparency = 0,
+        Color = GunSilent.Settings.HitParticlesColor.Value,
+        Parent = Workspace
+    })
+    return spark
+end
+
+local function animateParticle(particle, isSpark)
+    local angle = math.random() * 2 * math.pi
+    local distance = GunSilent.Settings.HitParticlesMoveDistance.Value
+    local moveX = math.cos(angle) * distance
+    local moveY = math.sin(angle) * distance
+    local targetPosition = particle.Position + Vector3.new(moveX, 0, moveY)
+    
+    if isSpark then
+        -- Для искр добавляем случайное вращение
+        particle.CFrame = CFrame.new(particle.Position) * CFrame.Angles(0, angle, 0)
+    end
+    
+    local tweenInfo = TweenInfo.new(
+        GunSilent.Settings.HitParticlesLifetime.Value,
+        Enum.EasingStyle.Quad,
+        Enum.EasingDirection.Out
+    )
+    
+    local targetProperties = {
+        Position = targetPosition,
+        Transparency = 1,
+        Size = isSpark and Vector3.new(0.1, 0.1, 0.3) or Vector3.new(0, 0, 0)
+    }
+    
+    local tween = TweenService:Create(particle, tweenInfo, targetProperties)
+    tween:Play()
+    
+    task.delay(GunSilent.Settings.HitParticlesLifetime.Value, function()
+        if particle then
+            particle:Destroy()
+        end
+    end)
+end
+
+local function spawnHitParticles(target, hitPosition)
+    if not GunSilent.Settings.HitParticlesEnabled.Value or not target or not hitPosition then
+        return
+    end
+    
+    local hitPart = target.Character:FindFirstChild(GunSilent.Settings.HitPart.Value) or target.Character:FindFirstChild("HumanoidRootPart")
+    if not hitPart then
+        return
+    end
+    
+    local position = hitPosition or hitPart.Position
+    local mode = GunSilent.Settings.HitParticlesMode.Value
+    local particleCount = GunSilent.Settings.HitParticlesCount.Value
+    
+    for i = 1, particleCount do
+        local particle
+        if mode == "Orbs" then
+            particle = createOrb(position)
+            if particle then
+                animateParticle(particle, false)
+            end
+        elseif mode == "Sparks" then
+            particle = createSpark(position)
+            if particle then
+                animateParticle(particle, true)
+            end
+        end
+    end
+end
+
+local function isGunTool(tool)
+    local items = game:GetService("ReplicatedStorage"):FindFirstChild("Items")
+    if not items then return false end
+    local gunFolder = items:FindFirstChild("gun")
+    if not gunFolder then return false end
+    return gunFolder:FindFirstChild(tool.Name) ~= nil
+end
+
+local function isShotgun(tool)
+    if not tool then return false end
+    local ammoType = tool:GetAttribute("AmmoType")
+    return ammoType and ammoType:lower() == "shotgun"
+end
+
+local function getEquippedGunTool()
+    local localPlayer = Players.LocalPlayer
+    if not localPlayer or not localPlayer.Character then return nil end
+
+    local playerName = localPlayer.Name
+    local playerFolder = Workspace:FindFirstChild(playerName)
+    if playerFolder then
+        for _, child in pairs(playerFolder:GetChildren()) do
+            if child.ClassName == "Tool" and isGunTool(child) then
+                return child
+            end
+        end
+    end
+
+    local character = localPlayer.Character
+    for _, child in pairs(character:GetChildren()) do
+        if child.ClassName == "Tool" and isGunTool(child) then
+            return child
+        end
+    end
+    return nil
+end
+
+local function getGunRange(tool)
+    if not tool or not isGunTool(tool) then
+        return GunSilent.Settings.RangePlus.Value
+    end
+
+    local equippedTool = getEquippedGunTool()
+    if tool ~= equippedTool then
+        return GunSilent.Settings.RangePlus.Value
+    end
+
+    local encryptedRangeAttr = GunSilent.Core.GetEncryptedAttributeName and GunSilent.Core.GetEncryptedAttributeName("range") or "range"
+    local toolId = tostring(tool)
+    local baseRange = GunSilent.State.BaseRangeCache[toolId]
+    if not baseRange then
+        baseRange = tool:GetAttribute(encryptedRangeAttr) or 0
+        GunSilent.State.BaseRangeCache[toolId] = baseRange
+        safeNotify(GunSilent.notify, "GunSilent", "Cached base range for " .. tool.Name .. ": " .. baseRange, false)
+    end
+
+    local totalRange = baseRange + GunSilent.Settings.RangePlus.Value
+    if GunSilent.State.CurrentToolRangeApplied ~= tool then
+        pcall(function()
+            tool:SetAttribute(encryptedRangeAttr, totalRange)
+            safeNotify(GunSilent.notify, "GunSilent", "Set range for " .. tool.Name .. " to: " .. totalRange, true)
+        end)
+        GunSilent.State.CurrentToolRangeApplied = tool
+    end
+
+    return totalRange
+end
+
+local function updateFovCircle()
+    if not GunSilent.Settings.ShowCircle.Value then
+        if GunSilent.State.FovCircle then
+            GunSilent.State.FovCircle.Visible = false
+        end
+        return
+    end
+
+    local camera = Workspace.CurrentCamera
+    if not camera then return end
+
+    local fovCircle = GunSilent.State.FovCircle
+    if not fovCircle then
+        fovCircle = Drawing.new("Circle")
+        fovCircle.Thickness = 2
+        fovCircle.NumSides = 100
+        fovCircle.Color = Color3.fromRGB(255, 255, 255)
+        fovCircle.Visible = true
+        fovCircle.Filled = false
+        GunSilent.State.FovCircle = fovCircle
+    end
+
+    local newRadius = math.tan(math.rad(GunSilent.Settings.FOV.Value) / 2) * camera.ViewportSize.X / 2
+    local circlePos = GunSilent.Settings.CircleMethod.Value == "Cursor" and UserInputService:GetMouseLocation() or camera.ViewportSize / 2
+
+    fovCircle.Radius = newRadius
+    fovCircle.Position = circlePos
+    fovCircle.Visible = true
+end
+
+local function isInFov(targetPos, camera)
+    if not GunSilent.Settings.UseFOV.Value then return true end
+    local screenPos, onScreen = camera:WorldToViewportPoint(targetPos)
+    if not onScreen then return false end
+    local referencePos = GunSilent.Settings.CircleMethod.Value == "Cursor" and UserInputService:GetMouseLocation() or camera.ViewportSize / 2
+    local distanceFromReference = (Vector2.new(screenPos.X, screenPos.Y) - referencePos).Magnitude
+    return distanceFromReference <= math.tan(math.rad(GunSilent.Settings.FOV.Value) / 2) * camera.ViewportSize.X / 2
+end
+
+local function getNearestPlayerGun(gunRange)
+    local currentTime = tick()
+    if currentTime - GunSilent.State.LastTargetUpdate < GunSilent.State.TargetUpdateInterval then
+        local target = GunSilent.Core.GunSilentTarget.CurrentTarget
+        if target and target.Character and target.Character.Humanoid and target.Character.Humanoid.Health > 0 then
+            return target
+        end
+    end
+    GunSilent.State.LastTargetUpdate = currentTime
+
+    local friendsList = GunSilent.Core.Services.FriendsList or {}
+    local friendsHash = {}
+    for k in pairs(friendsList) do
+        friendsHash[k:lower()] = true
+    end
+
+    local localRoot = GunSilent.State.LocalRoot
+    if not localRoot then
+        return nil
+    end
+    local rootPos = localRoot.Position
+    local camera = Workspace.CurrentCamera
+    if not camera then
+        return nil
+    end
+
+    local nearestPlayer, shortestDistance, closestToCursor, bestScore = nil, gunRange, math.huge, math.huge
+    local sortMethod = GunSilent.Settings.SortMethod.Value
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= Players.LocalPlayer and not friendsHash[player.Name:lower()] then
+            local targetChar = player.Character
+            if targetChar then
+                local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+                local targetHumanoid = targetChar:FindFirstChild("Humanoid")
+                if targetRoot and targetHumanoid and targetHumanoid.Health > 0 then
+                    local distance = (rootPos - targetRoot.Position).Magnitude
+                    local inFov = isInFov(targetRoot.Position, camera)
+                    if inFov then
+                        if sortMethod == "Mouse&Distance" then
+                            local screenPos = camera:WorldToViewportPoint(targetRoot.Position)
+                            local cursorDistance = (Vector2.new(screenPos.X, screenPos.Y) - UserInputService:GetMouseLocation()).Magnitude
+                            local score = (cursorDistance / camera.ViewportSize.X) * 0.7 + (distance / (GunSilent.Settings.RangePlus.Value + 50)) * 0.3
+                            if score < bestScore then
+                                bestScore = score
+                                nearestPlayer = player
+                            end
+                        elseif sortMethod == "Distance" and distance < shortestDistance then
+                            shortestDistance = distance
+                            nearestPlayer = player
+                        elseif sortMethod == "Mouse" then
+                            local screenPos = camera:WorldToViewportPoint(targetRoot.Position)
+                            local cursorDistance = (Vector2.new(screenPos.X, screenPos.Y) - UserInputService:GetMouseLocation()).Magnitude
+                            if cursorDistance < closestToCursor then
+                                closestToCursor = cursorDistance
+                                nearestPlayer = player
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    GunSilent.Core.GunSilentTarget.CurrentTarget = nearestPlayer
+    GunSilent.State.LastFriendsList = friendsList
+    return nearestPlayer
+end
+
+local function isInVehicle(targetChar)
+    local humanoid = targetChar:FindFirstChild("Humanoid")
+    if humanoid then
+        return humanoid.SeatPart ~= nil
+    end
+    return false
+end
+
+local function resolveVelocity(target, positionHistory, clientVelocity, targetChar)
+    if not GunSilent.Settings.ResolverEnabled.Value or not positionHistory or #positionHistory < 5 then
+        return clientVelocity
+    end
+
+    local currentTime = tick()
+    local totalVelocity = Vector3.new(0, 0, 0)
+    local totalWeight = 0
+    local validEntries = 0
+    local maxSpeedLimit = isInVehicle(targetChar) and 150 or 50
+
+    local filteredHistory = {}
+    for i = 1, #positionHistory do
+        filteredHistory[#filteredHistory + 1] = positionHistory[i]
+    end
+
+    local calculatedVelocity = Vector3.new(0, 0, 0)
+    local useCFrame = #filteredHistory > 2 and (function()
+        local meanPos = Vector3.new(0, 0, 0)
+        for _, entry in ipairs(filteredHistory) do
+            meanPos = meanPos + entry.pos
+        end
+        meanPos = meanPos / #filteredHistory
+        local variance = 0
+        for _, entry in ipairs(filteredHistory) do
+            variance = variance + (entry.pos - meanPos).Magnitude^2
+        end
+        return variance / #filteredHistory < 0.1
+    end)()
+
+    if useCFrame and targetChar:FindFirstChild("Head") and not isInVehicle(targetChar) then
+        local headCFrame = targetChar.Head.CFrame
+        local rootCFrame = targetChar.HumanoidRootPart.CFrame
+        local offset = headCFrame.Position - rootCFrame.Position
+        calculatedVelocity = offset / GunSilent.Settings.PingCompensation.Value
+    else
+        for i = #filteredHistory - 1, math.max(1, #filteredHistory - 10), -1 do
+            local currEntry = filteredHistory[i + 1]
+            local prevEntry = filteredHistory[i]
+            local timeDelta = currEntry.time - prevEntry.time
+            if timeDelta > 0 and timeDelta < 0.2 then
+                local velocity = (currEntry.pos - prevEntry.pos) / timeDelta
+                if velocity.Magnitude <= maxSpeedLimit * 1.5 then
+                    local weight = 1 / (1 + (currentTime - currEntry.time) * 5)
+                    totalVelocity = totalVelocity + velocity * weight
+                    totalWeight = totalWeight + weight
+                    validEntries = validEntries + 1
+                end
+            end
+        end
+        calculatedVelocity = validEntries > 0 and totalVelocity / totalWeight or Vector3.new(0, 0, 0)
+
+        if isInVehicle(targetChar) and targetChar:FindFirstChild("HumanoidRootPart") then
+            local rootCFrame = targetChar.HumanoidRootPart.CFrame
+            local forwardVector = rootCFrame.LookVector
+            calculatedVelocity = calculatedVelocity + forwardVector * calculatedVelocity.Magnitude * 0.3
+        end
+    end
+
+    return calculatedVelocity
+end
+
+local function predictTargetPositionGun(target)
+    local localRoot = GunSilent.State.LocalRoot
+    if not target or not target.Character or not localRoot then
+        return { position = nil, direction = nil, timeToTarget = 0, clientPosition = nil }
+    end
+
+    local targetChar = target.Character
+    local myPos = localRoot.Position
+    local hitPart = targetChar:FindFirstChild(GunSilent.Settings.HitPart.Value) or targetChar:FindFirstChild("HumanoidRootPart")
+    local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+    local equippedTool = getEquippedGunTool()
+    if not hitPart or not targetRoot or not equippedTool then
+        return { position = nil, direction = nil, timeToTarget = 0, clientPosition = nil }
+    end
+
+    local targetPos = hitPart.Position
+    local targetId = tostring(target.UserId)
+    local isTeleporting = GunSilent.State.LastTargetPosition[targetId] and (targetPos - GunSilent.State.LastTargetPosition[targetId]).Magnitude > 50
+    GunSilent.State.LastTargetPosition[targetId] = targetPos
+
+    local distance = (targetPos - myPos).Magnitude
+    local bulletSpeed = GunSilent.Settings.BulletSpeed.Value
+    local timeToTarget = distance / bulletSpeed
+
+    local positionHistory = GunSilent.State.PositionHistory[target] or {}
+    GunSilent.State.PositionHistory[target] = positionHistory
+    local currentTime = tick()
+
+    positionHistory[#positionHistory + 1] = { pos = targetPos, time = currentTime, velocity = targetRoot.Velocity }
+    while #positionHistory > GunSilent.Settings.PositionHistorySize.Value do
+        table.remove(positionHistory, 1)
+    end
+
+    local clientPos = targetPos
+    local resolvedVelocity = resolveVelocity(target, positionHistory, targetRoot.Velocity, targetChar)
+
+    local predictedPos = clientPos
+    if not isTeleporting then
+        local targetSpeed = resolvedVelocity.Magnitude
+        local isInVehicle = isInVehicle(targetChar)
+        local predictionStrength = GunSilent.Settings.PredictionStrength.Value
+        if isInVehicle then
+            predictionStrength = predictionStrength * 1.5
+        end
+
+        if targetSpeed < 5 then
+            local ping = GunSilent.Settings.PingCompensation.Value * math.clamp(distance / 50, 0.5, 1.0)
+            predictedPos = clientPos + resolvedVelocity * ping
+        else
+            local speedFactor = 0.8 + (targetSpeed / (isInVehicle and 150 or 50)) * 0.5
+            local ping = GunSilent.Settings.PingCompensation.Value * math.clamp(distance / 50, 0.5, 1.0)
+            local accuracyFactor = math.clamp(getGunRange(equippedTool) / distance, 0.5, 1.0)
+            local totalPredictionTime = (timeToTarget + ping) * predictionStrength * speedFactor * accuracyFactor
+            predictedPos = clientPos + resolvedVelocity * totalPredictionTime
+
+            if GunSilent.State.LastPredictionPos then
+                predictedPos = GunSilent.State.LastPredictionPos:Lerp(predictedPos, 1 - GunSilent.Settings.SmoothingFactor.Value)
+            end
+        end
+        GunSilent.State.LastPredictionPos = predictedPos
+    end
+
+    return {
+        position = predictedPos,
+        direction = (predictedPos - myPos).Unit,
+        timeToTarget = timeToTarget,
+        clientPosition = clientPos
+    }
+end
+
+local function getAimCFrameGun(target)
+    local localRoot = GunSilent.State.LocalRoot
+    if not target or not target.Character or not localRoot then return nil end
+    local prediction = predictTargetPositionGun(target)
+    if not prediction.position or not prediction.direction then return nil end
+    return CFrame.new(localRoot.Position, localRoot.Position + prediction.direction)
+end
+
+local function createHitDataGun(target)
+    local localRoot = GunSilent.State.LocalRoot
+    if not target or not target.Character or not localRoot then return nil end
+    local targetChar = target.Character
+    local prediction = predictTargetPositionGun(target)
+    if not prediction.position or not prediction.direction then return nil end
+
+    local hitPart = targetChar:FindFirstChild(GunSilent.Settings.HitPart.Value) or targetChar:FindFirstChild("HumanoidRootPart")
+    if not hitPart then return nil end
+
+    local equippedTool = getEquippedGunTool()
+    local isShotgunWeapon = GunSilent.Settings.ShotgunSupport.Value and equippedTool and isShotgun(equippedTool)
+    local useMultiBullets = isShotgunWeapon or GunSilent.Settings.TestGenBullet.Value
+    local numBullets = useMultiBullets and (isShotgunWeapon and GunSilent.Settings.GenBullet.Value or 4) or 1
+    local hitData = {}
+
+    if useMultiBullets then
+        for i = 1, numBullets do
+            hitData[i] = {{Normal = prediction.direction, Instance = hitPart, Position = prediction.position}}
+        end
+    else
+        hitData[1] = {{Normal = prediction.direction, Instance = hitPart, Position = prediction.position}}
+    end
+
+    if GunSilent.Settings.BulletTrailsEnabled.Value and localRoot and prediction.position then
+        local startPos = localRoot.Position + Vector3.new(0, 1.5, 0)
+        local trail = safeCreateInstance("Beam", {
+            FaceCamera = true,
+            Width0 = 0.1,
+            Width1 = 0.1,
+            Transparency = NumberSequence.new(0),
+            Color = ColorSequence.new(GunSilent.Settings.BulletTrailsColor.Value),
+            Parent = Workspace
+        })
+        if trail then
+            local attachment0 = safeCreateInstance("Attachment", { Parent = Workspace.Terrain })
+            local attachment1 = safeCreateInstance("Attachment", { Parent = Workspace.Terrain })
+            if attachment0 and attachment1 then
+                attachment0.Position = startPos
+                attachment1.Position = prediction.position
+                trail.Attachment0 = attachment0
+                trail.Attachment1 = attachment1
+
+                table.insert(GunSilent.State.BulletTrails, { beam = trail, attachment0 = attachment0, attachment1 = attachment1 })
+
+                local fadeTime = GunSilent.Settings.BulletTrailsFadeTime.Value
+                local startTime = tick()
+                local fadeConnection
+                fadeConnection = RunService.RenderStepped:Connect(function()
+                    local elapsed = tick() - startTime
+                    local t = math.clamp(elapsed / fadeTime, 0, 1)
+                    if trail and trail.Parent then
+                        trail.Transparency = NumberSequence.new(t)
+                    end
+                    if t >= 1 then
+                        if trail then trail:Destroy() end
+                        if attachment0 then attachment0:Destroy() end
+                        if attachment1 then attachment1:Destroy() end
+                        if fadeConnection then fadeConnection:Disconnect() end
+                        for i, v in ipairs(GunSilent.State.BulletTrails) do
+                            if v.beam == trail then
+                                table.remove(GunSilent.State.BulletTrails, i)
+                                break
+                            end
+                        end
+                        for i, conn in ipairs(GunSilent.State.TrailFadeConnections) do
+                            if conn == fadeConnection then
+                                table.remove(GunSilent.State.TrailFadeConnections, i)
+                                break
+                            end
+                        end
+                    end
+                end)
+                table.insert(GunSilent.State.TrailFadeConnections, fadeConnection)
+            end
+        end
+    end
+
+    -- Сохраняем цель и позицию попадания для эффекта HitParticles
+    GunSilent.State.LastHitTarget = target
+    GunSilent.State.LastHitPosition = prediction.position
+
+    return hitData
+end
+
+local function cleanupTrajectoryBeam()
+    if GunSilent.State.TrajectoryBeam then
+        GunSilent.State.TrajectoryBeam:Destroy()
+        GunSilent.State.TrajectoryBeam = nil
+    end
+    if GunSilent.State.TrajectoryAttachment0 then
+        GunSilent.State.TrajectoryAttachment0:Destroy()
+        GunSilent.State.TrajectoryAttachment0 = nil
+    end
+    if GunSilent.State.TrajectoryAttachment1 then
+        GunSilent.State.TrajectoryAttachment1:Destroy()
+        GunSilent.State.TrajectoryAttachment1 = nil
+    end
+end
+
+local function createTrajectoryBeam(startPos, endPos)
+    cleanupTrajectoryBeam()
+
+    local trajectoryBeam = safeCreateInstance("Beam", {
+        FaceCamera = true,
+        Width0 = 0.15,
+        Width1 = 0.15,
+        Transparency = NumberSequence.new(0.4),
+        Color = ColorSequence.new(Color3.fromRGB(147, 112, 219)),
+        Parent = Workspace
+    })
+    if not trajectoryBeam then return end
+
+    local attachment0 = safeCreateInstance("Attachment", { Parent = Workspace.Terrain })
+    local attachment1 = safeCreateInstance("Attachment", { Parent = Workspace.Terrain })
+    if not attachment0 or not attachment1 then
+        if trajectoryBeam then trajectoryBeam:Destroy() end
+        if attachment0 then attachment0:Destroy() end
+        if attachment1 then attachment1:Destroy() end
+        return
+    end
+
+    attachment0.Position = startPos
+    attachment1.Position = endPos
+    trajectoryBeam.Attachment0 = attachment0
+    trajectoryBeam.Attachment1 = attachment1
+
+    GunSilent.State.TrajectoryBeam = trajectoryBeam
+    GunSilent.State.TrajectoryAttachment0 = attachment0
+    GunSilent.State.TrajectoryAttachment1 = attachment1
+end
+
+local function updateVisualsGun(target)
+    local currentTime = tick()
+    if currentTime - GunSilent.State.LastVisualUpdateTime < 0.0345 then return end -- ~29 FPS
+    GunSilent.State.LastVisualUpdateTime = currentTime
+
+    local localRoot = GunSilent.State.LocalRoot
+    if not GunSilent.Settings.Enabled.Value or not localRoot then
+        if GunSilent.State.PredictVisualPart then
+            GunSilent.State.PredictVisualPart.Transparency = 1
+        end
+        if GunSilent.State.TrajectoryBeam then
+            GunSilent.State.TrajectoryBeam.Enabled = false
+        end
+        return
+    end
+
+    local prediction = target and predictTargetPositionGun(target)
+    local targetPos = prediction and prediction.clientPosition
+    local predictionPos = prediction and prediction.position
+
+    if not target or not target.Character or not predictionPos or not prediction.direction then
+        if GunSilent.State.PredictVisualPart then
+            GunSilent.State.PredictVisualPart.Transparency = 1
+        end
+        if GunSilent.State.TrajectoryBeam then
+            GunSilent.State.TrajectoryBeam.Enabled = false
+        end
+        return
+    end
+
+    if GunSilent.State.LastTargetPos and (targetPos - GunSilent.State.LastTargetPos).Magnitude < 1 then return end
+
+    local targetChar = target.Character
+    local hitPart = targetChar:FindFirstChild(GunSilent.Settings.HitPart.Value) or targetChar:FindFirstChild("HumanoidRootPart")
+    if not hitPart then return end
+
+    GunSilent.State.LastTargetPos, GunSilent.State.LastPredictionPos = targetPos, predictionPos
+    local startPos = localRoot.Position + Vector3.new(0, 1.5, 0)
+
+    if GunSilent.Settings.PredictVisual.Value then
+        local predictVisualPart = GunSilent.State.PredictVisualPart
+        if not predictVisualPart or not predictVisualPart.Parent then
+            predictVisualPart = safeCreateInstance("Part", {
+                Size = Vector3.new(0.5, 0.5, 0.5),
+                Shape = Enum.PartType.Ball,
+                Anchored = true,
+                CanCollide = false,
+                Transparency = 0.3,
+                Parent = Workspace
+            })
+            GunSilent.State.PredictVisualPart = predictVisualPart
+        end
+        if predictVisualPart then
+            predictVisualPart.Position = prediction.position
+            predictVisualPart.Color = Color3.fromRGB(0, 255, 255)
+            predictVisualPart.Transparency = 0.3
+        end
+    elseif GunSilent.State.PredictVisualPart then
+        GunSilent.State.PredictVisualPart.Transparency = 1
+    end
+
+    if GunSilent.Settings.TrajectoryBeam.Value and GunSilent.Settings.PredictVisual.Value then
+        if not GunSilent.State.TrajectoryBeam or not GunSilent.State.TrajectoryBeam.Parent or
+           not GunSilent.State.TrajectoryAttachment0 or not GunSilent.State.TrajectoryAttachment0.Parent or
+           not GunSilent.State.TrajectoryAttachment1 or not GunSilent.State.TrajectoryAttachment1.Parent then
+            createTrajectoryBeam(startPos, predictionPos)
+        else
+            GunSilent.State.TrajectoryAttachment0.Position = startPos
+            GunSilent.State.TrajectoryAttachment1.Position = predictionPos
+            GunSilent.State.TrajectoryBeam.Enabled = true
+        end
+    else
+        if GunSilent.State.TrajectoryBeam then
+            GunSilent.State.TrajectoryBeam.Enabled = false
+        end
+    end
+end
+
+local function initializeGunSilent()
+    if GunSilent.State.Connection then GunSilent.State.Connection:Disconnect() end
+    if not GunSilent.State.V_U_4 then
+        for _, obj in pairs(getgc(true)) do
+            if type(obj) == "table" and not getmetatable(obj) and obj.event and obj.func then
+                GunSilent.State.V_U_4 = obj
+                break
+            end
+        end
+    end
+
+    if not GunSilent.State.OldFireServer then
+        GunSilent.State.OldFireServer = hookfunction(game:GetService("ReplicatedStorage").Remotes.Send.FireServer, function(self, ...)
+            local args = {...}
+            local modifiedArgs = args
+            local nearestPlayer = nil
+            if GunSilent.Settings.Enabled.Value and #args >= 2 and typeof(args[1]) == "number" and math.random(100) <= GunSilent.Settings.HitChance.Value then
+                GunSilent.State.LastEventId = args[1]
+                local equippedTool = getEquippedGunTool()
+                if equippedTool and args[2] == "shoot_gun" then
+                    local gunRange = getGunRange(equippedTool)
+                    nearestPlayer = getNearestPlayerGun(gunRange)
+                    if nearestPlayer then
+                        local aimCFrame = getAimCFrameGun(nearestPlayer)
+                        local hitData = createHitDataGun(nearestPlayer)
+                        if aimCFrame and hitData then
+                            modifiedArgs = {args[1], args[2], equippedTool, aimCFrame, hitData}
+                            safeNotify(GunSilent.notify, "GunSilent", "Firing at target: " .. nearestPlayer.Name, false)
+                        else
+                            safeNotify(GunSilent.notify, "GunSilent", "Failed to generate aim data", false)
+                        end
+                    else
+                        safeNotify(GunSilent.notify, "GunSilent", "No valid target found", false)
+                    end
+                end
+            end
+
+            -- Вызываем FireServer и проверяем результат
+            local success, result = pcall(function()
+                return GunSilent.State.OldFireServer(self, unpack(modifiedArgs))
+            end)
+
+            -- Проверяем успешность попадания и активируем HitParticles
+            if success and result == true and nearestPlayer then
+                safeNotify(GunSilent.notify, "GunSilent", "Hit registered on " .. nearestPlayer.Name, false)
+                spawnHitParticles(GunSilent.State.LastHitTarget, GunSilent.State.LastHitPosition)
+            elseif success and result == false then
+                safeNotify(GunSilent.notify, "GunSilent", "Hit not registered", false)
+            elseif not success then
+                safeNotify(GunSilent.notify, "GunSilent", "FireServer failed: " .. tostring(result), false)
+            end
+
+            return success and result or nil
+        end)
+    end
+
+    GunSilent.State.Connection = RunService.RenderStepped:Connect(function(deltaTime)
+        if not GunSilent.Settings.Enabled.Value then
+            if GunSilent.State.FovCircle then GunSilent.State.FovCircle.Visible = false end
+            GunSilent.Core.GunSilentTarget.CurrentTarget = nil
+            updateVisualsGun(nil)
+            return
+        end
+
+        local character = GunSilent.State.LocalCharacter
+        if character and character:FindFirstChild("HumanoidRootPart") then
+            GunSilent.State.LocalRoot = character.HumanoidRootPart
+        else
+            GunSilent.State.LocalRoot = nil
+        end
+
+        local currentTool = getEquippedGunTool()
+        if currentTool ~= GunSilent.State.LastTool then
+            GunSilent.State.PositionHistory = {}
+            if currentTool and not GunSilent.State.LastTool then
+                safeNotify(GunSilent.notify, "GunSilent", "Equipped: " .. currentTool.Name .. " (Range: " .. getGunRange(currentTool) .. ")", true)
+            elseif GunSilent.State.LastTool and not currentTool then
+                safeNotify(GunSilent.notify, "GunSilent", "Unequipped: " .. GunSilent.State.LastTool.Name, true)
+                GunSilent.State.CurrentToolRangeApplied = nil
+            elseif currentTool and GunSilent.State.LastTool then
+                safeNotify(GunSilent.notify, "GunSilent", "Switched to " .. currentTool.Name .. " (Range: " .. getGunRange(currentTool) .. ")", true)
+            end
+            GunSilent.State.LastTool = currentTool
+        end
+
+        updateFovCircle()
+        if not currentTool then
+            GunSilent.Core.GunSilentTarget.CurrentTarget = nil
+            updateVisualsGun(nil)
+            return
+        end
+
+        local gunRange = getGunRange(currentTool)
+        local nearestPlayer = getNearestPlayerGun(gunRange)
+        if nearestPlayer ~= GunSilent.Core.GunSilentTarget.CurrentTarget then
+            GunSilent.State.PositionHistory[nearestPlayer] = nil
+        end
+        updateVisualsGun(nearestPlayer)
+    end)
+end
+
+local function Init(UI, Core, notify)
+    GunSilent.Core = Core
+    GunSilent.notify = notify
+
+    local LocalPlayer = Core.PlayerData.LocalPlayer
+    if LocalPlayer then
+        LocalPlayer.CharacterAdded:Connect(function(character)
+            character:WaitForChild("HumanoidRootPart")
+            GunSilent.State.LocalCharacter = character
+            GunSilent.State.LocalRoot = character.HumanoidRootPart
+            GunSilent.State.CurrentToolRangeApplied = nil
+            GunSilent.State.BaseRangeCache = {}
+            GunSilent.State.PositionHistory = {}
+            cleanupTrajectoryBeam()
+        end)
+        if LocalPlayer.Character then
+            GunSilent.State.LocalCharacter = LocalPlayer.Character
+            GunSilent.State.LocalRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        end
+
+        local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.Died:Connect(function()
+                cleanupTrajectoryBeam()
+            end)
+        end
+        LocalPlayer.CharacterAdded:Connect(function(character)
+            local newHumanoid = character:WaitForChild("Humanoid")
+            newHumanoid.Died:Connect(function()
+                cleanupTrajectoryBeam()
+            end)
+        end)
+    end
+
+    local CombatElements = {}
+    local VisualsElements = {}
+
+    if UI.Tabs.Combat then
+        local combatSection = UI.Tabs.Combat:Section({ Side = "Right", Name = "GunSilent" })
+        if combatSection then
+            combatSection:Header({ Name = "GunSilent" })
+            CombatElements.GSEnabled = {
+                element = combatSection:Toggle({
+                    Name = "Enabled",
+                    Default = GunSilent.Settings.Enabled.Value,
+                    Callback = function(value)
+                        GunSilent.Settings.Enabled.Value = value
+                        initializeGunSilent()
+                        safeNotify(GunSilent.notify, "GunSilent", "GunSilent " .. (value and "Enabled" or "Disabled"), true)
+                    end
+                }, 'GSEnabled'),
+                callback = function(value)
+                    GunSilent.Settings.Enabled.Value = value
+                    initializeGunSilent()
+                    safeNotify(GunSilent.notify, "GunSilent", "GunSilent " .. (value and "Enabled" or "Disabled"), true)
+                end
+            }
+            CombatElements.RangePlus = {
+                element = combatSection:Slider({
+                    Name = "Range Plus",
+                    Minimum = 0,
+                    Maximum = 300,
+                    Default = GunSilent.Settings.RangePlus.Value,
+                    Precision = 0,
+                    Callback = function(value)
+                        GunSilent.Settings.RangePlus.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Range Plus set to: " .. value, false)
+                        local currentTool = getEquippedGunTool()
+                        if currentTool then
+                            GunSilent.State.CurrentToolRangeApplied = nil
+                            getGunRange(currentTool)
+                        end
+                    end
+                }, 'RangePlus'),
+                callback = function(value)
+                    GunSilent.Settings.RangePlus.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Range Plus set to: " .. value, false)
+                    local currentTool = getEquippedGunTool()
+                    if currentTool then
+                        GunSilent.State.CurrentToolRangeApplied = nil
+                        getGunRange(currentTool)
+                    end
+                end
+            }
+            CombatElements.HitPart = {
+                element = combatSection:Dropdown({
+                    Name = "Hit Part",
+                    Default = GunSilent.Settings.HitPart.Value,
+                    Options = {"Head", "UpperTorso", "HumanoidRootPart"},
+                    Callback = function(value)
+                        GunSilent.Settings.HitPart.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Hit Part set to: " .. value, true)
+                    end
+                }, 'HitPart'),
+                callback = function(value)
+                    GunSilent.Settings.HitPart.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Hit Part set to: " .. value, true)
+                end
+            }
+            CombatElements.ShotgunSupport = {
+                element = combatSection:Toggle({
+                    Name = "Shotgun Support",
+                    Default = GunSilent.Settings.ShotgunSupport.Value,
+                    Callback = function(value)
+                        GunSilent.Settings.ShotgunSupport.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Shotgun Support " .. (value and "Enabled" or "Disabled"), true)
+                    end
+                }, 'ShotgunSupport'),
+                callback = function(value)
+                    GunSilent.Settings.ShotgunSupport.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Shotgun Support " .. (value and "Enabled" or "Disabled"), true)
+                end
+            }
+            CombatElements.GenerateBullets = {
+                element = combatSection:Slider({
+                    Name = "Generate Bullets",
+                    Default = GunSilent.Settings.GenBullet.Value,
+                    Minimum = 1,
+                    Maximum = 10,
+                    Precision = 0,
+                    Callback = function(value)
+                        GunSilent.Settings.GenBullet.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Number of Bullets set to: " .. value, false)
+                    end
+                }, 'GenerateBullets'),
+                callback = function(value)
+                    GunSilent.Settings.GenBullet.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Number of Bullets set to: " .. value, false)
+                end
+            }
+            CombatElements.TestGenerateBullets = {
+                element = combatSection:Toggle({
+                    Name = "Test Generate Bullets",
+                    Default = GunSilent.Settings.TestGenBullet.Value,
+                    Callback = function(value)
+                        GunSilent.Settings.TestGenBullet.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Test Generate Bullets " .. (value and "Enabled" or "Disabled"), true)
+                    end
+                }, 'TestGenerateBullets'),
+                callback = function(value)
+                    GunSilent.Settings.TestGenBullet.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Test Generate Bullets " .. (value and "Enabled" or "Disabled"), true)
+                end
+            }
+            CombatElements.SortMethod = {
+                element = combatSection:Dropdown({
+                    Name = "Sort Method",
+                    Default = GunSilent.Settings.SortMethod.Value,
+                    Options = {"Mouse", "Distance", "Mouse&Distance"},
+                    Callback = function(value)
+                        GunSilent.Settings.SortMethod.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Sort Method set to: " .. value, true)
+                    end
+                }, 'SortMethod'),
+                callback = function(value)
+                    GunSilent.Settings.SortMethod.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Sort Method set to: " .. value, true)
+                end
+            }
+            CombatElements.UseFOV = {
+                element = combatSection:Toggle({
+                    Name = "Use FOV",
+                    Default = GunSilent.Settings.UseFOV.Value,
+                    Callback = function(value)
+                        GunSilent.Settings.UseFOV.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Use FOV " .. (value and "Enabled" or "Disabled"), true)
+                    end
+                }, 'UseFOV'),
+                callback = function(value)
+                    GunSilent.Settings.UseFOV.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Use FOV " .. (value and "Enabled" or "Disabled"), true)
+                end
+            }
+            CombatElements.FOV = {
+                element = combatSection:Slider({
+                    Name = "FOV",
+                    Default = GunSilent.Settings.FOV.Value,
+                    Minimum = 30,
+                    Maximum = 120,
+                    Precision = 0,
+                    Callback = function(value)
+                        GunSilent.Settings.FOV.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "FOV set to: " .. value, false)
+                    end
+                }, 'FOV'),
+                callback = function(value)
+                    GunSilent.Settings.FOV.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "FOV set to: " .. value, false)
+                end
+            }
+            CombatElements.ShowCircle = {
+                element = combatSection:Toggle({
+                    Name = "Show Circle",
+                    Default = GunSilent.Settings.ShowCircle.Value,
+                    Callback = function(value)
+                        GunSilent.Settings.ShowCircle.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Show Circle " .. (value and "Enabled" or "Disabled"), true)
+                    end
+                }, 'ShowCircle'),
+                callback = function(value)
+                    GunSilent.Settings.ShowCircle.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Show Circle " .. (value and "Enabled" or "Disabled"), true)
+                end
+            }
+            CombatElements.CircleMethod = {
+                element = combatSection:Dropdown({
+                    Name = "Circle Method",
+                    Default = GunSilent.Settings.CircleMethod.Value,
+                    Options = GunSilent.Settings.CircleMethod.Options,
+                    Callback = function(value)
+                        GunSilent.Settings.CircleMethod.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Circle Method set to: " .. value, true)
+                    end
+                }, 'CircleMethod'),
+                callback = function(value)
+                    GunSilent.Settings.CircleMethod.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Circle Method set to: " .. value, true)
+                end
+            }
+            combatSection:Header({ Name = "Visuals" })
+            CombatElements.PredictVisual = {
+                element = combatSection:Toggle({
+                    Name = "Predict Visual",
+                    Default = GunSilent.Settings.PredictVisual.Value,
+                    Callback = function(value)
+                        GunSilent.Settings.PredictVisual.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Predict Visual " .. (value and "Enabled" or "Disabled"), true)
+                    end
+                }, 'PredictVisual'),
+                callback = function(value)
+                    GunSilent.Settings.PredictVisual.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Predict Visual " .. (value and "Enabled" or "Disabled"), true)
+                end
+            }
+            CombatElements.TrajectoryBeam = {
+                element = combatSection:Toggle({
+                    Name = "Trajectory Beam",
+                    Default = GunSilent.Settings.TrajectoryBeam.Value,
+                    Callback = function(value)
+                        GunSilent.Settings.TrajectoryBeam.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Trajectory Beam " .. (value and "Enabled" or "Disabled"), true)
+                        if not value then
+                            cleanupTrajectoryBeam()
+                        end
+                    end
+                }, 'TrajectoryBeam'),
+                callback = function(value)
+                    GunSilent.Settings.TrajectoryBeam.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Trajectory Beam " .. (value and "Enabled" or "Disabled"), true)
+                    if not value then
+                        cleanupTrajectoryBeam()
+                    end
+                end
+            }
+            CombatElements.HitChance = {
+                element = combatSection:Slider({
+                    Name = "Hit Chance",
+                    Default = GunSilent.Settings.HitChance.Value,
+                    Minimum = 0,
+                    Maximum = 100,
+                    Precision = 0,
+                    Callback = function(value)
+                        GunSilent.Settings.HitChance.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Hit Chance set to: " .. value .. "%", false)
+                    end
+                }, 'HitChance'),
+                callback = function(value)
+                    GunSilent.Settings.HitChance.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Hit Chance set to: " .. value .. "%", false)
+                end
+            }
+            combatSection:Header({ Name = "Prediction Settings" })
+            CombatElements.PredictionStrength = {
+                element = combatSection:Slider({
+                    Name = "Prediction Strength",
+                    Minimum = 0.5,
+                    Maximum = 1.5,
+                    Default = GunSilent.Settings.PredictionStrength.Value,
+                    Precision = 2,
+                    Callback = function(value)
+                        GunSilent.Settings.PredictionStrength.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Prediction Strength set to: " .. value, false)
+                    end
+                }, 'PredictionStrength'),
+                callback = function(value)
+                    GunSilent.Settings.PredictionStrength.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Prediction Strength set to: " .. value, false)
+                end
+            }
+            CombatElements.PingCompensation = {
+                element = combatSection:Slider({
+                    Name = "Ping Compensation",
+                    Minimum = 0.0,
+                    Maximum = 0.2,
+                    Default = GunSilent.Settings.PingCompensation.Value,
+                    Precision = 3,
+                    Callback = function(value)
+                        GunSilent.Settings.PingCompensation.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Ping Compensation set to: " .. value .. "s", false)
+                    end
+                }, 'PingCompensation'),
+                callback = function(value)
+                    GunSilent.Settings.PingCompensation.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Ping Compensation set to: " .. value .. "s", false)
+                end
+            }
+            CombatElements.SmoothingFactor = {
+                element = combatSection:Slider({
+                    Name = "Smoothing Factor",
+                    Minimum = 0.05,
+                    Maximum = 0.2,
+                    Default = GunSilent.Settings.SmoothingFactor.Value,
+                    Precision = 2,
+                    Callback = function(value)
+                        GunSilent.Settings.SmoothingFactor.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Smoothing Factor set to: " .. value, false)
+                    end
+                }, 'SmoothingFactor'),
+                callback = function(value)
+                    GunSilent.Settings.SmoothingFactor.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Smoothing Factor set to: " .. value, false)
+                end
+            }
+            CombatElements.ResolverEnabled = {
+                element = combatSection:Toggle({
+                    Name = "Resolver Enabled",
+                    Default = GunSilent.Settings.ResolverEnabled.Value,
+                    Callback = function(value)
+                        GunSilent.Settings.ResolverEnabled.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Resolver " .. (value and "Enabled" or "Disabled"), true)
+                    end
+                }, 'ResolverEnabled'),
+                callback = function(value)
+                    GunSilent.Settings.ResolverEnabled.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Resolver " .. (value and "Enabled" or "Disabled"), true)
+                end
+            }
+            CombatElements.ResolverThreshold = {
+                element = combatSection:Slider({
+                    Name = "Resolver Threshold",
+                    Minimum = 0.2,
+                    Maximum = 0.5,
+                    Default = GunSilent.Settings.ResolverThreshold.Value,
+                    Precision = 2,
+                    Callback = function(value)
+                        GunSilent.Settings.ResolverThreshold.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Resolver Threshold set to: " .. value, false)
+                    end
+                }, 'ResolverThreshold'),
+                callback = function(value)
+                    GunSilent.Settings.ResolverThreshold.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Resolver Threshold set to: " .. value, false)
+                end
+            }
+            CombatElements.BulletSpeed = {
+                element = combatSection:Slider({
+                    Name = "Bullet Speed",
+                    Minimum = 1000,
+                    Maximum = 5000,
+                    Default = GunSilent.Settings.BulletSpeed.Value,
+                    Precision = 0,
+                    Callback = function(value)
+                        GunSilent.Settings.BulletSpeed.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Bullet Speed set to: " .. value, false)
+                    end
+                }, 'BulletSpeed'),
+                callback = function(value)
+                    GunSilent.Settings.BulletSpeed.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Bullet Speed set to: " .. value, false)
+                end
+            }
+        end
+    end
+
+    if UI.Tabs.Visuals then
+        local visualsSection = UI.Tabs.Visuals:Section({ Side = "Right", Name = "Bullet Trails" })
+        if visualsSection then
+            visualsSection:Header({ Name = "Bullet Trails" })
+            VisualsElements.BulletTrailsEnabled = {
+                element = visualsSection:Toggle({
+                    Name = "Enabled",
+                    Default = GunSilent.Settings.BulletTrailsEnabled.Value,
+                    Callback = function(value)
+                        GunSilent.Settings.BulletTrailsEnabled.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails " .. (value and "Enabled" or "Disabled"), true)
+                        if not value then
+                            for _, trailData in ipairs(GunSilent.State.BulletTrails) do
+                                if trailData.beam then trailData.beam:Destroy() end
+                                if trailData.attachment0 then trailData.attachment0:Destroy() end
+                                if trailData.attachment1 then trailData.attachment1:Destroy() end
+                            end
+                            GunSilent.State.BulletTrails = {}
+                            for _, conn in ipairs(GunSilent.State.TrailFadeConnections) do
+                                if conn then conn:Disconnect() end
+                            end
+                            GunSilent.State.TrailFadeConnections = {}
+                        end
+                    end
+                }, 'BulletTrailsEnabled'),
+                callback = function(value)
+                    GunSilent.Settings.BulletTrailsEnabled.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails " .. (value and "Enabled" or "Disabled"), true)
+                    if not value then
+                        for _, trailData in ipairs(GunSilent.State.BulletTrails) do
+                            if trailData.beam then trailData.beam:Destroy() end
+                            if trailData.attachment0 then trailData.attachment0:Destroy() end
+                            if trailData.attachment1 then trailData.attachment1:Destroy() end
+                        end
+                        GunSilent.State.BulletTrails = {}
+                        for _, conn in ipairs(GunSilent.State.TrailFadeConnections) do
+                            if conn then conn:Disconnect() end
+                        end
+                        GunSilent.State.TrailFadeConnections = {}
+                    end
+                end
+            }
+            VisualsElements.BulletTrailsFadeTime = {
+                element = visualsSection:Slider({
+                    Name = "Fade Time",
+                    Default = GunSilent.Settings.BulletTrailsFadeTime.Value,
+                    Minimum = 0.5,
+                    Maximum = 3,
+                    Precision = 1,
+                    Callback = function(value)
+                        GunSilent.Settings.BulletTrailsFadeTime.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Fade Time set to: " .. value .. "s", false)
+                    end
+                }, 'BulletTrailsFadeTime'),
+                callback = function(value)
+                    GunSilent.Settings.BulletTrailsFadeTime.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Fade Time set to: " .. value .. "s", false)
+                end
+            }
+            VisualsElements.BulletTrailsColor = {
+                element = visualsSection:Colorpicker({
+                    Name = "Trails Color",
+                    Default = GunSilent.Settings.BulletTrailsColor.Value,
+                    Callback = function(value)
+                        GunSilent.Settings.BulletTrailsColor.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails Color updated", false)
+                    end
+                }, 'BulletTrailsColor'),
+                callback = function(value)
+                    GunSilent.Settings.BulletTrailsColor.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails Color updated", false)
+                end
+            }
+        end
+
+        -- Новый раздел для HitParticles
+        local hitParticlesSection = UI.Tabs.Visuals:Section({ Side = "Right", Name = "Hit Particles" })
+        if hitParticlesSection then
+            hitParticlesSection:Header({ Name = "Hit Particles" })
+            VisualsElements.HitParticlesEnabled = {
+                element = hitParticlesSection:Toggle({
+                    Name = "Enabled",
+                    Default = GunSilent.Settings.HitParticlesEnabled.Value,
+                    Callback = function(value)
+                        GunSilent.Settings.HitParticlesEnabled.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Hit Particles " .. (value and "Enabled" or "Disabled"), true)
+                    end
+                }, 'HitParticlesEnabled'),
+                callback = function(value)
+                    GunSilent.Settings.HitParticlesEnabled.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Hit Particles " .. (value and "Enabled" or "Disabled"), true)
+                end
+            }
+            VisualsElements.HitParticlesMode = {
+                element = hitParticlesSection:Dropdown({
+                    Name = "Mode",
+                    Default = GunSilent.Settings.HitParticlesMode.Value,
+                    Options = GunSilent.Settings.HitParticlesMode.Options,
+                    Callback = function(value)
+                        GunSilent.Settings.HitParticlesMode.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Hit Particles Mode set to: " .. value, true)
+                    end
+                }, 'HitParticlesMode'),
+                callback = function(value)
+                    GunSilent.Settings.HitParticlesMode.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Hit Particles Mode set to: " .. value, true)
+                end
+            }
+            VisualsElements.HitParticlesCount = {
+                element = hitParticlesSection:Slider({
+                    Name = "Particle Count",
+                    Default = GunSilent.Settings.HitParticlesCount.Value,
+                    Minimum = 3,
+                    Maximum = 12,
+                    Precision = 0,
+                    Callback = function(value)
+                        GunSilent.Settings.HitParticlesCount.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Hit Particles Count set to: " .. value, false)
+                    end
+                }, 'HitParticlesCount'),
+                callback = function(value)
+                    GunSilent.Settings.HitParticlesCount.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Hit Particles Count set to: " .. value, false)
+                end
+            }
+            VisualsElements.HitParticlesLifetime = {
+                element = hitParticlesSection:Slider({
+                    Name = "Lifetime",
+                    Default = GunSilent.Settings.HitParticlesLifetime.Value,
+                    Minimum = 0.3,
+                    Maximum = 2,
+                    Precision = 1,
+                    Callback = function(value)
+                        GunSilent.Settings.HitParticlesLifetime.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Hit Particles Lifetime set to: " .. value .. "s", false)
+                    end
+                }, 'HitParticlesLifetime'),
+                callback = function(value)
+                    GunSilent.Settings.HitParticlesLifetime.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Hit Particles Lifetime set to: " .. value .. "s", false)
+                end
+            }
+            VisualsElements.HitParticlesMoveDistance = {
+                element = hitParticlesSection:Slider({
+                    Name = "Move Distance",
+                    Default = GunSilent.Settings.HitParticlesMoveDistance.Value,
+                    Minimum = 2,
+                    Maximum = 10,
+                    Precision = 0,
+                    Callback = function(value)
+                        GunSilent.Settings.HitParticlesMoveDistance.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Hit Particles Move Distance set to: " .. value, false)
+                    end
+                }, 'HitParticlesMoveDistance'),
+                callback = function(value)
+                    GunSilent.Settings.HitParticlesMoveDistance.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Hit Particles Move Distance set to: " .. value, false)
+                end
+            }
+            VisualsElements.HitParticlesColor = {
+                element = hitParticlesSection:Colorpicker({
+                    Name = "Particles Color",
+                    Default = GunSilent.Settings.HitParticlesColor.Value,
+                    Callback = function(value)
+                        GunSilent.Settings.HitParticlesColor.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Hit Particles Color updated", false)
+                    end
+                }, 'HitParticlesColor'),
+                callback = function(value)
+                    GunSilent.Settings.HitParticlesColor.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Hit Particles Color updated", false)
+                end
+            }
+        end
+    end
+
+    local gunconfigSection
+    if UI.Tabs.Config then
+        gunconfigSection = UI.Tabs.Config:Section({ Name = "GunSilent Sync", Side = "Right" })
+        gunconfigSection:Header({ Name = "GunSilent Settings Sync" })
+        gunconfigSection:Button({
+            Name = "Sync Settings",
+            Callback = function()
+                CombatElements.GSEnabled.callback(CombatElements.GSEnabled.element:GetState())
+                CombatElements.RangePlus.callback(CombatElements.RangePlus.element:GetValue())
+                local hitPartOptions = CombatElements.HitPart.element:GetOptions()
+                for option, selected in pairs(hitPartOptions) do
+                    if selected then
+                        CombatElements.HitPart.callback(option)
+                        break
+                    end
+                end
+                CombatElements.ShotgunSupport.callback(CombatElements.ShotgunSupport.element:GetState())
+                CombatElements.GenerateBullets.callback(CombatElements.GenerateBullets.element:GetValue())
+                CombatElements.TestGenerateBullets.callback(CombatElements.TestGenerateBullets.element:GetState())
+                local sortMethodOptions = CombatElements.SortMethod.element:GetOptions()
+                for option, selected in pairs(sortMethodOptions) do
+                    if selected then
+                        CombatElements.SortMethod.callback(option)
+                        break
+                    end
+                end
+                CombatElements.UseFOV.callback(CombatElements.UseFOV.element:GetState())
+                CombatElements.FOV.callback(CombatElements.FOV.element:GetValue())
+                CombatElements.ShowCircle.callback(CombatElements.ShowCircle.element:GetState())
+                local circleMethodOptions = CombatElements.CircleMethod.element:GetOptions()
+                for option, selected in pairs(circleMethodOptions) do
+                    if selected then
+                        CombatElements.CircleMethod.callback(option)
+                        break
+                    end
+                end
+                CombatElements.PredictVisual.callback(CombatElements.PredictVisual.element:GetState())
+                CombatElements.TrajectoryBeam.callback(CombatElements.TrajectoryBeam.element:GetState())
+                CombatElements.HitChance.callback(CombatElements.HitChance.element:GetValue())
+                CombatElements.PredictionStrength.callback(CombatElements.PredictionStrength.element:GetValue())
+                CombatElements.PingCompensation.callback(CombatElements.PingCompensation.element:GetValue())
+                CombatElements.SmoothingFactor.callback(CombatElements.SmoothingFactor.element:GetValue())
+                CombatElements.ResolverEnabled.callback(CombatElements.ResolverEnabled.element:GetState())
+                CombatElements.ResolverThreshold.callback(CombatElements.ResolverThreshold.element:GetValue())
+                CombatElements.BulletSpeed.callback(CombatElements.BulletSpeed.element:GetValue())
+                VisualsElements.BulletTrailsEnabled.callback(VisualsElements.BulletTrailsEnabled.element:GetState())
+                VisualsElements.BulletTrailsFadeTime.callback(VisualsElements.BulletTrailsFadeTime.element:GetValue())
+                VisualsElements.BulletTrailsColor.callback(VisualsElements.BulletTrailsColor.element:GetValue())
+                VisualsElements.HitParticlesEnabled.callback(VisualsElements.HitParticlesEnabled.element:GetState())
+                local hitParticlesModeOptions = VisualsElements.HitParticlesMode.element:GetOptions()
+                for option, selected in pairs(hitParticlesModeOptions) do
+                    if selected then
+                        VisualsElements.HitParticlesMode.callback(option)
+                        break
+                    end
+                end
+                VisualsElements.HitParticlesCount.callback(VisualsElements.HitParticlesCount.element:GetValue())
+                VisualsElements.HitParticlesLifetime.callback(VisualsElements.HitParticlesLifetime.element:GetValue())
+                VisualsElements.HitParticlesMoveDistance.callback(VisualsElements.HitParticlesMoveDistance.element:GetValue())
+                VisualsElements.HitParticlesColor.callback(VisualsElements.HitParticlesColor.element:GetValue())
+                safeNotify(GunSilent.notify, "GunSilent", "Settings synchronized with UI!", true)
+            end
+        }, 'SyncSettings')
+    end
+
+    initializeGunSilent()
+end
+
+return { Init = Init }
