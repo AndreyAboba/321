@@ -84,8 +84,8 @@ local TargetInfo = {
         local hudFrame = Instance.new("Frame")
         hudFrame.Size = UDim2.new(0, 220, 0, 90)
         hudFrame.Position = UDim2.new(0, 500, 0, 50)
-        hudFrame.BackgroundColor3 = Color3.fromRGB(120, 120, 120)
-        hudFrame.BackgroundTransparency = 0
+        hudFrame.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
+        hudFrame.BackgroundTransparency = 0.3
         hudFrame.BorderSizePixel = 0
         hudFrame.Visible = false
         hudFrame.Parent = hudScreenGui
@@ -94,33 +94,14 @@ local TargetInfo = {
         hudCorner.CornerRadius = UDim.new(0, 10)
         hudCorner.Parent = hudFrame
 
-        local hudGradient = Instance.new("UIGradient")
-        hudGradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(120, 120, 120)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 100, 100))
-        })
-        hudGradient.Rotation = 45
-        hudGradient.Parent = hudFrame
-
-        local hudStroke = Instance.new("UIStroke")
-        hudStroke.Thickness = 1.5
-        hudStroke.Transparency = 0.6
-        hudStroke.Color = Color3.fromRGB(160, 160, 160)
-        hudStroke.Parent = hudFrame
-
         local playerIcon = Instance.new("ImageLabel")
         playerIcon.Size = UDim2.new(0, 40, 0, 40)
         playerIcon.Position = UDim2.new(0, 10, 0, 10)
-        playerIcon.BackgroundColor3 = Color3.fromRGB(140, 140, 140)
-        playerIcon.BackgroundTransparency = 0
+        playerIcon.BackgroundTransparency = 1
         playerIcon.Image = ""
         playerIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
         playerIcon.Visible = false
         playerIcon.Parent = hudFrame
-
-        local iconCorner = Instance.new("UICorner")
-        iconCorner.CornerRadius = UDim.new(0, 5)
-        iconCorner.Parent = playerIcon
 
         local orbFrame = Instance.new("Frame")
         orbFrame.Size = UDim2.new(0, 40, 0, 40)
@@ -190,8 +171,8 @@ local TargetInfo = {
         local invFrame = Instance.new("Frame")
         invFrame.Size = UDim2.new(0, 220, 0, 160)
         invFrame.Position = UDim2.new(0, 50, 0, 250)
-        invFrame.BackgroundColor3 = Color3.fromRGB(120, 120, 120)
-        invFrame.BackgroundTransparency = 0
+        invFrame.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
+        invFrame.BackgroundTransparency = 0.3
         invFrame.BorderSizePixel = 0
         invFrame.Visible = false
         invFrame.Parent = invScreenGui
@@ -200,26 +181,12 @@ local TargetInfo = {
         invCorner.CornerRadius = UDim.new(0, 10)
         invCorner.Parent = invFrame
 
-        local invGradient = Instance.new("UIGradient")
-        invGradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(120, 120, 120)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 100, 100))
-        })
-        invGradient.Rotation = 45
-        invGradient.Parent = invFrame
-
-        local invStroke = Instance.new("UIStroke")
-        invStroke.Thickness = 1.5
-        invStroke.Transparency = 0.6
-        invStroke.Color = Color3.fromRGB(160, 160, 160)
-        invStroke.Parent = invFrame
-
         -- Верхняя полоска для стиля New
         local headerFrame = Instance.new("Frame")
         headerFrame.Size = UDim2.new(1, 0, 0, 30)
         headerFrame.Position = UDim2.new(0, 0, 0, 0)
-        headerFrame.BackgroundColor3 = Color3.fromRGB(130, 130, 130)
-        headerFrame.BackgroundTransparency = 0
+        headerFrame.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
+        headerFrame.BackgroundTransparency = 0.3
         headerFrame.BorderSizePixel = 0
         headerFrame.Visible = TargetInventorySettings.UIStyle == "New"
         headerFrame.Parent = invFrame
@@ -228,25 +195,10 @@ local TargetInfo = {
         headerCorner.CornerRadius = UDim.new(0, 10)
         headerCorner.Parent = headerFrame
 
-        local headerGradient = Instance.new("UIGradient")
-        headerGradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(130, 130, 130)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(110, 110, 110))
-        })
-        headerGradient.Rotation = 45
-        headerGradient.Parent = headerFrame
-
-        local headerStroke = Instance.new("UIStroke")
-        headerStroke.Thickness = 1
-        headerStroke.Transparency = 0.7
-        headerStroke.Color = Color3.fromRGB(160, 160, 160)
-        headerStroke.Parent = headerFrame
-
         local iconLabel = Instance.new("ImageLabel")
         iconLabel.Size = UDim2.new(0, 20, 0, 20)
         iconLabel.Position = UDim2.new(0, 10, 0, 5)
-        iconLabel.BackgroundColor3 = Color3.fromRGB(140, 140, 140)
-        iconLabel.BackgroundTransparency = 0
+        iconLabel.BackgroundTransparency = 1
         iconLabel.Image = "rbxassetid://15016878198"
         iconLabel.ImageColor3 = Color3.fromRGB(240, 240, 240)
         iconLabel.Parent = headerFrame
@@ -262,7 +214,6 @@ local TargetInfo = {
         titleLabel.TextXAlignment = Enum.TextXAlignment.Left
         titleLabel.Parent = headerFrame
 
-        -- Симметричное место (правый верхний угол)
         local placeholderFrame = Instance.new("Frame")
         placeholderFrame.Size = UDim2.new(0, 25, 0, 25)
         placeholderFrame.Position = UDim2.new(1, -30, 0, 2.5)
@@ -287,8 +238,8 @@ local TargetInfo = {
         local equippedContainer = Instance.new("Frame")
         equippedContainer.Size = UDim2.new(1, -20, 0, 25)
         equippedContainer.Position = UDim2.new(0, 10, 0, 40)
-        equippedContainer.BackgroundColor3 = Color3.fromRGB(140, 140, 140)
-        equippedContainer.BackgroundTransparency = 0
+        equippedContainer.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
+        equippedContainer.BackgroundTransparency = 0.3
         equippedContainer.BorderSizePixel = 0
         equippedContainer.Visible = true
         equippedContainer.Parent = invFrame
@@ -297,25 +248,10 @@ local TargetInfo = {
         equippedCorner.CornerRadius = UDim.new(0, 5)
         equippedCorner.Parent = equippedContainer
 
-        local equippedGradient = Instance.new("UIGradient")
-        equippedGradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(140, 140, 140)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(120, 120, 120))
-        })
-        equippedGradient.Rotation = 45
-        equippedGradient.Parent = equippedContainer
-
-        local equippedStroke = Instance.new("UIStroke")
-        equippedStroke.Thickness = 1
-        equippedStroke.Transparency = 0.7
-        equippedStroke.Color = Color3.fromRGB(160, 160, 160)
-        equippedStroke.Parent = equippedContainer
-
         local equippedIcon = Instance.new("ImageLabel")
         equippedIcon.Size = UDim2.new(0, 20, 0, 20)
         equippedIcon.Position = UDim2.new(0, 5, 0, 2.5)
-        equippedIcon.BackgroundColor3 = Color3.fromRGB(140, 140, 140)
-        equippedIcon.BackgroundTransparency = 0
+        equippedIcon.BackgroundTransparency = 1
         equippedIcon.Image = "rbxassetid://18821914323"
         equippedIcon.Parent = equippedContainer
 
@@ -747,7 +683,7 @@ local TargetInfo = {
         local function playAppearAnimation()
             if not TargetInventorySettings.AppearAnim then
                 invFrame.Size = UDim2.new(0, 220, 0, 160)
-                invFrame.BackgroundTransparency = 0
+                invFrame.BackgroundTransparency = 0.3
                 for _, child in pairs(invFrame:GetDescendants()) do
                     if child:IsA("TextLabel") or child:IsA("ImageLabel") or child:IsA("Frame") then
                         if child.Name ~= "headerFrame" and child.Name ~= "iconLabel" and child.Name ~= "titleLabel" then
@@ -767,7 +703,7 @@ local TargetInfo = {
             invFrame.Size = UDim2.new(0, 220 * 0.5, 0, 160 * 0.5)
             invFrame.BackgroundTransparency = 1
             local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-            TweenService:Create(invFrame, tweenInfo, { Size = UDim2.new(0, 220, 0, 160), BackgroundTransparency = 0 }):Play()
+            TweenService:Create(invFrame, tweenInfo, { Size = UDim2.new(0, 220, 0, 160), BackgroundTransparency = 0.3 }):Play()
             task.delay(0.5, function()
                 for _, child in pairs(invFrame:GetDescendants()) do
                     if child:IsA("TextLabel") or child:IsA("ImageLabel") or child:IsA("Frame") then
@@ -851,8 +787,8 @@ local TargetInfo = {
                 end
                 local emptyLabel = Instance.new("Frame")
                 emptyLabel.Size = UDim2.new(1, 0, 0, 25)
-                emptyLabel.BackgroundColor3 = Color3.fromRGB(140, 140, 140)
-                emptyLabel.BackgroundTransparency = TargetInventorySettings.UIStyle == "New" and 0 or 1
+                emptyLabel.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
+                emptyLabel.BackgroundTransparency = TargetInventorySettings.UIStyle == "New" and 0.3 or 1
                 emptyLabel.BorderSizePixel = 0
                 emptyLabel.Visible = true
                 emptyLabel.Parent = inventoryFrame
@@ -861,25 +797,10 @@ local TargetInfo = {
                 emptyCorner.CornerRadius = UDim.new(0, 5)
                 emptyCorner.Parent = emptyLabel
 
-                local emptyGradient = Instance.new("UIGradient")
-                emptyGradient.Color = ColorSequence.new({
-                    ColorSequenceKeypoint.new(0, Color3.fromRGB(140, 140, 140)),
-                    ColorSequenceKeypoint.new(1, Color3.fromRGB(120, 120, 120))
-                })
-                emptyGradient.Rotation = 45
-                emptyGradient.Parent = emptyLabel
-
-                local emptyStroke = Instance.new("UIStroke")
-                emptyStroke.Thickness = 1
-                emptyStroke.Transparency = 0.7
-                emptyStroke.Color = Color3.fromRGB(160, 160, 160)
-                emptyStroke.Parent = emptyLabel
-
                 local emptyIcon = Instance.new("ImageLabel")
                 emptyIcon.Size = UDim2.new(0, 20, 0, 20)
                 emptyIcon.Position = UDim2.new(0, 5, 0, 2.5)
-                emptyIcon.BackgroundColor3 = Color3.fromRGB(140, 140, 140)
-                emptyIcon.BackgroundTransparency = 0
+                emptyIcon.BackgroundTransparency = 1
                 emptyIcon.Image = "rbxassetid://18821914323"
                 emptyIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
                 emptyIcon.Parent = emptyLabel
@@ -918,8 +839,8 @@ local TargetInfo = {
                 for i, item in ipairs(inventory) do
                     local itemContainer = Instance.new("Frame")
                     itemContainer.Size = UDim2.new(1, 0, 0, 25)
-                    itemContainer.BackgroundColor3 = Color3.fromRGB(140, 140, 140)
-                    itemContainer.BackgroundTransparency = TargetInventorySettings.UIStyle == "New" and 0 or 1
+                    itemContainer.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
+                    itemContainer.BackgroundTransparency = TargetInventorySettings.UIStyle == "New" and 0.3 or 1
                     itemContainer.BorderSizePixel = 0
                     itemContainer.LayoutOrder = i
                     itemContainer.Visible = true
@@ -929,25 +850,10 @@ local TargetInfo = {
                     itemCorner.CornerRadius = UDim.new(0, 5)
                     itemCorner.Parent = itemContainer
 
-                    local itemGradient = Instance.new("UIGradient")
-                    itemGradient.Color = ColorSequence.new({
-                        ColorSequenceKeypoint.new(0, Color3.fromRGB(140, 140, 140)),
-                        ColorSequenceKeypoint.new(1, Color3.fromRGB(120, 120, 120))
-                    })
-                    itemGradient.Rotation = 45
-                    itemGradient.Parent = itemContainer
-
-                    local itemStroke = Instance.new("UIStroke")
-                    itemStroke.Transparency = 0.7
-                    itemStroke.Thickness = 1
-                    itemStroke.Color = Color3.fromRGB(160, 160, 160)
-                    itemStroke.Parent = itemContainer
-
                     local itemIcon = Instance.new("ImageLabel")
                     itemIcon.Size = UDim2.new(0, 20, 0, 20)
                     itemIcon.Position = UDim2.new(0, 5, 0, 2.5)
-                    itemIcon.BackgroundColor3 = Color3.fromRGB(140, 140, 140)
-                    itemIcon.BackgroundTransparency = 0
+                    itemIcon.BackgroundTransparency = 1
                     itemIcon.Image = item.Icon
                     itemIcon.ImageColor3 = getRarityColor(item.Rarity)
                     itemIcon.Parent = itemContainer
@@ -967,8 +873,8 @@ local TargetInfo = {
             else
                 local emptyLabel = Instance.new("Frame")
                 emptyLabel.Size = UDim2.new(1, 0, 0, 25)
-                emptyLabel.BackgroundColor3 = Color3.fromRGB(140, 140, 140)
-                emptyLabel.BackgroundTransparency = TargetInventorySettings.UIStyle == "New" and 0 or 1
+                emptyLabel.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
+                emptyLabel.BackgroundTransparency = TargetInventorySettings.UIStyle == "New" and 0.3 or 1
                 emptyLabel.BorderSizePixel = 0
                 emptyLabel.Visible = true
                 emptyLabel.Parent = inventoryFrame
@@ -977,25 +883,10 @@ local TargetInfo = {
                 emptyCorner.CornerRadius = UDim.new(0, 5)
                 emptyCorner.Parent = emptyLabel
 
-                local emptyGradient = Instance.new("UIGradient")
-                emptyGradient.Color = ColorSequence.new({
-                    ColorSequenceKeypoint.new(0, Color3.fromRGB(140, 140, 140)),
-                    ColorSequenceKeypoint.new(1, Color3.fromRGB(120, 120, 120))
-                })
-                emptyGradient.Rotation = 45
-                emptyGradient.Parent = emptyLabel
-
-                local emptyStroke = Instance.new("UIStroke")
-                emptyStroke.Thickness = 1
-                emptyStroke.Transparency = 0.7
-                emptyStroke.Color = Color3.fromRGB(160, 160, 160)
-                emptyStroke.Parent = emptyLabel
-
                 local emptyIcon = Instance.new("ImageLabel")
                 emptyIcon.Size = UDim2.new(0, 20, 0, 20)
                 emptyIcon.Position = UDim2.new(0, 5, 0, 2.5)
-                emptyIcon.BackgroundColor3 = Color3.fromRGB(140, 140, 140)
-                emptyIcon.BackgroundTransparency = 0
+                emptyIcon.BackgroundTransparency = 1
                 emptyIcon.Image = "rbxassetid://18821914323"
                 emptyIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
                 emptyIcon.Parent = emptyLabel
