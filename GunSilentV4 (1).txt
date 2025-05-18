@@ -32,7 +32,7 @@ local GunSilent = {
         GenBullet = { Value = 4, Default = 4 },
         TestGenBullet = { Value = false, Default = false },
         HitParticlesEnabled = { Value = false, Default = false },
-        HitParticlesMode = { Value = "Orbs", Default = "Orbs", Options = {"Orbs", "Sparks"} },
+        HitParticlesMode = { Value = "Orbs", Default = "Orbs", Options = {"Orbs", "Sparks", "Lightning", "Stars", "Cross"} },
         HitParticlesCount = { Value = 30, Default = 30 },
         HitParticlesLifetime = { Value = 0.8, Default = 0.8 },
         HitParticlesMoveDistance = { Value = 12, Default = 12 },
@@ -110,40 +110,59 @@ local function createOrb(position)
         CanCollide = false,
         Transparency = 0,
         Material = Enum.Material.Neon,
-        Color = GunSilent.Settings.UseGradient.Value and GunSilent.Core.GradientColors.Color1.Value or GunSilent.Settings.HitParticlesColor.Value,
         Parent = Workspace
     })
-    local glow = safeCreateInstance("PointLight", {
-        Range = 5,
-        Brightness = 2,
-        Color = GunSilent.Settings.UseGradient.Value and GunSilent.Core.GradientColors.Color2.Value or Color3.fromRGB(255, 165, 0),
-        Parent = orb
-    })
-    return orb, glow
+    return orb
 end
 
 local function createSpark(position)
     local spark = safeCreateInstance("Part", {
         Shape = Enum.PartType.Cylinder,
-        Size = Vector3.new(0.15, 1.2, 0.15),
+        Size = Vector3.new(0.3, 2.5, 0.3), -- Increased thickness and length
         Position = position,
         Anchored = true,
         CanCollide = false,
         Transparency = 0,
         Material = Enum.Material.Neon,
-        Color = GunSilent.Settings.UseGradient.Value and GunSilent.Core.GradientColors.Color1.Value or GunSilent.Settings.HitParticlesColor.Value,
         Parent = Workspace
     })
-    local glow = safeCreateInstance("PointLight", {
-        Range = 3,
-        Brightness = 1,
-        Color = GunSilent.Settings.UseGradient.Value and GunSilent.Core.GradientColors.Color2.Value or Color3.fromRGB(255, 165, 0),
-        Parent = spark
-    })
-    return spark, glow
+    return spark
 end
 
-local function animateParticle(particle, glow, isSpark)
+local function createDecalParticle(position, mode)
+    local particle = safeCreateInstance("Part", {
+        Size = Vector3.new(1.5, 1.5, 0.1),
+        Position = position,
+        Anchored = true,
+        CanCollide = false,
+        Transparency = 0,
+        Material = Enum.Material.SmoothPlastic,
+        Parent = Workspace
+    })
+    local decal = safeCreateInstance("Decal", {
+        Face = Enum.NormalId.Front,
+        Transparency = 0,
+        Parent = particle
+    })
+    if mode == "Lightning" then
+        decal.Texture = "rbxassetid://13160015062"
+    elseif mode == "Stars" then
+        decal.Texture = "rbxassetid://138880939782808"
+    elseif mode == "Cross" then
+        decal.Texture = "rbxassetid://103344771690872"
+    end
+    return particle, decal
+end
+
+local function interpolateColor(color1, color2, t)
+    return Color3.new(
+        color1.R + (color2.R - color1.R) * t,
+        color1.G + (color2.G - color1.G) * t,
+        color1.B + (color2.B - color1.B) * t
+    )
+end
+
+local function animateParticle(particle, isSpark, mode, decal)
     local theta = math.random() * 2 * math.pi
     local phi = math.random() * math.pi - math.pi / 2
     local distance = GunSilent.Settings.HitParticlesMoveDistance.Value * math.random(0.8, 1.2)
@@ -166,19 +185,37 @@ local function animateParticle(particle, glow, isSpark)
 
     local tweenInfo = TweenInfo.new(
         GunSilent.Settings.HitParticlesLifetime.Value,
-        Enum.EasingStyle.Exponential,
+        Enum.EasingStyle.Quad,
         Enum.EasingDirection.Out
     )
 
     local targetProperties = {
         Position = targetPosition + Vector3.new(0, yOffset, 0),
         Transparency = 1,
-        Size = isSpark and Vector3.new(0.1, 0.8, 0.1) or Vector3.new(0.4, 0.4, 0.4)
+        Size = isSpark and Vector3.new(0.2, 1.8, 0.2) or (mode == "Orbs" and Vector3.new(0.4, 0.4, 0.4) or Vector3.new(1.2, 1.2, 0.1))
     }
 
-    if not isSpark then
+    if mode == "Orbs" then
         local pulseTween = TweenService:Create(particle, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Size = Vector3.new(0.8, 0.8, 0.8) })
         pulseTween:Play()
+    end
+
+    local colorTween
+    if GunSilent.Settings.UseGradient.Value and GunSilent.Core and GunSilent.Core.GradientColors then
+        local gradientColor1 = GunSilent.Core.GradientColors.Color1.Value
+        local gradientColor2 = GunSilent.Core.GradientColors.Color2.Value
+        colorTween = TweenService:Create(particle, tweenInfo, { Color = gradientColor2 })
+        colorTween:Play()
+        task.spawn(function()
+            local t = 0
+            while t < 1 and particle and particle.Parent do
+                local newColor = interpolateColor(gradientColor1, gradientColor2, math.sin(t * math.pi))
+                particle.Color = newColor
+                if decal then decal.Color3 = newColor end
+                RunService.Heartbeat:Wait()
+                t = t + RunService.Heartbeat:Wait() / GunSilent.Settings.HitParticlesLifetime.Value
+            end
+        end)
     end
 
     local tween = TweenService:Create(particle, tweenInfo, targetProperties)
@@ -186,8 +223,12 @@ local function animateParticle(particle, glow, isSpark)
 
     task.delay(GunSilent.Settings.HitParticlesLifetime.Value, function()
         if particle then
-            particle:Destroy()
-            if glow then glow:Destroy() end
+            local fadeTween = TweenService:Create(particle, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Transparency = 1 })
+            fadeTween:Play()
+            fadeTween.Completed:Connect(function()
+                if particle then particle:Destroy() end
+                if decal then decal:Destroy() end
+            end)
         end
     end)
 end
@@ -207,16 +248,21 @@ local function spawnHitParticles(target, hitPosition)
     local particleCount = GunSilent.Settings.HitParticlesCount.Value
 
     for i = 1, particleCount do
-        local particle, glow
+        local particle, decal
         if mode == "Orbs" then
-            particle, glow = createOrb(position)
+            particle = createOrb(position)
             if particle then
-                animateParticle(particle, glow, false)
+                animateParticle(particle, false, "Orbs", nil)
             end
         elseif mode == "Sparks" then
-            particle, glow = createSpark(position)
+            particle = createSpark(position)
             if particle then
-                animateParticle(particle, glow, true)
+                animateParticle(particle, true, "Sparks", nil)
+            end
+        elseif mode == "Lightning" or mode == "Stars" or mode == "Cross" then
+            particle, decal = createDecalParticle(position, mode)
+            if particle and decal then
+                animateParticle(particle, false, mode, decal)
             end
         end
     end
