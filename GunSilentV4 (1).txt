@@ -38,7 +38,9 @@ local GunSilent = {
         HitParticlesMoveDistance = { Value = 12, Default = 12 },
         HitParticlesColor = { Value = Color3.fromRGB(255, 215, 0), Default = Color3.fromRGB(255, 215, 0) },
         UseGradient = { Value = false, Default = false },
-        ParticlePhysics = { Value = "None", Default = "None", Options = {"None", "Fall", "Rise"} }
+        ParticlePhysics = { Value = "None", Default = "None", Options = {"None", "Fall", "Rise"} },
+        HitVisualEnabled = { Value = false, Default = false },
+        HitVisualFadeTime = { Value = 1, Default = 1 }
     },
     State = {
         LastEventId = 0,
@@ -135,7 +137,7 @@ local function createDecalParticle(position, mode)
         Position = position,
         Anchored = true,
         CanCollide = false,
-        Transparency = 1, -- Set the part fully transparent to ensure only the decal is visible
+        Transparency = 1,
         Material = Enum.Material.SmoothPlastic,
         Parent = Workspace
     })
@@ -191,7 +193,7 @@ local function animateParticle(particle, isSpark, mode, decal)
 
     local targetProperties = {
         Position = targetPosition + Vector3.new(0, yOffset, 0),
-        Transparency = 1, -- Keep the part transparent
+        Transparency = 1,
         Size = isSpark and Vector3.new(0.2, 1.8, 0.2) or (mode == "Orbs" and Vector3.new(0.4, 0.4, 0.4) or Vector3.new(1.2, 1.2, 0.1))
     }
 
@@ -204,23 +206,24 @@ local function animateParticle(particle, isSpark, mode, decal)
     if GunSilent.Settings.UseGradient.Value and GunSilent.Core and GunSilent.Core.GradientColors then
         local gradientColor1 = GunSilent.Core.GradientColors.Color1.Value
         local gradientColor2 = GunSilent.Core.GradientColors.Color2.Value
-        colorTween = TweenService:Create(decal, tweenInfo, { Color3 = gradientColor2 }) -- Apply color change to decal only
+        colorTween = TweenService:Create(decal, tweenInfo, { Color3 = gradientColor2 })
         colorTween:Play()
         task.spawn(function()
             local t = 0
             while t < 1 and particle and particle.Parent do
                 local newColor = interpolateColor(gradientColor1, gradientColor2, math.sin(t * math.pi))
-                if decal then decal.Color3 = newColor end -- Only change the decal's color
+                if decal then decal.Color3 = newColor end
                 RunService.Heartbeat:Wait()
                 t = t + RunService.Heartbeat:Wait() / GunSilent.Settings.HitParticlesLifetime.Value
             end
         end)
+    elseif decal then
+        decal.Color3 = GunSilent.Settings.HitParticlesColor.Value
     end
 
     local tween = TweenService:Create(particle, tweenInfo, targetProperties)
     tween:Play()
 
-    -- Separate transparency tween for the decal to ensure smooth fading
     if decal then
         local decalFadeTween = TweenService:Create(decal, TweenInfo.new(GunSilent.Settings.HitParticlesLifetime.Value, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Transparency = 1 })
         decalFadeTween:Play()
@@ -272,6 +275,47 @@ local function spawnHitParticles(target, hitPosition)
             if particle and decal then
                 animateParticle(particle, false, mode, decal)
             end
+        end
+    end
+end
+
+local function createHitBox(position, partName)
+    local hitBox = safeCreateInstance("Part", {
+        Size = Vector3.new(1, 1, 1),
+        Position = position,
+        Anchored = true,
+        CanCollide = false,
+        Transparency = 0,
+        Color = GunSilent.Settings.BulletTrailsColor.Value,
+        Material = Enum.Material.Neon,
+        Parent = Workspace
+    })
+    local fadeTime = GunSilent.Settings.HitVisualFadeTime.Value
+    local fadeTween = TweenService:Create(hitBox, TweenInfo.new(fadeTime, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Transparency = 1 })
+    fadeTween:Play()
+    fadeTween.Completed:Connect(function()
+        hitBox:Destroy()
+    end)
+    return hitBox
+end
+
+local function spawnHitVisual(target, hitPosition)
+    if not GunSilent.Settings.HitVisualEnabled.Value or not target or not hitPosition then
+        return
+    end
+
+    local character = target.Character
+    if not character then return end
+
+    local hitBoxes = {
+        character:FindFirstChild("Head"),
+        character:FindFirstChild("UpperTorso"),
+        character:FindFirstChild("LowerTorso")
+    }
+
+    for _, hitBox in ipairs(hitBoxes) do
+        if hitBox then
+            createHitBox(hitPosition, hitBox.Name)
         end
     end
 end
@@ -823,28 +867,25 @@ local function initializeGunSilent()
     if not remoteEvent or not remoteEvent:IsA("RemoteEvent") then
         warn("[GunSilent] Could not find RemoteEvent 'ReplicatedStorage.Remotes.Send', hit confirmation won't work")
         return
-    end
-
-    print("[GunSilent] Found RemoteEvent for OnClientEvent:", remoteEvent:GetFullName())
+    }
 
     remoteEvent.OnClientEvent:Connect(function(...)
         local args = {...}
-        print("[GunSilent] Received OnClientEvent args:", table.unpack(args))
         if args[1] == "hit_confirmed" then
             local headshot = args[2]
             local kill = args[3]
             local pendingHit = GunSilent.State.PendingHits[GunSilent.State.LastEventId] or
                              { target = GunSilent.Core.GunSilentTarget.CurrentTarget, position = GunSilent.State.LastHitPosition }
             if pendingHit.target and (headshot or kill) then
-                print("[GunSilent] Hit confirmed with damage on target:", pendingHit.target.Name)
                 spawnHitParticles(pendingHit.target, pendingHit.position)
+                spawnHitVisual(pendingHit.target, pendingHit.position)
                 if GunSilent.State.PendingHits[GunSilent.State.LastEventId] then
                     GunSilent.State.PendingHits[GunSilent.State.LastEventId] = nil
                 end
             elseif pendingHit.target then
-                print("[GunSilent] Hit confirmed, but no damage on target:", pendingHit.target.Name)
-            else
-                print("[GunSilent] No valid target for hit confirmation")
+                if GunSilent.State.PendingHits[GunSilent.State.LastEventId] then
+                    GunSilent.State.PendingHits[GunSilent.State.LastEventId] = nil
+                end
             end
         end
     end)
@@ -852,7 +893,6 @@ local function initializeGunSilent()
     if not GunSilent.State.OldFireServer then
         GunSilent.State.OldFireServer = hookfunction(remoteEvent.FireServer, function(self, ...)
             local args = {...}
-            print("[GunSilent] FireServer args:", table.unpack(args))
             local modifiedArgs = args
             local nearestPlayer = nil
             if GunSilent.Settings.Enabled.Value and #args >= 2 and typeof(args[1]) == "number" and math.random(100) <= GunSilent.Settings.HitChance.Value then
@@ -879,10 +919,7 @@ local function initializeGunSilent()
                 return GunSilent.State.OldFireServer(self, unpack(modifiedArgs))
             end)
 
-            print("[GunSilent] FireServer result:", result, "Success:", success)
-
             if not success then
-                print("[GunSilent] FireServer failed with error:", result)
                 if GunSilent.State.PendingHits[GunSilent.State.LastEventId] then
                     GunSilent.State.PendingHits[GunSilent.State.LastEventId] = nil
                 end
@@ -1513,6 +1550,42 @@ local function Init(UI, Core, notify)
                 end
             }
         end
+
+        local hitVisualSection = UI.Tabs.Visuals:Section({ Side = "Right", Name = "Hit Visual" })
+        if hitVisualSection then
+            hitVisualSection:Header({ Name = "Hit Visual" })
+            VisualsElements.HitVisualEnabled = {
+                element = hitVisualSection:Toggle({
+                    Name = "Enabled",
+                    Default = GunSilent.Settings.HitVisualEnabled.Value,
+                    Callback = function(value)
+                        GunSilent.Settings.HitVisualEnabled.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Hit Visual " .. (value and "Enabled" or "Disabled"), true)
+                    end
+                }, 'HitVisualEnabled'),
+                callback = function(value)
+                    GunSilent.Settings.HitVisualEnabled.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Hit Visual " .. (value and "Enabled" or "Disabled"), true)
+                end
+            }
+            VisualsElements.HitVisualFadeTime = {
+                element = hitVisualSection:Slider({
+                    Name = "Fade Time",
+                    Default = GunSilent.Settings.HitVisualFadeTime.Value,
+                    Minimum = 0.5,
+                    Maximum = 3,
+                    Precision = 1,
+                    Callback = function(value)
+                        GunSilent.Settings.HitVisualFadeTime.Value = value
+                        safeNotify(GunSilent.notify, "GunSilent", "Hit Visual Fade Time set to: " .. value .. "s", false)
+                    end
+                }, 'HitVisualFadeTime'),
+                callback = function(value)
+                    GunSilent.Settings.HitVisualFadeTime.Value = value
+                    safeNotify(GunSilent.notify, "GunSilent", "Hit Visual Fade Time set to: " .. value .. "s", false)
+                end
+            }
+        end
     end
 
     local gunconfigSection
@@ -1577,6 +1650,8 @@ local function Init(UI, Core, notify)
                 VisualsElements.HitParticlesLifetime.callback(VisualsElements.HitParticlesLifetime.element:GetValue())
                 VisualsElements.HitParticlesMoveDistance.callback(VisualsElements.HitParticlesMoveDistance.element:GetValue())
                 VisualsElements.HitParticlesColor.callback(VisualsElements.HitParticlesColor.element:GetValue())
+                VisualsElements.HitVisualEnabled.callback(VisualsElements.HitVisualEnabled.element:GetState())
+                VisualsElements.HitVisualFadeTime.callback(VisualsElements.HitVisualFadeTime.element:GetValue())
                 safeNotify(GunSilent.notify, "GunSilent", "Settings synchronized with UI!", true)
             end
         }, 'SyncSettings')
