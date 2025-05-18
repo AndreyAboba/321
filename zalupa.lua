@@ -94,10 +94,16 @@ local TargetInfo = {
         hudCorner.CornerRadius = UDim.new(0, 10)
         hudCorner.Parent = hudFrame
 
+        local hudBlur = Instance.new("UIBlurEffect")
+        hudBlur.Size = 5
+        hudBlur.Transparency = 0.7
+        hudBlur.Parent = hudFrame
+
         local playerIcon = Instance.new("ImageLabel")
         playerIcon.Size = UDim2.new(0, 40, 0, 40)
         playerIcon.Position = UDim2.new(0, 10, 0, 10)
-        playerIcon.BackgroundTransparency = 1
+        playerIcon.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
+        playerIcon.BackgroundTransparency = 0.5
         playerIcon.Image = ""
         playerIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
         playerIcon.Visible = false
@@ -106,6 +112,11 @@ local TargetInfo = {
         local iconCorner = Instance.new("UICorner")
         iconCorner.CornerRadius = UDim.new(0, 5)
         iconCorner.Parent = playerIcon
+
+        local iconBlur = Instance.new("UIBlurEffect")
+        iconBlur.Size = 3
+        iconBlur.Transparency = 0.8
+        iconBlur.Parent = playerIcon
 
         local orbFrame = Instance.new("Frame")
         orbFrame.Size = UDim2.new(0, 40, 0, 40)
@@ -175,8 +186,8 @@ local TargetInfo = {
         local invFrame = Instance.new("Frame")
         invFrame.Size = UDim2.new(0, 220, 0, 160)
         invFrame.Position = UDim2.new(0, 50, 0, 250)
-        invFrame.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
-        invFrame.BackgroundTransparency = 0.3
+        invFrame.BackgroundColor3 = Color3.fromRGB(15, 25, 45)
+        invFrame.BackgroundTransparency = 0.4
         invFrame.BorderSizePixel = 0
         invFrame.Visible = false
         invFrame.Parent = invScreenGui
@@ -185,12 +196,17 @@ local TargetInfo = {
         invCorner.CornerRadius = UDim.new(0, 10)
         invCorner.Parent = invFrame
 
-        -- Верхняя полоска для стиля New (исходный дизайн)
+        local invBlur = Instance.new("UIBlurEffect")
+        invBlur.Size = 6
+        invBlur.Transparency = 0.6
+        invBlur.Parent = invFrame
+
+        -- Верхняя полоска для стиля New
         local headerFrame = Instance.new("Frame")
         headerFrame.Size = UDim2.new(1, 0, 0, 30)
         headerFrame.Position = UDim2.new(0, 0, 0, 0)
-        headerFrame.BackgroundColor3 = Color3.fromRGB(30, 40, 60)
-        headerFrame.BackgroundTransparency = 0.2
+        headerFrame.BackgroundColor3 = Color3.fromRGB(20, 30, 55)
+        headerFrame.BackgroundTransparency = 0.3
         headerFrame.BorderSizePixel = 0
         headerFrame.Visible = TargetInventorySettings.UIStyle == "New"
         headerFrame.Parent = invFrame
@@ -199,20 +215,31 @@ local TargetInfo = {
         headerCorner.CornerRadius = UDim.new(0, 10)
         headerCorner.Parent = headerFrame
 
+        local headerBlur = Instance.new("UIBlurEffect")
+        headerBlur.Size = 4
+        headerBlur.Transparency = 0.7
+        headerBlur.Parent = headerFrame
+
         local iconLabel = Instance.new("ImageLabel")
         iconLabel.Size = UDim2.new(0, 20, 0, 20)
         iconLabel.Position = UDim2.new(0, 10, 0, 5)
-        iconLabel.BackgroundTransparency = 1
+        iconLabel.BackgroundColor3 = Color3.fromRGB(20, 30, 55)
+        iconLabel.BackgroundTransparency = 0.5
         iconLabel.Image = "rbxassetid://13289068576"
-        iconLabel.ImageColor3 = Color3.fromRGB(200, 200, 200)
+        iconLabel.ImageColor3 = Color3.fromRGB(240, 240, 240)
         iconLabel.Parent = headerFrame
+
+        local iconBlur = Instance.new("UIBlurEffect")
+        iconBlur.Size = 3
+        iconBlur.Transparency = 0.8
+        iconBlur.Parent = iconLabel
 
         local titleLabel = Instance.new("TextLabel")
         titleLabel.Size = UDim2.new(0, 150, 0, 20)
         titleLabel.Position = UDim2.new(0, 50, 0, 5)
         titleLabel.BackgroundTransparency = 1
         titleLabel.Text = "Target Inventory"
-        titleLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        titleLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
         titleLabel.TextSize = 16
         titleLabel.Font = Enum.Font.GothamBold
         titleLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -243,7 +270,7 @@ local TargetInfo = {
         local equippedContainer = Instance.new("Frame")
         equippedContainer.Size = UDim2.new(1, -20, 0, 25)
         equippedContainer.Position = UDim2.new(0, 10, 0, 40)
-        equippedContainer.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
+        equippedContainer.BackgroundColor3 = Color3.fromRGB(25, 35, 60)
         equippedContainer.BackgroundTransparency = 0.4
         equippedContainer.BorderSizePixel = 0
         equippedContainer.Visible = true
@@ -253,19 +280,30 @@ local TargetInfo = {
         equippedCorner.CornerRadius = UDim.new(0, 5)
         equippedCorner.Parent = equippedContainer
 
+        local equippedBlur = Instance.new("UIBlurEffect")
+        equippedBlur.Size = 4
+        equippedBlur.Transparency = 0.7
+        equippedBlur.Parent = equippedContainer
+
         local equippedIcon = Instance.new("ImageLabel")
         equippedIcon.Size = UDim2.new(0, 20, 0, 20)
         equippedIcon.Position = UDim2.new(0, 5, 0, 2.5)
-        equippedIcon.BackgroundTransparency = 1
+        equippedIcon.BackgroundColor3 = Color3.fromRGB(25, 35, 60)
+        equippedIcon.BackgroundTransparency = 0.5
         equippedIcon.Image = "rbxassetid://18821914323"
         equippedIcon.Parent = equippedContainer
+
+        local equippedIconBlur = Instance.new("UIBlurEffect")
+        equippedIconBlur.Size = 3
+        equippedIconBlur.Transparency = 0.8
+        equippedIconBlur.Parent = equippedIcon
 
         local equippedLabel = Instance.new("TextLabel")
         equippedLabel.Size = UDim2.new(0, 180, 0, 20)
         equippedLabel.Position = UDim2.new(0, 30, 0, 2.5)
         equippedLabel.BackgroundTransparency = 1
         equippedLabel.Text = " | Equipped: None"
-        equippedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        equippedLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
         equippedLabel.TextSize = 14
         equippedLabel.Font = Enum.Font.Gotham
         equippedLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -291,7 +329,7 @@ local TargetInfo = {
         nickLabel.Position = UDim2.new(0, 10, 0, 140)
         nickLabel.BackgroundTransparency = 1
         nickLabel.Text = ""
-        nickLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        nickLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
         nickLabel.TextSize = 14
         nickLabel.Font = Enum.Font.GothamBold
         nickLabel.TextXAlignment = Enum.TextXAlignment.Center
@@ -688,7 +726,7 @@ local TargetInfo = {
         local function playAppearAnimation()
             if not TargetInventorySettings.AppearAnim then
                 invFrame.Size = UDim2.new(0, 220, 0, 160)
-                invFrame.BackgroundTransparency = 0.3
+                invFrame.BackgroundTransparency = 0.4
                 for _, child in pairs(invFrame:GetDescendants()) do
                     if child:IsA("TextLabel") or child:IsA("ImageLabel") or child:IsA("Frame") then
                         if child.Name ~= "headerFrame" and child.Name ~= "iconLabel" and child.Name ~= "titleLabel" then
@@ -708,11 +746,11 @@ local TargetInfo = {
             invFrame.Size = UDim2.new(0, 220 * 0.5, 0, 160 * 0.5)
             invFrame.BackgroundTransparency = 1
             local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-            TweenService:Create(invFrame, tweenInfo, { Size = UDim2.new(0, 220, 0, 160), BackgroundTransparency = 0.3 }):Play()
+            TweenService:Create(invFrame, tweenInfo, { Size = UDim2.new(0, 220, 0, 160), BackgroundTransparency = 0.4 }):Play()
             task.delay(0.5, function()
                 for _, child in pairs(invFrame:GetDescendants()) do
                     if child:IsA("TextLabel") or child:IsA("ImageLabel") or child:IsA("Frame") then
-                        if child.Name ~= "headerFrame" and child.Name ~= "iconLabel" and child.Name ~= "titleLabel" then
+                        if child.Name ~= "headerFrame" and child.Name ~= "iconLabel" and child.Name != "titleLabel" then
                             child.Visible = true
                         end
                     end
@@ -785,34 +823,48 @@ local TargetInfo = {
                 equippedLabel.Text = " | Equipped: None"
                 equippedIcon.Image = "rbxassetid://18821914323"
                 equippedIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
-                equippedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+                equippedLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
                 equippedLabel.Position = UDim2.new(0, 30, 0, 2.5)
                 for _, child in pairs(inventoryFrame:GetChildren()) do
                     if child:IsA("Frame") then child:Destroy() end
                 end
                 local emptyLabel = Instance.new("Frame")
                 emptyLabel.Size = UDim2.new(1, 0, 0, 25)
-                emptyLabel.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
+                emptyLabel.BackgroundColor3 = Color3.fromRGB(25, 35, 60)
                 emptyLabel.BackgroundTransparency = TargetInventorySettings.UIStyle == "New" and 0.4 or 1
                 emptyLabel.BorderSizePixel = 0
                 emptyLabel.Visible = true
                 emptyLabel.Parent = inventoryFrame
+
                 local emptyCorner = Instance.new("UICorner")
                 emptyCorner.CornerRadius = UDim.new(0, 5)
                 emptyCorner.Parent = emptyLabel
+
+                local emptyBlur = Instance.new("UIBlurEffect")
+                emptyBlur.Size = 4
+                emptyBlur.Transparency = 0.7
+                emptyBlur.Parent = emptyLabel
+
                 local emptyIcon = Instance.new("ImageLabel")
                 emptyIcon.Size = UDim2.new(0, 20, 0, 20)
                 emptyIcon.Position = UDim2.new(0, 5, 0, 2.5)
-                emptyIcon.BackgroundTransparency = 1
+                emptyIcon.BackgroundColor3 = Color3.fromRGB(25, 35, 60)
+                emptyIcon.BackgroundTransparency = 0.5
                 emptyIcon.Image = "rbxassetid://18821914323"
                 emptyIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
                 emptyIcon.Parent = emptyLabel
+
+                local emptyIconBlur = Instance.new("UIBlurEffect")
+                emptyIconBlur.Size = 3
+                emptyIconBlur.Transparency = 0.8
+                emptyIconBlur.Parent = emptyIcon
+
                 local emptyText = Instance.new("TextLabel")
                 emptyText.Size = UDim2.new(0, 170, 0, 20)
                 emptyText.Position = UDim2.new(0, 30, 0, 2.5)
                 emptyText.BackgroundTransparency = 1
                 emptyText.Text = " | Items: No Target"
-                emptyText.TextColor3 = Color3.fromRGB(255, 255, 255)
+                emptyText.TextColor3 = Color3.fromRGB(240, 240, 240)
                 emptyText.TextSize = 14
                 emptyText.Font = Enum.Font.Gotham
                 emptyText.TextXAlignment = Enum.TextXAlignment.Left
@@ -830,7 +882,7 @@ local TargetInfo = {
             else
                 equippedIcon.Image = "rbxassetid://18821914323"
                 equippedIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
-                equippedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+                equippedLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
                 equippedLabel.Position = UDim2.new(0, 30, 0, 2.5)
             end
             for _, child in pairs(inventoryFrame:GetChildren()) do
@@ -841,22 +893,36 @@ local TargetInfo = {
                 for i, item in ipairs(inventory) do
                     local itemContainer = Instance.new("Frame")
                     itemContainer.Size = UDim2.new(1, 0, 0, 25)
-                    itemContainer.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
+                    itemContainer.BackgroundColor3 = Color3.fromRGB(25, 35, 60)
                     itemContainer.BackgroundTransparency = TargetInventorySettings.UIStyle == "New" and 0.4 or 1
                     itemContainer.BorderSizePixel = 0
                     itemContainer.LayoutOrder = i
                     itemContainer.Visible = true
                     itemContainer.Parent = inventoryFrame
+
                     local itemCorner = Instance.new("UICorner")
                     itemCorner.CornerRadius = UDim.new(0, 5)
                     itemCorner.Parent = itemContainer
+
+                    local itemBlur = Instance.new("UIBlurEffect")
+                    itemBlur.Size = 4
+                    itemBlur.Transparency = 0.7
+                    itemBlur.Parent = itemContainer
+
                     local itemIcon = Instance.new("ImageLabel")
                     itemIcon.Size = UDim2.new(0, 20, 0, 20)
                     itemIcon.Position = UDim2.new(0, 5, 0, 2.5)
-                    itemIcon.BackgroundTransparency = 1
+                    itemIcon.BackgroundColor3 = Color3.fromRGB(25, 35, 60)
+                    itemIcon.BackgroundTransparency = 0.5
                     itemIcon.Image = item.Icon
                     itemIcon.ImageColor3 = getRarityColor(item.Rarity)
                     itemIcon.Parent = itemContainer
+
+                    local itemIconBlur = Instance.new("UIBlurEffect")
+                    itemIconBlur.Size = 3
+                    itemIconBlur.Transparency = 0.8
+                    itemIconBlur.Parent = itemIcon
+
                     local itemLabel = Instance.new("TextLabel")
                     itemLabel.Size = UDim2.new(0, 155, 0, 20)
                     itemLabel.Position = UDim2.new(0, 30, 0, 2.5)
@@ -872,27 +938,41 @@ local TargetInfo = {
             else
                 local emptyLabel = Instance.new("Frame")
                 emptyLabel.Size = UDim2.new(1, 0, 0, 25)
-                emptyLabel.BackgroundColor3 = Color3.fromRGB(25, 35, 55)
+                emptyLabel.BackgroundColor3 = Color3.fromRGB(25, 35, 60)
                 emptyLabel.BackgroundTransparency = TargetInventorySettings.UIStyle == "New" and 0.4 or 1
                 emptyLabel.BorderSizePixel = 0
                 emptyLabel.Visible = true
                 emptyLabel.Parent = inventoryFrame
+
                 local emptyCorner = Instance.new("UICorner")
                 emptyCorner.CornerRadius = UDim.new(0, 5)
                 emptyCorner.Parent = emptyLabel
+
+                local emptyBlur = Instance.new("UIBlurEffect")
+                emptyBlur.Size = 4
+                emptyBlur.Transparency = 0.7
+                emptyBlur.Parent = emptyLabel
+
                 local emptyIcon = Instance.new("ImageLabel")
                 emptyIcon.Size = UDim2.new(0, 20, 0, 20)
                 emptyIcon.Position = UDim2.new(0, 5, 0, 2.5)
-                emptyIcon.BackgroundTransparency = 1
+                emptyIcon.BackgroundColor3 = Color3.fromRGB(25, 35, 60)
+                emptyIcon.BackgroundTransparency = 0.5
                 emptyIcon.Image = "rbxassetid://18821914323"
                 emptyIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
                 emptyIcon.Parent = emptyLabel
+
+                local emptyIconBlur = Instance.new("UIBlurEffect")
+                emptyIconBlur.Size = 3
+                emptyIconBlur.Transparency = 0.8
+                emptyIconBlur.Parent = emptyIcon
+
                 local emptyText = Instance.new("TextLabel")
                 emptyText.Size = UDim2.new(0, 170, 0, 20)
                 emptyText.Position = UDim2.new(0, 30, 0, 2.5)
                 emptyText.BackgroundTransparency = 1
                 emptyText.Text = " | Items: None"
-                emptyText.TextColor3 = Color3.fromRGB(255, 255, 255)
+                emptyText.TextColor3 = Color3.fromRGB(240, 240, 240)
                 emptyText.TextSize = 14
                 emptyText.Font = Enum.Font.Gotham
                 emptyText.TextXAlignment = Enum.TextXAlignment.Left
