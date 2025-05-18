@@ -32,10 +32,10 @@ local GunSilent = {
         TestGenBullet = { Value = false, Default = false },
         HitParticlesEnabled = { Value = false, Default = false },
         HitParticlesMode = { Value = "Orbs", Default = "Orbs", Options = {"Orbs", "Sparks"} },
-        HitParticlesCount = { Value = 6, Default = 6 },
-        HitParticlesLifetime = { Value = 0.8, Default = 0.8 },
-        HitParticlesMoveDistance = { Value = 5, Default = 5 },
-        HitParticlesColor = { Value = Color3.fromRGB(255, 0, 0), Default = Color3.fromRGB(255, 0, 0) }
+        HitParticlesCount = { Value = 20, Default = 20 }, -- Увеличим количество частиц
+        HitParticlesLifetime = { Value = 0.6, Default = 0.6 }, -- Уменьшим время жизни для динамики
+        HitParticlesMoveDistance = { Value = 8, Default = 8 }, -- Увеличим дистанцию разлета
+        HitParticlesColor = { Value = Color3.fromRGB(255, 165, 0), Default = Color3.fromRGB(255, 165, 0) } -- Яркий оранжевый для искр
     },
     State = {
         LastEventId = 0,
@@ -64,7 +64,8 @@ local GunSilent = {
         BaseRangeCache = {},
         LastHitTarget = nil,
         LastHitPosition = nil,
-        LastShotTime = 0
+        LastShotTime = 0,
+        LastTargetHealth = nil
     }
 }
 
@@ -100,13 +101,20 @@ end
 local function createOrb(position)
     local orb = safeCreateInstance("Part", {
         Shape = Enum.PartType.Ball,
-        Size = Vector3.new(0.3, 0.3, 0.3),
+        Size = Vector3.new(0.4, 0.4, 0.4), -- Чуть больше для заметности
         Position = position,
         Anchored = true,
         CanCollide = false,
         Transparency = 0,
         Color = GunSilent.Settings.HitParticlesColor.Value,
         Parent = Workspace
+    })
+    -- Добавляем эффект свечения
+    local pointLight = safeCreateInstance("PointLight", {
+        Brightness = 2,
+        Range = 5,
+        Color = GunSilent.Settings.HitParticlesColor.Value,
+        Parent = orb
     })
     return orb
 end
@@ -114,7 +122,7 @@ end
 local function createSpark(position)
     local spark = safeCreateInstance("Part", {
         Shape = Enum.PartType.Block,
-        Size = Vector3.new(0.1, 0.1, 0.5),
+        Size = Vector3.new(0.1, 0.1, 0.8), -- Длинные и тонкие искры
         Position = position,
         Anchored = true,
         CanCollide = false,
@@ -122,35 +130,58 @@ local function createSpark(position)
         Color = GunSilent.Settings.HitParticlesColor.Value,
         Parent = Workspace
     })
+    -- Добавляем свечение для искр
+    local pointLight = safeCreateInstance("PointLight", {
+        Brightness = 3,
+        Range = 3,
+        Color = GunSilent.Settings.HitParticlesColor.Value,
+        Parent = spark
+    })
     return spark
 end
 
 local function animateParticle(particle, isSpark)
-    local angle = math.random() * 2 * math.pi
-    local distance = GunSilent.Settings.HitParticlesMoveDistance.Value
-    local moveX = math.cos(angle) * distance
-    local moveY = math.sin(angle) * distance
-    local targetPosition = particle.Position + Vector3.new(moveX, 0, moveY)
-    
+    -- Случайный угол разлета в 3D
+    local theta = math.random() * 2 * math.pi -- Угол в плоскости XZ
+    local phi = math.random() * math.pi - math.pi / 2 -- Угол наклона (от -90 до 90 градусов)
+    local distance = GunSilent.Settings.HitParticlesMoveDistance.Value * math.random(0.8, 1.2) -- Случайная дистанция разлета
+    local moveX = math.cos(theta) * math.cos(phi) * distance
+    local moveY = math.sin(phi) * distance -- Вертикальное смещение
+    local moveZ = math.sin(theta) * math.cos(phi) * distance
+    local targetPosition = particle.Position + Vector3.new(moveX, moveY, moveZ)
+
     if isSpark then
-        particle.CFrame = CFrame.new(particle.Position) * CFrame.Angles(0, angle, 0)
+        -- Ориентируем искру по направлению движения
+        particle.CFrame = CFrame.new(particle.Position, targetPosition)
     end
-    
+
     local tweenInfo = TweenInfo.new(
         GunSilent.Settings.HitParticlesLifetime.Value,
         Enum.EasingStyle.Quad,
         Enum.EasingDirection.Out
     )
-    
+
     local targetProperties = {
         Position = targetPosition,
         Transparency = 1,
-        Size = isSpark and Vector3.new(0.1, 0.1, 0.3) or Vector3.new(0, 0, 0)
+        Size = isSpark and Vector3.new(0.05, 0.05, 0.3) or Vector3.new(0.1, 0.1, 0.1) -- Уменьшение размера
     }
-    
+
     local tween = TweenService:Create(particle, tweenInfo, targetProperties)
     tween:Play()
-    
+
+    -- Отдельный твин для света, чтобы он затухал
+    local pointLight = particle:FindFirstChild("PointLight")
+    if pointLight then
+        local lightTweenInfo = TweenInfo.new(
+            GunSilent.Settings.HitParticlesLifetime.Value,
+            Enum.EasingStyle.Quad,
+            Enum.EasingDirection.Out
+        )
+        local lightTween = TweenService:Create(pointLight, lightTweenInfo, { Brightness = 0, Range = 0 })
+        lightTween:Play()
+    end
+
     task.delay(GunSilent.Settings.HitParticlesLifetime.Value, function()
         if particle then
             particle:Destroy()
@@ -162,16 +193,16 @@ local function spawnHitParticles(target, hitPosition)
     if not GunSilent.Settings.HitParticlesEnabled.Value or not target or not hitPosition then
         return
     end
-    
+
     local hitPart = target.Character:FindFirstChild(GunSilent.Settings.HitPart.Value) or target.Character:FindFirstChild("HumanoidRootPart")
     if not hitPart then
         return
     end
-    
+
     local position = hitPosition or hitPart.Position
     local mode = GunSilent.Settings.HitParticlesMode.Value
     local particleCount = GunSilent.Settings.HitParticlesCount.Value
-    
+
     for i = 1, particleCount do
         local particle
         if mode == "Orbs" then
@@ -727,7 +758,6 @@ local function checkHitSuccess(target)
     local humanoid = target.Character:FindFirstChild("Humanoid")
     if not humanoid then return false end
 
-    -- Проверяем здоровье цели (простая эвристика)
     local healthBefore = GunSilent.State.LastTargetHealth and GunSilent.State.LastTargetHealth[target] or humanoid.Health
     local healthNow = humanoid.Health
     GunSilent.State.LastTargetHealth = GunSilent.State.LastTargetHealth or {}
@@ -780,23 +810,27 @@ local function initializeGunSilent()
                 return GunSilent.State.OldFireServer(self, unpack(modifiedArgs))
             end)
 
-            -- Логирование результата для диагностики
-            safeNotify(GunSilent.notify, "GunSilent", "FireServer result: " .. tostring(result) .. " (Success: " .. tostring(success) .. ")", false)
+            -- Логирование результата в консоль
+            print("[GunSilent] FireServer result:", result, "Success:", success)
 
             -- Проверка успешности попадания
             if success and nearestPlayer then
                 if result == true then
+                    print("[GunSilent] Hit confirmed via server response on", nearestPlayer.Name)
                     safeNotify(GunSilent.notify, "GunSilent", "Hit registered on " .. nearestPlayer.Name, false)
                     spawnHitParticles(GunSilent.State.LastHitTarget, GunSilent.State.LastHitPosition)
                 elseif result == false or result == nil then
+                    print("[GunSilent] Hit not registered via server response")
                     safeNotify(GunSilent.notify, "GunSilent", "Hit not registered", false)
                     -- Альтернативная проверка через здоровье
                     if checkHitSuccess(nearestPlayer) then
+                        print("[GunSilent] Hit confirmed via health check on", nearestPlayer.Name)
                         safeNotify(GunSilent.notify, "GunSilent", "Hit detected via health check on " .. nearestPlayer.Name, false)
                         spawnHitParticles(GunSilent.State.LastHitTarget, GunSilent.State.LastHitPosition)
                     end
                 end
             elseif not success then
+                print("[GunSilent] FireServer failed with error:", result)
                 safeNotify(GunSilent.notify, "GunSilent", "FireServer failed: " .. tostring(result), false)
             end
 
@@ -1334,8 +1368,8 @@ local function Init(UI, Core, notify)
                 element = hitParticlesSection:Slider({
                     Name = "Particle Count",
                     Default = GunSilent.Settings.HitParticlesCount.Value,
-                    Minimum = 3,
-                    Maximum = 12,
+                    Minimum = 5,
+                    Maximum = 30,
                     Precision = 0,
                     Callback = function(value)
                         GunSilent.Settings.HitParticlesCount.Value = value
@@ -1369,7 +1403,7 @@ local function Init(UI, Core, notify)
                     Name = "Move Distance",
                     Default = GunSilent.Settings.HitParticlesMoveDistance.Value,
                     Minimum = 2,
-                    Maximum = 10,
+                    Maximum = 15,
                     Precision = 0,
                     Callback = function(value)
                         GunSilent.Settings.HitParticlesMoveDistance.Value = value
