@@ -111,7 +111,7 @@ local function getGunRange(tool)
         return tool:GetAttribute(encryptedRangeAttr) or 0
     end)
     if not success then
-        warn("[GunSilent] Failed to get range attribute for " .. tool.Name .. ": " .. tostring(baseRange))
+        warn("[GunSilent] Failed to get range attribute for " .. tostring(tool) .. ": " .. tostring(baseRange))
         baseRange = 0
     end
     GunSilent.State.BaseRangeCache[toolId] = baseRange
@@ -122,7 +122,7 @@ local function getGunRange(tool)
             tool:SetAttribute(encryptedRangeAttr, totalRange)
         end)
         if not success then
-            warn("[GunSilent] Failed to set range attribute for " .. tool.Name .. ": " .. tostring(err))
+            warn("[GunSilent] Failed to set range attribute for " .. tostring(tool) .. ": " .. tostring(err))
         end
         GunSilent.State.CurrentToolRangeApplied = tool
     end
@@ -638,19 +638,60 @@ local function initializeGunSilent()
         if currentTool ~= GunSilent.State.LastTool then
             GunSilent.State.PositionHistory = {}
             if currentTool and not GunSilent.State.LastTool then
-                local range = tostring(getGunRange(currentTool) or "N/A")
+                local range
+                local success, result = pcall(function()
+                    return getGunRange(currentTool)
+                end)
+                if success then
+                    range = tostring(result or "N/A")
+                else
+                    warn("[GunSilent] Failed to get gun range: " .. tostring(result))
+                    range = "N/A"
+                end
+                local toolName = currentTool and currentTool.Name or "Unknown Tool"
                 if GunSilent.notify and UI.Window and UI.Window.Notify then
-                    notify("GunSilent", string.format("Equipped: %s (Range: %s)", currentTool.Name or "Unknown Tool", range), true)
+                    local successNotify, msg = pcall(function()
+                        return string.format("Equipped: %s (Range: %s)", toolName, range)
+                    end)
+                    if successNotify then
+                        notify("GunSilent", msg, true)
+                    else
+                        warn("[GunSilent] Failed to format equip message: " .. tostring(msg))
+                    end
                 end
             elseif GunSilent.State.LastTool and not currentTool then
                 if GunSilent.notify and UI.Window and UI.Window.Notify then
-                    notify("GunSilent", "Unequipped: " .. (GunSilent.State.LastTool.Name or "Unknown Tool"), true)
+                    local successNotify, msg = pcall(function()
+                        return "Unequipped: " .. (GunSilent.State.LastTool.Name or "Unknown Tool")
+                    end)
+                    if successNotify then
+                        notify("GunSilent", msg, true)
+                    else
+                        warn("[GunSilent] Failed to format unequip message: " .. tostring(msg))
+                    end
                 end
                 GunSilent.State.CurrentToolRangeApplied = nil
             elseif currentTool and GunSilent.State.LastTool then
-                local range = tostring(getGunRange(currentTool) or "N/A")
+                local range
+                local success, result = pcall(function()
+                    return getGunRange(currentTool)
+                end)
+                if success then
+                    range = tostring(result or "N/A")
+                else
+                    warn("[GunSilent] Failed to get gun range: " .. tostring(result))
+                    range = "N/A"
+                end
+                local toolName = currentTool and currentTool.Name or "Unknown Tool"
                 if GunSilent.notify and UI.Window and UI.Window.Notify then
-                    notify("GunSilent", string.format("Switched to %s (Range: %s)", currentTool.Name or "Unknown Tool", range), true)
+                    local successNotify, msg = pcall(function()
+                        return string.format("Switched to %s (Range: %s)", toolName, range)
+                    end)
+                    if successNotify then
+                        notify("GunSilent", msg, true)
+                    else
+                        warn("[GunSilent] Failed to format switch message: " .. tostring(msg))
+                    end
                 end
             end
             GunSilent.State.LastTool = currentTool
@@ -721,7 +762,12 @@ local function Init(UI, Core, notify)
                         GunSilent.Settings.Enabled.Value = value
                         initializeGunSilent()
                         if GunSilent.notify and UI.Window and UI.Window.Notify then
-                            notify("GunSilent", "GunSilent " .. (value and "Enabled" or "Disabled"), true)
+                            local successNotify, msg = pcall(function()
+                                return "GunSilent " .. (value and "Enabled" or "Disabled")
+                            end)
+                            if successNotify then
+                                notify("GunSilent", msg, true)
+                            end
                         end
                     end
                 }, 'GSEnabled'),
@@ -729,7 +775,12 @@ local function Init(UI, Core, notify)
                     GunSilent.Settings.Enabled.Value = value
                     initializeGunSilent()
                     if GunSilent.notify and UI.Window and UI.Window.Notify then
-                        notify("GunSilent", "GunSilent " .. (value and "Enabled" or "Disabled"), true)
+                        local successNotify, msg = pcall(function()
+                            return "GunSilent " .. (value and "Enabled" or "Disabled")
+                        end)
+                        if successNotify then
+                            notify("GunSilent", msg, true)
+                        end
                     end
                 end
             }
@@ -743,7 +794,12 @@ local function Init(UI, Core, notify)
                     Callback = function(value)
                         GunSilent.Settings.RangePlus.Value = value
                         if GunSilent.notify and UI.Window and UI.Window.Notify then
-                            notify("GunSilent", "Range Plus set to: " .. value, false)
+                            local successNotify, msg = pcall(function()
+                                return "Range Plus set to: " .. value
+                            end)
+                            if successNotify then
+                                notify("GunSilent", msg, false)
+                            end
                         end
                         local currentTool = getEquippedGunTool()
                         if currentTool then
@@ -755,7 +811,12 @@ local function Init(UI, Core, notify)
                 callback = function(value)
                     GunSilent.Settings.RangePlus.Value = value
                     if GunSilent.notify and UI.Window and UI.Window.Notify then
-                        notify("GunSilent", "Range Plus set to: " .. value, false)
+                        local successNotify, msg = pcall(function()
+                            return "Range Plus set to: " .. value
+                        end)
+                        if successNotify then
+                            notify("GunSilent", msg, false)
+                        end
                     end
                     local currentTool = getEquippedGunTool()
                     if currentTool then
@@ -772,14 +833,24 @@ local function Init(UI, Core, notify)
                     Callback = function(value)
                         GunSilent.Settings.HitPart.Value = value
                         if GunSilent.notify and UI.Window and UI.Window.Notify then
-                            notify("GunSilent", "Hit Part set to: " .. value, true)
+                            local successNotify, msg = pcall(function()
+                                return "Hit Part set to: " .. value
+                            end)
+                            if successNotify then
+                                notify("GunSilent", msg, true)
+                            end
                         end
                     end
                 }, 'HitPart'),
                 callback = function(value)
                     GunSilent.Settings.HitPart.Value = value
                     if GunSilent.notify and UI.Window and UI.Window.Notify then
-                        notify("GunSilent", "Hit Part set to: " .. value, true)
+                        local successNotify, msg = pcall(function()
+                            return "Hit Part set to: " .. value
+                        end)
+                        if successNotify then
+                            notify("GunSilent", msg, true)
+                        end
                     end
                 end
             }
@@ -790,14 +861,24 @@ local function Init(UI, Core, notify)
                     Callback = function(value)
                         GunSilent.Settings.ShotgunSupport.Value = value
                         if GunSilent.notify and UI.Window and UI.Window.Notify then
-                            notify("GunSilent", "Shotgun Support " .. (value and "Enabled" or "Disabled"), true)
+                            local successNotify, msg = pcall(function()
+                                return "Shotgun Support " .. (value and "Enabled" or "Disabled")
+                            end)
+                            if successNotify then
+                                notify("GunSilent", msg, true)
+                            end
                         end
                     end
                 }, 'ShotgunSupport'),
                 callback = function(value)
                     GunSilent.Settings.ShotgunSupport.Value = value
                     if GunSilent.notify and UI.Window and UI.Window.Notify then
-                        notify("GunSilent", "Shotgun Support " .. (value and "Enabled" or "Disabled"), true)
+                        local successNotify, msg = pcall(function()
+                            return "Shotgun Support " .. (value and "Enabled" or "Disabled")
+                        end)
+                        if successNotify then
+                            notify("GunSilent", msg, true)
+                        end
                     end
                 end
             }
@@ -811,14 +892,24 @@ local function Init(UI, Core, notify)
                     Callback = function(value)
                         GunSilent.Settings.GenBullet.Value = value
                         if GunSilent.notify and UI.Window and UI.Window.Notify then
-                            notify("GunSilent", "Number of Bullets set to: " .. value, false)
+                            local successNotify, msg = pcall(function()
+                                return "Number of Bullets set to: " .. value
+                            end)
+                            if successNotify then
+                                notify("GunSilent", msg, false)
+                            end
                         end
                     end
                 }, 'GenerateBullets'),
                 callback = function(value)
                     GunSilent.Settings.GenBullet.Value = value
                     if GunSilent.notify and UI.Window and UI.Window.Notify then
-                        notify("GunSilent", "Number of Bullets set to: " .. value, false)
+                        local successNotify, msg = pcall(function()
+                            return "Number of Bullets set to: " .. value
+                        end)
+                        if successNotify then
+                            notify("GunSilent", msg, false)
+                        end
                     end
                 end
             }
@@ -829,14 +920,24 @@ local function Init(UI, Core, notify)
                     Callback = function(value)
                         GunSilent.Settings.TestGenBullet.Value = value
                         if GunSilent.notify and UI.Window and UI.Window.Notify then
-                            notify("GunSilent", "Test Generate Bullets " .. (value and "Enabled" or "Disabled"), true)
+                            local successNotify, msg = pcall(function()
+                                return "Test Generate Bullets " .. (value and "Enabled" or "Disabled")
+                            end)
+                            if successNotify then
+                                notify("GunSilent", msg, true)
+                            end
                         end
                     end
                 }, 'TestGenerateBullets'),
                 callback = function(value)
                     GunSilent.Settings.TestGenBullet.Value = value
                     if GunSilent.notify and UI.Window and UI.Window.Notify then
-                        notify("GunSilent", "Test Generate Bullets " .. (value and "Enabled" or "Disabled"), true)
+                        local successNotify, msg = pcall(function()
+                            return "Test Generate Bullets " .. (value and "Enabled" or "Disabled")
+                        end)
+                        if successNotify then
+                            notify("GunSilent", msg, true)
+                        end
                     end
                 end
             }
@@ -848,14 +949,24 @@ local function Init(UI, Core, notify)
                     Callback = function(value)
                         GunSilent.Settings.SortMethod.Value = value
                         if GunSilent.notify and UI.Window and UI.Window.Notify then
-                            notify("GunSilent", "Sort Method set to: " .. value, true)
+                            local successNotify, msg = pcall(function()
+                                return "Sort Method set to: " .. value
+                            end)
+                            if successNotify then
+                                notify("GunSilent", msg, true)
+                            end
                         end
                     end
                 }, 'SortMethod'),
                 callback = function(value)
                     GunSilent.Settings.SortMethod.Value = value
                     if GunSilent.notify and UI.Window and UI.Window.Notify then
-                        notify("GunSilent", "Sort Method set to: " .. value, true)
+                        local successNotify, msg = pcall(function()
+                            return "Sort Method set to: " .. value
+                        end)
+                        if successNotify then
+                            notify("GunSilent", msg, true)
+                        end
                     end
                 end
             }
@@ -866,14 +977,24 @@ local function Init(UI, Core, notify)
                     Callback = function(value)
                         GunSilent.Settings.UseFOV.Value = value
                         if GunSilent.notify and UI.Window and UI.Window.Notify then
-                            notify("GunSilent", "Use FOV " .. (value and "Enabled" or "Disabled"), true)
+                            local successNotify, msg = pcall(function()
+                                return "Use FOV " .. (value and "Enabled" or "Disabled")
+                            end)
+                            if successNotify then
+                                notify("GunSilent", msg, true)
+                            end
                         end
                     end
                 }, 'UseFOV'),
                 callback = function(value)
                     GunSilent.Settings.UseFOV.Value = value
                     if GunSilent.notify and UI.Window and UI.Window.Notify then
-                        notify("GunSilent", "Use FOV " .. (value and "Enabled" or "Disabled"), true)
+                        local successNotify, msg = pcall(function()
+                            return "Use FOV " .. (value and "Enabled" or "Disabled")
+                        end)
+                        if successNotify then
+                            notify("GunSilent", msg, true)
+                        end
                     end
                 end
             }
@@ -887,14 +1008,24 @@ local function Init(UI, Core, notify)
                     Callback = function(value)
                         GunSilent.Settings.FOV.Value = value
                         if GunSilent.notify and UI.Window and UI.Window.Notify then
-                            notify("GunSilent", "FOV set to: " .. value, false)
+                            local successNotify, msg = pcall(function()
+                                return "FOV set to: " .. value
+                            end)
+                            if successNotify then
+                                notify("GunSilent", msg, false)
+                            end
                         end
                     end
                 }, 'FOV'),
                 callback = function(value)
                     GunSilent.Settings.FOV.Value = value
                     if GunSilent.notify and UI.Window and UI.Window.Notify then
-                        notify("GunSilent", "FOV set to: " .. value, false)
+                        local successNotify, msg = pcall(function()
+                            return "FOV set to: " .. value
+                        end)
+                        if successNotify then
+                            notify("GunSilent", msg, false)
+                        end
                     end
                 end
             }
@@ -905,14 +1036,24 @@ local function Init(UI, Core, notify)
                     Callback = function(value)
                         GunSilent.Settings.ShowCircle.Value = value
                         if GunSilent.notify and UI.Window and UI.Window.Notify then
-                            notify("GunSilent", "Show Circle " .. (value and "Enabled" or "Disabled"), true)
+                            local successNotify, msg = pcall(function()
+                                return "Show Circle " .. (value and "Enabled" or "Disabled")
+                            end)
+                            if successNotify then
+                                notify("GunSilent", msg, true)
+                            end
                         end
                     end
                 }, 'ShowCircle'),
                 callback = function(value)
                     GunSilent.Settings.ShowCircle.Value = value
                     if GunSilent.notify and UI.Window and UI.Window.Notify then
-                        notify("GunSilent", "Show Circle " .. (value and "Enabled" or "Disabled"), true)
+                        local successNotify, msg = pcall(function()
+                            return "Show Circle " .. (value and "Enabled" or "Disabled")
+                        end)
+                        if successNotify then
+                            notify("GunSilent", msg, true)
+                        end
                     end
                 end
             }
@@ -924,14 +1065,24 @@ local function Init(UI, Core, notify)
                     Callback = function(value)
                         GunSilent.Settings.CircleMethod.Value = value
                         if GunSilent.notify and UI.Window and UI.Window.Notify then
-                            notify("GunSilent", "Circle Method set to: " .. value, true)
+                            local successNotify, msg = pcall(function()
+                                return "Circle Method set to: " .. value
+                            end)
+                            if successNotify then
+                                notify("GunSilent", msg, true)
+                            end
                         end
                     end
                 }, 'CircleMethod'),
                 callback = function(value)
                     GunSilent.Settings.CircleMethod.Value = value
                     if GunSilent.notify and UI.Window and UI.Window.Notify then
-                        notify("GunSilent", "Circle Method set to: " .. value, true)
+                        local successNotify, msg = pcall(function()
+                            return "Circle Method set to: " .. value
+                        end)
+                        if successNotify then
+                            notify("GunSilent", msg, true)
+                        end
                     end
                 end
             }
@@ -943,14 +1094,24 @@ local function Init(UI, Core, notify)
                     Callback = function(value)
                         GunSilent.Settings.PredictVisual.Value = value
                         if GunSilent.notify and UI.Window and UI.Window.Notify then
-                            notify("GunSilent", "Predict Visual " .. (value and "Enabled" or "Disabled"), true)
+                            local successNotify, msg = pcall(function()
+                                return "Predict Visual " .. (value and "Enabled" or "Disabled")
+                            end)
+                            if successNotify then
+                                notify("GunSilent", msg, true)
+                            end
                         end
                     end
                 }, 'PredictVisual'),
                 callback = function(value)
                     GunSilent.Settings.PredictVisual.Value = value
                     if GunSilent.notify and UI.Window and UI.Window.Notify then
-                        notify("GunSilent", "Predict Visual " .. (value and "Enabled" or "Disabled"), true)
+                        local successNotify, msg = pcall(function()
+                            return "Predict Visual " .. (value and "Enabled" or "Disabled")
+                        end)
+                        if successNotify then
+                            notify("GunSilent", msg, true)
+                        end
                     end
                 end
             }
@@ -961,7 +1122,12 @@ local function Init(UI, Core, notify)
                     Callback = function(value)
                         GunSilent.Settings.TrajectoryBeam.Value = value
                         if GunSilent.notify and UI.Window and UI.Window.Notify then
-                            notify("GunSilent", "Trajectory Beam " .. (value and "Enabled" or "Disabled"), true)
+                            local successNotify, msg = pcall(function()
+                                return "Trajectory Beam " .. (value and "Enabled" or "Disabled")
+                            end)
+                            if successNotify then
+                                notify("GunSilent", msg, true)
+                            end
                         end
                         if not value then
                             cleanupTrajectoryBeam()
@@ -971,7 +1137,12 @@ local function Init(UI, Core, notify)
                 callback = function(value)
                     GunSilent.Settings.TrajectoryBeam.Value = value
                     if GunSilent.notify and UI.Window and UI.Window.Notify then
-                        notify("GunSilent", "Trajectory Beam " .. (value and "Enabled" or "Disabled"), true)
+                        local successNotify, msg = pcall(function()
+                            return "Trajectory Beam " .. (value and "Enabled" or "Disabled")
+                        end)
+                        if successNotify then
+                            notify("GunSilent", msg, true)
+                        end
                     end
                     if not value then
                         cleanupTrajectoryBeam()
@@ -988,14 +1159,24 @@ local function Init(UI, Core, notify)
                     Callback = function(value)
                         GunSilent.Settings.HitChance.Value = value
                         if GunSilent.notify and UI.Window and UI.Window.Notify then
-                            notify("GunSilent", "Hit Chance set to: " .. value .. "%", false)
+                            local successNotify, msg = pcall(function()
+                                return "Hit Chance set to: " .. value .. "%"
+                            end)
+                            if successNotify then
+                                notify("GunSilent", msg, false)
+                            end
                         end
                     end
                 }, 'HitChance'),
                 callback = function(value)
                     GunSilent.Settings.HitChance.Value = value
                     if GunSilent.notify and UI.Window and UI.Window.Notify then
-                        notify("GunSilent", "Hit Chance set to: " .. value .. "%", false)
+                        local successNotify, msg = pcall(function()
+                            return "Hit Chance set to: " .. value .. "%"
+                        end)
+                        if successNotify then
+                            notify("GunSilent", msg, false)
+                        end
                     end
                 end
             }
@@ -1010,14 +1191,24 @@ local function Init(UI, Core, notify)
                     Callback = function(value)
                         GunSilent.Settings.PredictionStrength.Value = value
                         if GunSilent.notify and UI.Window and UI.Window.Notify then
-                            notify("GunSilent", "Prediction Strength set to: " .. value, false)
+                            local successNotify, msg = pcall(function()
+                                return "Prediction Strength set to: " .. value
+                            end)
+                            if successNotify then
+                                notify("GunSilent", msg, false)
+                            end
                         end
                     end
                 }, 'PredictionStrength'),
                 callback = function(value)
                     GunSilent.Settings.PredictionStrength.Value = value
                     if GunSilent.notify and UI.Window and UI.Window.Notify then
-                        notify("GunSilent", "Prediction Strength set to: " .. value, false)
+                        local successNotify, msg = pcall(function()
+                            return "Prediction Strength set to: " .. value
+                        end)
+                        if successNotify then
+                            notify("GunSilent", msg, false)
+                        end
                     end
                 end
             }
@@ -1031,14 +1222,24 @@ local function Init(UI, Core, notify)
                     Callback = function(value)
                         GunSilent.Settings.PingCompensation.Value = value
                         if GunSilent.notify and UI.Window and UI.Window.Notify then
-                            notify("GunSilent", "Ping Compensation set to: " .. value .. "s", false)
+                            local successNotify, msg = pcall(function()
+                                return "Ping Compensation set to: " .. value .. "s"
+                            end)
+                            if successNotify then
+                                notify("GunSilent", msg, false)
+                            end
                         end
                     end
                 }, 'PingCompensation'),
                 callback = function(value)
                     GunSilent.Settings.PingCompensation.Value = value
                     if GunSilent.notify and UI.Window and UI.Window.Notify then
-                        notify("GunSilent", "Ping Compensation set to: " .. value .. "s", false)
+                        local successNotify, msg = pcall(function()
+                            return "Ping Compensation set to: " .. value .. "s"
+                        end)
+                        if successNotify then
+                            notify("GunSilent", msg, false)
+                        end
                     end
                 end
             }
@@ -1052,14 +1253,24 @@ local function Init(UI, Core, notify)
                     Callback = function(value)
                         GunSilent.Settings.SmoothingFactor.Value = value
                         if GunSilent.notify and UI.Window and UI.Window.Notify then
-                            notify("GunSilent", "Smoothing Factor set to: " .. value, false)
+                            local successNotify, msg = pcall(function()
+                                return "Smoothing Factor set to: " .. value
+                            end)
+                            if successNotify then
+                                notify("GunSilent", msg, false)
+                            end
                         end
                     end
                 }, 'SmoothingFactor'),
                 callback = function(value)
                     GunSilent.Settings.SmoothingFactor.Value = value
                     if GunSilent.notify and UI.Window and UI.Window.Notify then
-                        notify("GunSilent", "Smoothing Factor set to: " .. value, false)
+                        local successNotify, msg = pcall(function()
+                            return "Smoothing Factor set to: " .. value
+                        end)
+                        if successNotify then
+                            notify("GunSilent", msg, false)
+                        end
                     end
                 end
             }
@@ -1070,14 +1281,24 @@ local function Init(UI, Core, notify)
                     Callback = function(value)
                         GunSilent.Settings.ResolverEnabled.Value = value
                         if GunSilent.notify and UI.Window and UI.Window.Notify then
-                            notify("GunSilent", "Resolver " .. (value and "Enabled" or "Disabled"), true)
+                            local successNotify, msg = pcall(function()
+                                return "Resolver " .. (value and "Enabled" or "Disabled")
+                            end)
+                            if successNotify then
+                                notify("GunSilent", msg, true)
+                            end
                         end
                     end
                 }, 'ResolverEnabled'),
                 callback = function(value)
                     GunSilent.Settings.ResolverEnabled.Value = value
                     if GunSilent.notify and UI.Window and UI.Window.Notify then
-                        notify("GunSilent", "Resolver " .. (value and "Enabled" or "Disabled"), true)
+                        local successNotify, msg = pcall(function()
+                            return "Resolver " .. (value and "Enabled" or "Disabled")
+                        end)
+                        if successNotify then
+                            notify("GunSilent", msg, true)
+                        end
                     end
                 end
             }
@@ -1091,14 +1312,24 @@ local function Init(UI, Core, notify)
                     Callback = function(value)
                         GunSilent.Settings.ResolverThreshold.Value = value
                         if GunSilent.notify and UI.Window and UI.Window.Notify then
-                            notify("GunSilent", "Resolver Threshold set to: " .. value, false)
+                            local successNotify, msg = pcall(function()
+                                return "Resolver Threshold set to: " .. value
+                            end)
+                            if successNotify then
+                                notify("GunSilent", msg, false)
+                            end
                         end
                     end
                 }, 'ResolverThreshold'),
                 callback = function(value)
                     GunSilent.Settings.ResolverThreshold.Value = value
                     if GunSilent.notify and UI.Window and UI.Window.Notify then
-                        notify("GunSilent", "Resolver Threshold set to: " .. value, false)
+                        local successNotify, msg = pcall(function()
+                            return "Resolver Threshold set to: " .. value
+                        end)
+                        if successNotify then
+                            notify("GunSilent", msg, false)
+                        end
                     end
                 end
             }
@@ -1112,14 +1343,24 @@ local function Init(UI, Core, notify)
                     Callback = function(value)
                         GunSilent.Settings.BulletSpeed.Value = value
                         if GunSilent.notify and UI.Window and UI.Window.Notify then
-                            notify("GunSilent", "Bullet Speed set to: " .. value, false)
+                            local successNotify, msg = pcall(function()
+                                return "Bullet Speed set to: " .. value
+                            end)
+                            if successNotify then
+                                notify("GunSilent", msg, false)
+                            end
                         end
                     end
                 }, 'BulletSpeed'),
                 callback = function(value)
                     GunSilent.Settings.BulletSpeed.Value = value
                     if GunSilent.notify and UI.Window and UI.Window.Notify then
-                        notify("GunSilent", "Bullet Speed set to: " .. value, false)
+                        local successNotify, msg = pcall(function()
+                            return "Bullet Speed set to: " .. value
+                        end)
+                        if successNotify then
+                            notify("GunSilent", msg, false)
+                        end
                     end
                 end
             }
@@ -1137,7 +1378,12 @@ local function Init(UI, Core, notify)
                     Callback = function(value)
                         GunSilent.Settings.BulletTrailsEnabled.Value = value
                         if GunSilent.notify and UI.Window and UI.Window.Notify then
-                            notify("GunSilent", "Bullet Trails " .. (value and "Enabled" or "Disabled"), true)
+                            local successNotify, msg = pcall(function()
+                                return "Bullet Trails " .. (value and "Enabled" or "Disabled")
+                            end)
+                            if successNotify then
+                                notify("GunSilent", msg, true)
+                            end
                         end
                         if not value then
                             for _, trailData in ipairs(GunSilent.State.BulletTrails) do
@@ -1156,7 +1402,12 @@ local function Init(UI, Core, notify)
                 callback = function(value)
                     GunSilent.Settings.BulletTrailsEnabled.Value = value
                     if GunSilent.notify and UI.Window and UI.Window.Notify then
-                        notify("GunSilent", "Bullet Trails " .. (value and "Enabled" or "Disabled"), true)
+                        local successNotify, msg = pcall(function()
+                            return "Bullet Trails " .. (value and "Enabled" or "Disabled")
+                        end)
+                        if successNotify then
+                            notify("GunSilent", msg, true)
+                        end
                     end
                     if not value then
                         for _, trailData in ipairs(GunSilent.State.BulletTrails) do
@@ -1182,14 +1433,24 @@ local function Init(UI, Core, notify)
                     Callback = function(value)
                         GunSilent.Settings.BulletTrailsFadeTime.Value = value
                         if GunSilent.notify and UI.Window and UI.Window.Notify then
-                            notify("GunSilent", "Fade Time set to: " .. value .. "s", false)
+                            local successNotify, msg = pcall(function()
+                                return "Fade Time set to: " .. value .. "s"
+                            end)
+                            if successNotify then
+                                notify("GunSilent", msg, false)
+                            end
                         end
                     end
                 }, 'BulletTrailsFadeTime'),
                 callback = function(value)
                     GunSilent.Settings.BulletTrailsFadeTime.Value = value
                     if GunSilent.notify and UI.Window and UI.Window.Notify then
-                        notify("GunSilent", "Fade Time set to: " .. value .. "s", false)
+                        local successNotify, msg = pcall(function()
+                            return "Fade Time set to: " .. value .. "s"
+                        end)
+                        if successNotify then
+                            notify("GunSilent", msg, false)
+                        end
                     end
                 end
             }
@@ -1200,14 +1461,24 @@ local function Init(UI, Core, notify)
                     Callback = function(value)
                         GunSilent.Settings.BulletTrailsColor.Value = value
                         if GunSilent.notify and UI.Window and UI.Window.Notify then
-                            notify("GunSilent", "Bullet Trails Color updated", false)
+                            local successNotify, msg = pcall(function()
+                                return "Bullet Trails Color updated"
+                            end)
+                            if successNotify then
+                                notify("GunSilent", msg, false)
+                            end
                         end
                     end
                 }, 'BulletTrailsColor'),
                 callback = function(value)
                     GunSilent.Settings.BulletTrailsColor.Value = value
                     if GunSilent.notify and UI.Window and UI.Window.Notify then
-                        notify("GunSilent", "Bullet Trails Color updated", false)
+                        local successNotify, msg = pcall(function()
+                            return "Bullet Trails Color updated"
+                        end)
+                        if successNotify then
+                            notify("GunSilent", msg, false)
+                        end
                     end
                 end
             }
@@ -1263,7 +1534,12 @@ local function Init(UI, Core, notify)
                 VisualsElements.BulletTrailsFadeTime.callback(VisualsElements.BulletTrailsFadeTime.element:GetValue())
                 VisualsElements.BulletTrailsColor.callback(VisualsElements.BulletTrailsColor.element:GetValue())
                 if GunSilent.notify and UI.Window and UI.Window.Notify then
-                    notify("GunSilent", "Settings synchronized with UI!", true)
+                    local successNotify, msg = pcall(function()
+                        return "Settings synchronized with UI!"
+                    end)
+                    if successNotify then
+                        notify("GunSilent", msg, true)
+                    end
                 end
             }
         }, 'SyncSettings')
