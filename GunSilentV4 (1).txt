@@ -68,7 +68,10 @@ local GunSilent = {
         LastHitTarget = nil,
         LastHitPosition = nil,
         LastShotTime = 0,
-        PendingHits = {}
+        PendingHits = {},
+        LastGradientColors = nil, -- Для хранения последних цветов градиента
+        GradientColor1 = Color3.fromRGB(255, 215, 0), -- Цвет по умолчанию
+        GradientColor2 = Color3.fromRGB(255, 165, 0)  -- Цвет по умолчанию
     }
 }
 
@@ -101,6 +104,19 @@ local function safeCreateInstance(className, properties)
     end
 end
 
+local function updateGradientColors()
+    if not GunSilent.Core or not GunSilent.Core.GradientColors then
+        warn("[GunSilent] Failed to update gradient colors - Core or Core.GradientColors is nil")
+        GunSilent.State.GradientColor1 = Color3.fromRGB(255, 215, 0)
+        GunSilent.State.GradientColor2 = Color3.fromRGB(255, 165, 0)
+        return
+    end
+    local color1 = GunSilent.Core.GradientColors.Color1 and GunSilent.Core.GradientColors.Color1.Value or Color3.fromRGB(255, 215, 0)
+    local color2 = GunSilent.Core.GradientColors.Color2 and GunSilent.Core.GradientColors.Color2.Value or Color3.fromRGB(255, 165, 0)
+    GunSilent.State.GradientColor1 = color1
+    GunSilent.State.GradientColor2 = color2
+end
+
 local function createOrb(position)
     local orb = safeCreateInstance("Part", {
         Shape = Enum.PartType.Ball,
@@ -110,7 +126,7 @@ local function createOrb(position)
         CanCollide = false,
         Transparency = 0,
         Material = Enum.Material.Glass,
-        Color = GunSilent.Settings.UseGradient.Value and Core.GlobalConfigs.GradientColors["Gradient Color 1"] or GunSilent.Settings.HitParticlesColor.Value,
+        Color = GunSilent.Settings.UseGradient.Value and GunSilent.State.GradientColor1 or GunSilent.Settings.HitParticlesColor.Value,
         Parent = Workspace
     })
     local glow = safeCreateInstance("ParticleEmitter", {
@@ -118,8 +134,8 @@ local function createOrb(position)
         Lifetime = NumberRange.new(0.5, 1),
         Speed = NumberRange.new(0.1, 0.3),
         Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, GunSilent.Settings.UseGradient.Value and Core.GlobalConfigs.GradientColors["Gradient Color 1"] or Color3.fromRGB(255, 215, 0)),
-            ColorSequenceKeypoint.new(1, GunSilent.Settings.UseGradient.Value and Core.GlobalConfigs.GradientColors["Gradient Color 2"] or Color3.fromRGB(255, 165, 0))
+            ColorSequenceKeypoint.new(0, GunSilent.Settings.UseGradient.Value and GunSilent.State.GradientColor1 or Color3.fromRGB(255, 215, 0)),
+            ColorSequenceKeypoint.new(1, GunSilent.Settings.UseGradient.Value and GunSilent.State.GradientColor2 or Color3.fromRGB(255, 165, 0))
         }),
         Transparency = NumberSequence.new(0.3),
         Size = NumberSequence.new(0.2),
@@ -131,13 +147,13 @@ end
 local function createSpark(position)
     local spark = safeCreateInstance("Part", {
         Shape = Enum.PartType.Cylinder,
-        Size = Vector3.new(0.15, 2.5, 0.15), -- Увеличенная высота
+        Size = Vector3.new(0.15, 2.5, 0.15),
         Position = position,
         Anchored = true,
         CanCollide = false,
         Transparency = 0,
         Material = Enum.Material.Neon,
-        Color = GunSilent.Settings.UseGradient.Value and Core.GlobalConfigs.GradientColors["Gradient Color 1"] or GunSilent.Settings.HitParticlesColor.Value,
+        Color = GunSilent.Settings.UseGradient.Value and GunSilent.State.GradientColor1 or GunSilent.Settings.HitParticlesColor.Value,
         Parent = Workspace
     })
     return spark
@@ -880,12 +896,33 @@ local function initializeGunSilent()
             GunSilent.State.PositionHistory[nearestPlayer] = nil
         end
         updateVisualsGun(nearestPlayer)
+
+        -- Проверка и обновление цветов градиента
+        local color1 = GunSilent.Core.GradientColors and GunSilent.Core.GradientColors.Color1 and GunSilent.Core.GradientColors.Color1.Value or Color3.fromRGB(255, 215, 0)
+        local color2 = GunSilent.Core.GradientColors and GunSilent.Core.GradientColors.Color2 and GunSilent.Core.GradientColors.Color2.Value or Color3.fromRGB(255, 165, 0)
+        if not GunSilent.State.LastGradientColors or
+           GunSilent.State.LastGradientColors.Color1.R ~= color1.R or
+           GunSilent.State.LastGradientColors.Color1.G ~= color1.G or
+           GunSilent.State.LastGradientColors.Color1.B ~= color1.B or
+           GunSilent.State.LastGradientColors.Color2.R ~= color2.R or
+           GunSilent.State.LastGradientColors.Color2.G ~= color2.G or
+           GunSilent.State.LastGradientColors.Color2.B ~= color2.B then
+            GunSilent.State.LastGradientColors = { Color1 = color1, Color2 = color2 }
+            updateGradientColors()
+        end
     end)
 end
 
 local function Init(UI, Core, notify)
     GunSilent.Core = Core
     GunSilent.notify = notify
+
+    -- Инициализация цветов градиента
+    updateGradientColors()
+    GunSilent.State.LastGradientColors = {
+        Color1 = GunSilent.Core.GradientColors and GunSilent.Core.GradientColors.Color1 and GunSilent.Core.GradientColors.Color1.Value or Color3.fromRGB(255, 215, 0),
+        Color2 = GunSilent.Core.GradientColors and GunSilent.Core.GradientColors.Color2 and GunSilent.Core.GradientColors.Color2.Value or Color3.fromRGB(255, 165, 0)
+    }
 
     local LocalPlayer = Core.PlayerData.LocalPlayer
     if LocalPlayer then
@@ -1355,15 +1392,13 @@ local function Init(UI, Core, notify)
                     Default = GunSilent.Settings.UseGradient.Value,
                     Callback = function(value)
                         GunSilent.Settings.UseGradient.Value = value
-                        Core.GlobalConfigs.GradientColors["Gradient Color 1"] = Core.GradientColors.Color1.Value
-                        Core.GlobalConfigs.GradientColors["Gradient Color 2"] = Core.GradientColors.Color2.Value
+                        updateGradientColors()
                         safeNotify(GunSilent.notify, "GunSilent", "Use Gradient " .. (value and "Enabled" or "Disabled"), true)
                     end
                 }, 'UseGradient'),
                 callback = function(value)
                     GunSilent.Settings.UseGradient.Value = value
-                    Core.GlobalConfigs.GradientColors["Gradient Color 1"] = Core.GradientColors.Color1.Value
-                    Core.GlobalConfigs.GradientColors["Gradient Color 2"] = Core.GradientColors.Color2.Value
+                    updateGradientColors()
                     safeNotify(GunSilent.notify, "GunSilent", "Use Gradient " .. (value and "Enabled" or "Disabled"), true)
                 end
             }
@@ -1515,24 +1550,4 @@ local function Init(UI, Core, notify)
                 VisualsElements.BulletTrailsColor.callback(VisualsElements.BulletTrailsColor.element:GetValue())
                 VisualsElements.HitParticlesEnabled.callback(VisualsElements.HitParticlesEnabled.element:GetState())
                 VisualsElements.UseGradient.callback(VisualsElements.UseGradient.element:GetState())
-                local hitParticlesModeOptions = VisualsElements.HitParticlesMode.element:GetOptions()
-                for option, selected in pairs(hitParticlesModeOptions) do
-                    if selected then
-                        VisualsElements.HitParticlesMode.callback(option)
-                        break
-                    end
-                end
-                VisualsElements.ParticlePhysics.callback(VisualsElements.ParticlePhysics.element:GetValue())
-                VisualsElements.HitParticlesCount.callback(VisualsElements.HitParticlesCount.element:GetValue())
-                VisualsElements.HitParticlesLifetime.callback(VisualsElements.HitParticlesLifetime.element:GetValue())
-                VisualsElements.HitParticlesMoveDistance.callback(VisualsElements.HitParticlesMoveDistance.element:GetValue())
-                VisualsElements.HitParticlesColor.callback(VisualsElements.HitParticlesColor.element:GetValue())
-                safeNotify(GunSilent.notify, "GunSilent", "Settings synchronized with UI!", true)
-            end
-        }, 'SyncSettings')
-    end
-
-    initializeGunSilent()
-end
-
-return { Init = Init }
+                local hitParticlesModeOptions
