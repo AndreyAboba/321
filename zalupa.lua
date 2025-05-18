@@ -770,22 +770,11 @@ local TargetInfo = {
             local target = nil
             if TargetInventorySettings.TargetMode == "GunSilent Target" or TargetInventorySettings.TargetMode == "All" then
                 target = Core.GunSilentTarget.CurrentTarget
-                if target then
-                    notify("Target Inventory Debug", "GunSilent Target: " .. tostring(target.Name), true)
-                else
-                    notify("Target Inventory Debug", "No GunSilent Target", true)
-                end
             end
             if TargetInventorySettings.TargetMode == "Mouse" or (TargetInventorySettings.TargetMode == "All" and not target) then
                 target = getNearestPlayerToMouse()
-                if target then
-                    notify("Target Inventory Debug", "Mouse Target: " .. tostring(target.Name), true)
-                else
-                    notify("Target Inventory Debug", "No Mouse Target", true)
-                end
             end
             if target and (not target.Character or not target.Character:FindFirstChild("Humanoid") or target.Character.Humanoid.Health <= 0) then
-                notify("Target Inventory Debug", "Target invalid: " .. tostring(target.Name), true)
                 target = nil
             end
             local shouldBeVisible = TargetInventorySettings.AlwaysVisible or (target ~= nil)
