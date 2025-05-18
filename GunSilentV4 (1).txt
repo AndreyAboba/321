@@ -3,6 +3,7 @@ local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GunSilent = {
     Settings = {
@@ -223,7 +224,7 @@ local function spawnHitParticles(target, hitPosition)
 end
 
 local function isGunTool(tool)
-    local items = game:GetService("ReplicatedStorage"):FindFirstChild("Items")
+    local items = ReplicatedStorage:FindFirstChild("Items")
     if not items then return false end
     local gunFolder = items:FindFirstChild("gun")
     if not gunFolder then return false end
@@ -245,7 +246,7 @@ local function getEquippedGunTool()
     if playerFolder then
         for _, child in pairs(playerFolder:GetChildren()) do
             if child.ClassName == "Tool" and isGunTool(child) then
-                return child
+        return child
             end
         end
     end
@@ -769,26 +770,51 @@ local function initializeGunSilent()
 
     -- Загружаем Net
     local success, Net = pcall(function()
-        return require(game.ReplicatedStorage.Modules.Core.Net)
+        return require(ReplicatedStorage.Modules.Core.Net)
     end)
     if not success then
         warn("[GunSilent] Failed to load Net module: ", Net)
         return
     end
 
+    -- Отладка структуры Net
+    print("[GunSilent] Net structure:")
+    for key, value in pairs(Net) do
+        print("[GunSilent] Net." .. key .. ":", typeof(value))
+    end
+
     -- Регистрируем уникальный хук для GunSilent
+    local hitHooks = {} -- Хранилище для всех хуков, чтобы избежать перезаписи
+    Net.hook = function(eventName, callback)
+        if not hitHooks[eventName] then
+            hitHooks[eventName] = {}
+        end
+        table.insert(hitHooks[eventName], callback)
+        print("[GunSilent] Registered hook for event:", eventName)
+    end
+
+    -- Вызов всех хуков для события
+    local function callHooks(eventName, ...)
+        if hitHooks[eventName] then
+            for _, callback in ipairs(hitHooks[eventName]) do
+                callback(...)
+            end
+        end
+    end
+
     Net.hook("gunSilent_hit_confirmed", function(headshot, kill)
         print("[GunSilent] Hit confirmed received: Headshot =", headshot, "Kill =", kill)
         local pendingHit = GunSilent.State.PendingHits[GunSilent.State.LastEventId] or
                          { target = GunSilent.Core.GunSilentTarget.CurrentTarget, position = GunSilent.State.LastHitPosition }
         if pendingHit.target then
-            -- Проверяем, что урон прошел (headshot или kill)
+            -- Партиклы появляются только если нанесен урон (headshot или kill)
             if headshot or kill then
                 print("[GunSilent] Hit confirmed with damage on target:", pendingHit.target.Name)
                 safeNotify(GunSilent.notify, "GunSilent", "Hit confirmed with damage on " .. pendingHit.target.Name .. " (Headshot: " .. tostring(headshot) .. ", Kill: " .. tostring(kill) .. ")", true)
                 spawnHitParticles(pendingHit.target, pendingHit.position)
             else
                 print("[GunSilent] Hit confirmed, but no damage dealt on target:", pendingHit.target.Name)
+                safeNotify(GunSilent.notify, "GunSilent", "Hit confirmed, but no damage on " .. pendingHit.target.Name, false)
             end
             if GunSilent.State.PendingHits[GunSilent.State.LastEventId] then
                 GunSilent.State.PendingHits[GunSilent.State.LastEventId] = nil
@@ -798,26 +824,33 @@ local function initializeGunSilent()
         end
     end)
 
-    -- Перехватываем OnClientEvent для перенаправления hit_confirmed
+    -- Находим RemoteEvent для перехвата событий
+    local remoteEvent = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Send")
+    if not remoteEvent or not remoteEvent:IsA("RemoteEvent") then
+        warn("[GunSilent] Could not find RemoteEvent 'ReplicatedStorage.Remotes.Send', hit confirmation won't work")
+        return
+    end
+
+    print("[GunSilent] Found RemoteEvent for OnClientEvent:", remoteEvent:GetFullName())
+
+    -- Перехватываем OnClientEvent
     local originalOnClientEvent = nil
     if hookfunction then
-        originalOnClientEvent = hookfunction(Net.send.OnClientEvent, function(...)
+        originalOnClientEvent = hookfunction(remoteEvent.OnClientEvent, function(...)
             local args = {...}
             print("[GunSilent] Intercepted OnClientEvent args:", table.unpack(args))
             if args[1] == "hit_confirmed" then
-                -- Перенаправляем в наш хук
-                if Net.hook and Net.hook("gunSilent_hit_confirmed") then
-                    Net.hook("gunSilent_hit_confirmed")(args[2], args[3]) -- headshot, kill
-                end
+                callHooks("gunSilent_hit_confirmed", args[2], args[3]) -- headshot, kill
             end
             return originalOnClientEvent(...)
         end)
     else
-        warn("[GunSilent] hookfunction not available, manual redirection failed")
+        warn("[GunSilent] hookfunction not available, hit confirmation won't work")
     end
 
+    -- Перехват FireServer для отправки выстрелов
     if not GunSilent.State.OldFireServer then
-        GunSilent.State.OldFireServer = hookfunction(game:GetService("ReplicatedStorage").Remotes.Send.FireServer, function(self, ...)
+        GunSilent.State.OldFireServer = hookfunction(remoteEvent.FireServer, function(self, ...)
             local args = {...}
             print("[GunSilent] FireServer args:", table.unpack(args))
             local modifiedArgs = args
