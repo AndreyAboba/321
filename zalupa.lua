@@ -750,7 +750,7 @@ local TargetInfo = {
             task.delay(0.5, function()
                 for _, child in pairs(invFrame:GetDescendants()) do
                     if child:IsA("TextLabel") or child:IsA("ImageLabel") or child:IsA("Frame") then
-                        if child.Name ~= "headerFrame" and child.Name ~= "iconLabel" and child.Name != "titleLabel" then
+                        if child.Name ~= "headerFrame" and child.Name ~= "iconLabel" and child.Name ~= "titleLabel" then
                             child.Visible = true
                         end
                     end
