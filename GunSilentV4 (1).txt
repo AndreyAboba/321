@@ -812,6 +812,7 @@ local function initializeGunSilent()
         if currentTool ~= GunSilent.State.LastTool then
             GunSilent.State.PositionHistory = {}
             if currentTool and not GunSilent.State.LastTool then
+                print('1')
                 notify("GunSilent", "Equipped: " .. (currentTool.Name or "Unknown Tool") .. " (Range: " .. getGunRange(currentTool) .. ")", true)
             elseif GunSilent.State.LastTool and not currentTool then
                 notify("GunSilent", "Unequipped: " .. (GunSilent.State.LastTool.Name or "Unknown Tool"), true)
