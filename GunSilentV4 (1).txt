@@ -65,7 +65,7 @@ local GunSilent = {
         LastHitTarget = nil,
         LastHitPosition = nil,
         LastShotTime = 0,
-        PendingHits = {} -- Таблица для отслеживания ожидающих подтверждений
+        PendingHits = {} -- Ожидающие подтверждения выстрелы
     }
 }
 
@@ -767,22 +767,54 @@ local function initializeGunSilent()
         end
     end
 
-    -- Регистрируем хук hit_confirmed через Net
-    local Net = require(game.ReplicatedStorage.Modules.Core.Net)
-    Net.hook("hit_confirmed", function(headshot, kill)
-        print("[GunSilent] Hit confirmed received: Headshot =", headshot, "Kill =", kill, "LastEventId =", GunSilent.State.LastEventId)
-        -- Проверяем, есть ли ожидающий выстрел с соответствующим eventId
-        local pendingHit = GunSilent.State.PendingHits[GunSilent.State.LastEventId]
-        if pendingHit then
-            print("[GunSilent] Hit confirmed matched for EventId:", GunSilent.State.LastEventId)
-            safeNotify(GunSilent.notify, "GunSilent", "Hit confirmed on " .. pendingHit.target.Name .. " (Headshot: " .. tostring(headshot) .. ", Kill: " .. tostring(kill) .. ")", true)
-            spawnHitParticles(pendingHit.target, pendingHit.position)
-            -- Удаляем обработанный выстрел из ожидающих
-            GunSilent.State.PendingHits[GunSilent.State.LastEventId] = nil
+    -- Загружаем Net
+    local success, Net = pcall(function()
+        return require(game.ReplicatedStorage.Modules.Core.Net)
+    end)
+    if not success then
+        warn("[GunSilent] Failed to load Net module: ", Net)
+        return
+    end
+
+    -- Регистрируем уникальный хук для GunSilent
+    Net.hook("gunSilent_hit_confirmed", function(headshot, kill)
+        print("[GunSilent] Hit confirmed received: Headshot =", headshot, "Kill =", kill)
+        local pendingHit = GunSilent.State.PendingHits[GunSilent.State.LastEventId] or
+                         { target = GunSilent.Core.GunSilentTarget.CurrentTarget, position = GunSilent.State.LastHitPosition }
+        if pendingHit.target then
+            -- Проверяем, что урон прошел (headshot или kill)
+            if headshot or kill then
+                print("[GunSilent] Hit confirmed with damage on target:", pendingHit.target.Name)
+                safeNotify(GunSilent.notify, "GunSilent", "Hit confirmed with damage on " .. pendingHit.target.Name .. " (Headshot: " .. tostring(headshot) .. ", Kill: " .. tostring(kill) .. ")", true)
+                spawnHitParticles(pendingHit.target, pendingHit.position)
+            else
+                print("[GunSilent] Hit confirmed, but no damage dealt on target:", pendingHit.target.Name)
+            end
+            if GunSilent.State.PendingHits[GunSilent.State.LastEventId] then
+                GunSilent.State.PendingHits[GunSilent.State.LastEventId] = nil
+            end
         else
-            print("[GunSilent] No pending hit found for EventId:", GunSilent.State.LastEventId)
+            print("[GunSilent] No valid target for hit confirmation")
         end
     end)
+
+    -- Перехватываем OnClientEvent для перенаправления hit_confirmed
+    local originalOnClientEvent = nil
+    if hookfunction then
+        originalOnClientEvent = hookfunction(Net.send.OnClientEvent, function(...)
+            local args = {...}
+            print("[GunSilent] Intercepted OnClientEvent args:", table.unpack(args))
+            if args[1] == "hit_confirmed" then
+                -- Перенаправляем в наш хук
+                if Net.hook and Net.hook("gunSilent_hit_confirmed") then
+                    Net.hook("gunSilent_hit_confirmed")(args[2], args[3]) -- headshot, kill
+                end
+            end
+            return originalOnClientEvent(...)
+        end)
+    else
+        warn("[GunSilent] hookfunction not available, manual redirection failed")
+    end
 
     if not GunSilent.State.OldFireServer then
         GunSilent.State.OldFireServer = hookfunction(game:GetService("ReplicatedStorage").Remotes.Send.FireServer, function(self, ...)
@@ -791,7 +823,7 @@ local function initializeGunSilent()
             local modifiedArgs = args
             local nearestPlayer = nil
             if GunSilent.Settings.Enabled.Value and #args >= 2 and typeof(args[1]) == "number" and math.random(100) <= GunSilent.Settings.HitChance.Value then
-                GunSilent.State.LastEventId = args[1] -- Сохраняем eventId
+                GunSilent.State.LastEventId = args[1]
                 local equippedTool = getEquippedGunTool()
                 if equippedTool and args[2] == "shoot_gun" then
                     local gunRange = getGunRange(equippedTool)
@@ -802,7 +834,6 @@ local function initializeGunSilent()
                         if aimCFrame and hitData then
                             modifiedArgs = {args[1], args[2], equippedTool, aimCFrame, hitData}
                             safeNotify(GunSilent.notify, "GunSilent", "Firing at target: " .. nearestPlayer.Name, false)
-                            -- Сохраняем информацию о выстреле для ожидания hit_confirmed
                             GunSilent.State.PendingHits[args[1]] = {
                                 target = nearestPlayer,
                                 position = GunSilent.State.LastHitPosition
@@ -825,7 +856,6 @@ local function initializeGunSilent()
             if not success then
                 print("[GunSilent] FireServer failed with error:", result)
                 safeNotify(GunSilent.notify, "GunSilent", "FireServer failed: " .. tostring(result), false)
-                -- Очищаем ожидающий выстрел, если вызов не удался
                 if GunSilent.State.PendingHits[GunSilent.State.LastEventId] then
                     GunSilent.State.PendingHits[GunSilent.State.LastEventId] = nil
                 end
@@ -1285,8 +1315,8 @@ local function Init(UI, Core, notify)
                     if not value then
                         for _, trailData in ipairs(GunSilent.State.BulletTrails) do
                             if trailData.beam then trailData.beam:Destroy() end
-                            if trailData.attachment0 then attachment0:Destroy() end
-                            if trailData.attachment1 then attachment1:Destroy() end
+                            if trailData.attachment0 then trailData.attachment0:Destroy() end
+                            if trailData.attachment1 then trailData.attachment1:Destroy() end
                         end
                         GunSilent.State.BulletTrails = {}
                         for _, conn in ipairs(GunSilent.State.TrailFadeConnections) do
