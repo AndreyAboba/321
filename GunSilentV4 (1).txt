@@ -827,7 +827,7 @@ local function initializeGunSilent()
     local remoteEvent = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Send")
     if not remoteEvent or not remoteEvent:IsA("RemoteEvent") then
         return
-    }
+    end
 
     remoteEvent.OnClientEvent:Connect(function(...)
         local args = {...}
