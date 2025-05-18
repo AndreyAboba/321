@@ -27,7 +27,7 @@ local TargetInfo = {
                 PreviousHealth = nil,
                 LastDamageAnimationTime = 0,
                 LastUpdateTime = 0,
-                UpdateInterval = 0.25 -- Увеличен с 0.1 для оптимизации
+                UpdateInterval = 0.25
             }
         }
 
@@ -74,8 +74,6 @@ local TargetInfo = {
             Legendary = Color3.fromRGB(255, 215, 0)
         }
         local ValidPlayersCache = {} -- Кэш валидных игроков
-        local LastCacheUpdate = 0
-        local CacheUpdateInterval = 1.0 -- Обновление кэша раз в секунду
 
         -- Создание ScreenGui для TargetHud
         local hudScreenGui = Instance.new("ScreenGui")
@@ -639,8 +637,6 @@ local TargetInfo = {
         end
 
         local function updateValidPlayersCache()
-            if tick() - LastCacheUpdate < CacheUpdateInterval then return end
-            LastCacheUpdate = tick()
             ValidPlayersCache = {}
             local localPlayer = Core.PlayerData.LocalPlayer
             for _, player in pairs(Players:GetPlayers()) do
@@ -650,15 +646,24 @@ local TargetInfo = {
             end
         end
 
+        -- Инициализация кэша и обработка событий игроков
+        updateValidPlayersCache()
+        Players.PlayerAdded:Connect(function(player)
+            local localPlayer = Core.PlayerData.LocalPlayer
+            if player ~= localPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                ValidPlayersCache[player] = true
+            end
+        end)
+        Players.PlayerRemoving:Connect(function(player)
+            ValidPlayersCache[player] = nil
+        end)
+
         local function getNearestPlayerToMouse()
             local localPlayer = Core.PlayerData.LocalPlayer
             local localCharacter = localPlayer.Character
             if not localCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") then return nil end
             local localPos = localCharacter.HumanoidRootPart.Position
             local currentMousePos = TargetInventorySettings.LastMousePosition or UserInputService:GetMouseLocation()
-            if TargetInventorySettings.LastMousePosition and (currentMousePos - TargetInventorySettings.LastMousePosition).Magnitude < 10 then
-                return nil -- Пропускаем, если мышь почти не двигалась
-            end
             TargetInventorySettings.LastMousePosition = currentMousePos
             local referencePos = TargetInventorySettings.CircleMethod.Value == "Middle" and
                 Vector2.new(Workspace.CurrentCamera.ViewportSize.X / 2, Workspace.CurrentCamera.ViewportSize.Y / 2) or
@@ -765,11 +770,22 @@ local TargetInfo = {
             local target = nil
             if TargetInventorySettings.TargetMode == "GunSilent Target" or TargetInventorySettings.TargetMode == "All" then
                 target = Core.GunSilentTarget.CurrentTarget
+                if target then
+                    notify("Target Inventory Debug", "GunSilent Target: " .. tostring(target.Name), true)
+                else
+                    notify("Target Inventory Debug", "No GunSilent Target", true)
+                end
             end
             if TargetInventorySettings.TargetMode == "Mouse" or (TargetInventorySettings.TargetMode == "All" and not target) then
                 target = getNearestPlayerToMouse()
+                if target then
+                    notify("Target Inventory Debug", "Mouse Target: " .. tostring(target.Name), true)
+                else
+                    notify("Target Inventory Debug", "No Mouse Target", true)
+                end
             end
             if target and (not target.Character or not target.Character:FindFirstChild("Humanoid") or target.Character.Humanoid.Health <= 0) then
+                notify("Target Inventory Debug", "Target invalid: " .. tostring(target.Name), true)
                 target = nil
             end
             local shouldBeVisible = TargetInventorySettings.AlwaysVisible or (target ~= nil)
@@ -848,42 +864,40 @@ local TargetInfo = {
             end
             local inventory = getTargetInventory(target)
             if #inventory > 0 then
-                task.spawn(function()
-                    for i, item in ipairs(inventory) do
-                        local itemContainer = Instance.new("Frame")
-                        itemContainer.Size = UDim2.new(1, 0, 0, 25)
-                        itemContainer.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
-                        itemContainer.BackgroundTransparency = TargetInventorySettings.UIStyle == "New" and 0.3 or 1
-                        itemContainer.BorderSizePixel = 0
-                        itemContainer.LayoutOrder = i
-                        itemContainer.Visible = true
-                        itemContainer.Parent = inventoryFrame
+                for i, item in ipairs(inventory) do
+                    local itemContainer = Instance.new("Frame")
+                    itemContainer.Size = UDim2.new(1, 0, 0, 25)
+                    itemContainer.BackgroundColor3 = Color3.fromRGB(20, 30, 50)
+                    itemContainer.BackgroundTransparency = TargetInventorySettings.UIStyle == "New" and 0.3 or 1
+                    itemContainer.BorderSizePixel = 0
+                    itemContainer.LayoutOrder = i
+                    itemContainer.Visible = true
+                    itemContainer.Parent = inventoryFrame
 
-                        local itemCorner = Instance.new("UICorner")
-                        itemCorner.CornerRadius = UDim.new(0, 5)
-                        itemCorner.Parent = itemContainer
+                    local itemCorner = Instance.new("UICorner")
+                    itemCorner.CornerRadius = UDim.new(0, 5)
+                    itemCorner.Parent = itemContainer
 
-                        local itemIcon = Instance.new("ImageLabel")
-                        itemIcon.Size = UDim2.new(0, 20, 0, 20)
-                        itemIcon.Position = UDim2.new(0, 5, 0, 2.5)
-                        itemIcon.BackgroundTransparency = 1
-                        itemIcon.Image = item.Icon
-                        itemIcon.ImageColor3 = getRarityColor(item.Rarity)
-                        itemIcon.Parent = itemContainer
+                    local itemIcon = Instance.new("ImageLabel")
+                    itemIcon.Size = UDim2.new(0, 20, 0, 20)
+                    itemIcon.Position = UDim2.new(0, 5, 0, 2.5)
+                    itemIcon.BackgroundTransparency = 1
+                    itemIcon.Image = item.Icon
+                    itemIcon.ImageColor3 = getRarityColor(item.Rarity)
+                    itemIcon.Parent = itemContainer
 
-                        local itemLabel = Instance.new("TextLabel")
-                        itemLabel.Size = UDim2.new(0, 155, 0, 20)
-                        itemLabel.Position = UDim2.new(0, 30, 0, 2.5)
-                        itemLabel.BackgroundTransparency = 1
-                        itemLabel.Text = " | " .. item.Name
-                        itemLabel.TextColor3 = getRarityColor(item.Rarity)
-                        itemLabel.TextSize = 14
-                        itemLabel.Font = Enum.Font.Gotham
-                        itemLabel.TextXAlignment = Enum.TextXAlignment.Left
-                        itemLabel.Parent = itemContainer
-                    end
-                    inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, #inventory * 27)
-                end)
+                    local itemLabel = Instance.new("TextLabel")
+                    itemLabel.Size = UDim2.new(0, 155, 0, 20)
+                    itemLabel.Position = UDim2.new(0, 30, 0, 2.5)
+                    itemLabel.BackgroundTransparency = 1
+                    itemLabel.Text = " | " .. item.Name
+                    itemLabel.TextColor3 = getRarityColor(item.Rarity)
+                    itemLabel.TextSize = 14
+                    itemLabel.Font = Enum.Font.Gotham
+                    itemLabel.TextXAlignment = Enum.TextXAlignment.Left
+                    itemLabel.Parent = itemContainer
+                end
+                inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, #inventory * 27)
             else
                 local emptyLabel = Instance.new("Frame")
                 emptyLabel.Size = UDim2.new(1, 0, 0, 25)
@@ -1172,7 +1186,7 @@ local TargetInfo = {
             if TargetInventorySettings.Enabled then updateTargetInventoryView() end
         end)
 
-        -- Обновление позиции круга FOV (остаётся плавным)
+        -- Обновление позиции круга FOV
         RunService.RenderStepped:Connect(updateFovCirclePosition)
 
         -- Очистка при выгрузке
