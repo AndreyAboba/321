@@ -32,7 +32,7 @@ local GunSilent = {
         GenBullet = { Value = 4, Default = 4 },
         TestGenBullet = { Value = false, Default = false },
         HitParticlesEnabled = { Value = false, Default = false },
-        HitParticlesMode = { Value = "Orbs", Default = "Orbs", Options = {"Orbs", "Sparks", "Lightning", "Stars", "Cross"} },
+        HitParticlesMode = { Value = "Orbs", Default = "Orbs", Options = {"Orbs", "Sparks"} },
         HitParticlesCount = { Value = 30, Default = 30 },
         HitParticlesLifetime = { Value = 0.8, Default = 0.8 },
         HitParticlesMoveDistance = { Value = 12, Default = 12 },
@@ -231,10 +231,12 @@ local function spawnHitParticles(target, hitPosition)
     end
 end
 
-local function createHitboxPart(position, partName, color)
+local function createHitboxPart(part, color)
+    if not part then return end
+    local size = part.Size * 1.1 -- Увеличиваем размер на 10% для лучшего покрытия
     local hitbox = safeCreateInstance("Part", {
-        Size = Vector3.new(1, 1, 1),
-        Position = position,
+        Size = size,
+        CFrame = part.CFrame, -- Используем CFrame для точного соответствия позиции и ориентации
         Anchored = true,
         CanCollide = false,
         Transparency = 0,
@@ -242,9 +244,17 @@ local function createHitboxPart(position, partName, color)
         Color = color,
         Parent = Workspace
     })
-    hitbox.Name = partName
-    local tweenInfo = TweenInfo.new(GunSilent.Settings.HitVisualFadeTime.Value, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-    local fadeTween = TweenService:Create(hitbox, tweenInfo, { Transparency = 1 })
+    hitbox.Name = part.Name
+
+    -- Добавляем сглаживание позиции
+    local smoothTime = 0.1
+    local tweenInfo = TweenInfo.new(smoothTime, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+    local smoothTween = TweenService:Create(hitbox, tweenInfo, { CFrame = part.CFrame })
+    smoothTween:Play()
+
+    -- Анимация исчезновения
+    local fadeTweenInfo = TweenInfo.new(GunSilent.Settings.HitVisualFadeTime.Value, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+    local fadeTween = TweenService:Create(hitbox, fadeTweenInfo, { Transparency = 1 })
     fadeTween:Play()
     fadeTween.Completed:Connect(function()
         hitbox:Destroy()
@@ -261,22 +271,27 @@ local function spawnHitVisual(target, hitPosition)
     if not character then return end
 
     local parts = {
-        character:FindFirstChild("Head"),
-        character:FindFirstChild("UpperTorso"),
-        character:FindFirstChild("LowerTorso"),
-        character:FindFirstChild("LeftUpperArm"),
-        character:FindFirstChild("RightUpperArm"),
-        character:FindFirstChild("LeftLowerArm"),
-        character:FindFirstChild("RightLowerArm"),
-        character:FindFirstChild("LeftUpperLeg"),
-        character:FindFirstChild("RightUpperLeg"),
-        character:FindFirstChild("LeftLowerLeg"),
-        character:FindFirstChild("RightLowerLeg")
+        "Head",
+        "LeftFoot",
+        "LeftHand",
+        "LeftLowerArm",
+        "LeftLowerLeg",
+        "LeftUpperArm",
+        "LeftUpperLeg",
+        "LowerTorso",
+        "RightFoot",
+        "RightHand",
+        "RightLowerArm",
+        "RightLowerLeg",
+        "RightUpperArm",
+        "RightUpperLeg",
+        "UpperTorso"
     }
 
-    for _, part in ipairs(parts) do
+    for _, partName in ipairs(parts) do
+        local part = character:FindFirstChild(partName)
         if part then
-            createHitboxPart(part.Position, part.Name, GunSilent.Settings.HitVisualColor.Value)
+            createHitboxPart(part, GunSilent.Settings.HitVisualColor.Value)
         end
     end
 end
