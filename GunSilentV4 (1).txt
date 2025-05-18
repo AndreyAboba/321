@@ -76,12 +76,9 @@ local GunSilent = {
 
 local function safeNotify(notifyFunc, prefix, message, isImportant)
     if notifyFunc then
-        local success, errorMsg = pcall(function()
+        pcall(function()
             notifyFunc(prefix, message, isImportant)
         end)
-        if not success then
-            warn(string.format("[GunSilent] Notify failed: %s", errorMsg))
-        end
     end
 end
 
@@ -95,12 +92,7 @@ local function safeCreateInstance(className, properties)
         end
         return instance
     end)
-    if success then
-        return result
-    else
-        warn(string.format("[GunSilent] Failed to create %s: %s", className, result))
-        return nil
-    end
+    return success and result or nil
 end
 
 local function createOrb(position)
@@ -217,8 +209,8 @@ local function animateParticle(particle, isSpark, mode, decal)
                 t = t + RunService.Heartbeat:Wait() / GunSilent.Settings.HitParticlesLifetime.Value
             end
         end)
-    elseif decal then
-        decal.Color3 = GunSilent.Settings.HitParticlesColor.Value
+    else
+        if decal then decal.Color3 = GunSilent.Settings.HitParticlesColor.Value end
     end
 
     local tween = TweenService:Create(particle, tweenInfo, targetProperties)
@@ -279,24 +271,25 @@ local function spawnHitParticles(target, hitPosition)
     end
 end
 
-local function createHitBox(position, partName)
-    local hitBox = safeCreateInstance("Part", {
+local function createHitboxPart(position, partName)
+    local hitbox = safeCreateInstance("Part", {
         Size = Vector3.new(1, 1, 1),
         Position = position,
         Anchored = true,
         CanCollide = false,
         Transparency = 0,
-        Color = GunSilent.Settings.BulletTrailsColor.Value,
         Material = Enum.Material.Neon,
+        Color = GunSilent.Settings.BulletTrailsColor.Value,
         Parent = Workspace
     })
-    local fadeTime = GunSilent.Settings.HitVisualFadeTime.Value
-    local fadeTween = TweenService:Create(hitBox, TweenInfo.new(fadeTime, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Transparency = 1 })
+    hitbox.Name = partName
+    local tweenInfo = TweenInfo.new(GunSilent.Settings.HitVisualFadeTime.Value, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+    local fadeTween = TweenService:Create(hitbox, tweenInfo, { Transparency = 1 })
     fadeTween:Play()
     fadeTween.Completed:Connect(function()
-        hitBox:Destroy()
+        hitbox:Destroy()
     end)
-    return hitBox
+    return hitbox
 end
 
 local function spawnHitVisual(target, hitPosition)
@@ -307,15 +300,15 @@ local function spawnHitVisual(target, hitPosition)
     local character = target.Character
     if not character then return end
 
-    local hitBoxes = {
+    local parts = {
         character:FindFirstChild("Head"),
         character:FindFirstChild("UpperTorso"),
         character:FindFirstChild("LowerTorso")
     }
 
-    for _, hitBox in ipairs(hitBoxes) do
-        if hitBox then
-            createHitBox(hitPosition, hitBox.Name)
+    for _, part in ipairs(parts) do
+        if part then
+            local hitbox = createHitboxPart(hitPosition, part.Name)
         end
     end
 end
@@ -867,7 +860,8 @@ local function initializeGunSilent()
     if not remoteEvent or not remoteEvent:IsA("RemoteEvent") then
         warn("[GunSilent] Could not find RemoteEvent 'ReplicatedStorage.Remotes.Send', hit confirmation won't work")
         return
-    }
+    end
+
 
     remoteEvent.OnClientEvent:Connect(function(...)
         local args = {...}
