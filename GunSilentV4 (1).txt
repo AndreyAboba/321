@@ -812,12 +812,12 @@ local function initializeGunSilent()
         if currentTool ~= GunSilent.State.LastTool then
             GunSilent.State.PositionHistory = {}
             if currentTool and not GunSilent.State.LastTool then
-                notify("GunSilent", "Equipped: " .. currentTool.Name .. " (Range: " .. getGunRange(currentTool) .. ")", true)
+                notify("GunSilent", "Equipped: " .. (currentTool.Name or "Unknown Tool") .. " (Range: " .. getGunRange(currentTool) .. ")", true)
             elseif GunSilent.State.LastTool and not currentTool then
-                notify("GunSilent", "Unequipped: " .. GunSilent.State.LastTool.Name, true)
+                notify("GunSilent", "Unequipped: " .. (GunSilent.State.LastTool.Name or "Unknown Tool"), true)
                 GunSilent.State.CurrentToolRangeApplied = nil
             elseif currentTool and GunSilent.State.LastTool then
-                notify("GunSilent", "Switched to " .. currentTool.Name .. " (Range: " .. getGunRange(currentTool) .. ")", true)
+                notify("GunSilent", "Switched to " .. (currentTool.Name or "Unknown Tool") .. " (Range: " .. getGunRange(currentTool) .. ")", true)
             end
             GunSilent.State.LastTool = currentTool
         end
@@ -1246,8 +1246,8 @@ local function Init(UI, Core, notify)
                     if not value then
                         for _, trailData in ipairs(GunSilent.State.BulletTrails) do
                             if trailData.beam then trailData.beam:Destroy() end
-                            if trailData.attachment0 then trailData.attachment0:Destroy() end
-                            if trailData.attachment1 then trailData.attachment1:Destroy() end
+                            if trailData.attachment0 then attachment0:Destroy() end
+                            if trailData.attachment1 then attachment1:Destroy() end
                         end
                         GunSilent.State.BulletTrails = {}
                         for _, conn in ipairs(GunSilent.State.TrailFadeConnections) do
