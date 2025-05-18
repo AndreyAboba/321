@@ -118,7 +118,7 @@ end
 local function createSpark(position)
     local spark = safeCreateInstance("Part", {
         Shape = Enum.PartType.Cylinder,
-        Size = Vector3.new(0.3, 2.5, 0.3), -- Increased thickness and length
+        Size = Vector3.new(0.3, 2.5, 0.3),
         Position = position,
         Anchored = true,
         CanCollide = false,
@@ -135,7 +135,7 @@ local function createDecalParticle(position, mode)
         Position = position,
         Anchored = true,
         CanCollide = false,
-        Transparency = 0,
+        Transparency = 1, -- Set the part fully transparent to ensure only the decal is visible
         Material = Enum.Material.SmoothPlastic,
         Parent = Workspace
     })
@@ -191,7 +191,7 @@ local function animateParticle(particle, isSpark, mode, decal)
 
     local targetProperties = {
         Position = targetPosition + Vector3.new(0, yOffset, 0),
-        Transparency = 1,
+        Transparency = 1, -- Keep the part transparent
         Size = isSpark and Vector3.new(0.2, 1.8, 0.2) or (mode == "Orbs" and Vector3.new(0.4, 0.4, 0.4) or Vector3.new(1.2, 1.2, 0.1))
     }
 
@@ -204,14 +204,13 @@ local function animateParticle(particle, isSpark, mode, decal)
     if GunSilent.Settings.UseGradient.Value and GunSilent.Core and GunSilent.Core.GradientColors then
         local gradientColor1 = GunSilent.Core.GradientColors.Color1.Value
         local gradientColor2 = GunSilent.Core.GradientColors.Color2.Value
-        colorTween = TweenService:Create(particle, tweenInfo, { Color = gradientColor2 })
+        colorTween = TweenService:Create(decal, tweenInfo, { Color3 = gradientColor2 }) -- Apply color change to decal only
         colorTween:Play()
         task.spawn(function()
             local t = 0
             while t < 1 and particle and particle.Parent do
                 local newColor = interpolateColor(gradientColor1, gradientColor2, math.sin(t * math.pi))
-                particle.Color = newColor
-                if decal then decal.Color3 = newColor end
+                if decal then decal.Color3 = newColor end -- Only change the decal's color
                 RunService.Heartbeat:Wait()
                 t = t + RunService.Heartbeat:Wait() / GunSilent.Settings.HitParticlesLifetime.Value
             end
@@ -221,16 +220,25 @@ local function animateParticle(particle, isSpark, mode, decal)
     local tween = TweenService:Create(particle, tweenInfo, targetProperties)
     tween:Play()
 
-    task.delay(GunSilent.Settings.HitParticlesLifetime.Value, function()
-        if particle then
-            local fadeTween = TweenService:Create(particle, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Transparency = 1 })
-            fadeTween:Play()
-            fadeTween.Completed:Connect(function()
-                if particle then particle:Destroy() end
-                if decal then decal:Destroy() end
-            end)
-        end
-    end)
+    -- Separate transparency tween for the decal to ensure smooth fading
+    if decal then
+        local decalFadeTween = TweenService:Create(decal, TweenInfo.new(GunSilent.Settings.HitParticlesLifetime.Value, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Transparency = 1 })
+        decalFadeTween:Play()
+        decalFadeTween.Completed:Connect(function()
+            if particle then particle:Destroy() end
+            if decal then decal:Destroy() end
+        end)
+    else
+        task.delay(GunSilent.Settings.HitParticlesLifetime.Value, function()
+            if particle then
+                local fadeTween = TweenService:Create(particle, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Transparency = 1 })
+                fadeTween:Play()
+                fadeTween.Completed:Connect(function()
+                    if particle then particle:Destroy() end
+                end)
+            end
+        end)
+    end
 end
 
 local function spawnHitParticles(target, hitPosition)
