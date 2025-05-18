@@ -41,7 +41,8 @@ local GunSilent = {
         ParticlePhysics = { Value = "None", Default = "None", Options = {"None", "Fall", "Rise"} },
         HitVisualEnabled = { Value = false, Default = false },
         HitVisualFadeTime = { Value = 1, Default = 1 },
-        HitVisualColor = { Value = Color3.fromRGB(147, 112, 219), Default = Color3.fromRGB(147, 112, 219) }
+        HitVisualColor = { Value = Color3.fromRGB(147, 112, 219), Default = Color3.fromRGB(147, 112, 219) },
+        HitVisualTransparency = { Value = 0.5, Default = 0.5 } -- Добавлено
     },
     State = {
         LastEventId = 0,
@@ -71,29 +72,19 @@ local GunSilent = {
         LastHitTarget = nil,
         LastHitPosition = nil,
         LastShotTime = 0,
-        PendingHits = {}
+        PendingHits = {},
+        ActiveHitboxes = {} -- Добавлено для управления хитбоксами
     }
 }
 
-local function safeNotify(notifyFunc, prefix, message, isImportant)
-    if notifyFunc then
-        pcall(function()
-            notifyFunc(prefix, message, isImportant)
-        end)
-    end
-end
-
 local function safeCreateInstance(className, properties)
-    local success, result = pcall(function()
-        local instance = Instance.new(className)
-        if properties then
-            for prop, value in pairs(properties) do
-                instance[prop] = value
-            end
+    local instance = Instance.new(className)
+    if properties then
+        for prop, value in pairs(properties) do
+            instance[prop] = value
         end
-        return instance
-    end)
-    return success and result or nil
+    end
+    return instance
 end
 
 local function createOrb(position)
@@ -141,24 +132,13 @@ local function animateParticle(particle, isSpark)
     local moveZ = math.sin(theta) * math.cos(phi) * distance
     local targetPosition = particle.Position + Vector3.new(moveX, moveY, moveZ)
     local physicsMode = GunSilent.Settings.ParticlePhysics.Value
-    local yOffset = 0
-    if physicsMode == "Fall" then
-        yOffset = -5 * GunSilent.Settings.HitParticlesLifetime.Value
-    elseif physicsMode == "Rise" then
-        yOffset = 5 * GunSilent.Settings.HitParticlesLifetime.Value
-    end
+    local yOffset = physicsMode == "Fall" and -5 * GunSilent.Settings.HitParticlesLifetime.Value or physicsMode == "Rise" and 5 * GunSilent.Settings.HitParticlesLifetime.Value or 0
 
     if isSpark then
-        local randomAngle = math.random() * 2 * math.pi
-        particle.CFrame = CFrame.new(particle.Position, targetPosition) * CFrame.Angles(0, randomAngle, 0)
+        particle.CFrame = CFrame.new(particle.Position, targetPosition) * CFrame.Angles(0, math.random() * 2 * math.pi, 0)
     end
 
-    local tweenInfo = TweenInfo.new(
-        GunSilent.Settings.HitParticlesLifetime.Value,
-        Enum.EasingStyle.Quad,
-        Enum.EasingDirection.Out
-    )
-
+    local tweenInfo = TweenInfo.new(GunSilent.Settings.HitParticlesLifetime.Value, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
     local targetProperties = {
         Position = targetPosition + Vector3.new(0, yOffset, 0),
         Transparency = 1,
@@ -178,9 +158,7 @@ local function animateParticle(particle, isSpark)
         task.spawn(function()
             local t = 0
             while t < 1 and particle and particle.Parent do
-                local newColor = interpolateColor(gradientColor1, gradientColor2, math.sin(t * math.pi))
-                particle.Color = newColor
-                RunService.Heartbeat:Wait()
+                particle.Color = interpolateColor(gradientColor1, gradientColor2, math.sin(t * math.pi))
                 t = t + RunService.Heartbeat:Wait() / GunSilent.Settings.HitParticlesLifetime.Value
             end
         end)
@@ -191,108 +169,81 @@ local function animateParticle(particle, isSpark)
     tween:Play()
 
     task.delay(GunSilent.Settings.HitParticlesLifetime.Value, function()
-        if particle then
-            local fadeTween = TweenService:Create(particle, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Transparency = 1 })
-            fadeTween:Play()
-            fadeTween.Completed:Connect(function()
-                if particle then particle:Destroy() end
-            end)
-        end
+        if particle then particle:Destroy() end
     end)
 end
 
 local function spawnHitParticles(target, hitPosition)
-    if not GunSilent.Settings.HitParticlesEnabled.Value or not target or not hitPosition then
-        return
-    end
+    if not GunSilent.Settings.HitParticlesEnabled.Value or not target or not hitPosition then return end
 
     local hitPart = target.Character:FindFirstChild(GunSilent.Settings.HitPart.Value) or target.Character:FindFirstChild("HumanoidRootPart")
-    if not hitPart then
-        return
-    end
+    if not hitPart then return end
 
     local position = hitPosition or hitPart.Position
     local mode = GunSilent.Settings.HitParticlesMode.Value
-    local particleCount = GunSilent.Settings.HitParticlesCount.Value
+    local particleCount = math.min(GunSilent.Settings.HitParticlesCount.Value, 30) -- Ограничение для оптимизации
 
     for i = 1, particleCount do
-        local particle
-        if mode == "Orbs" then
-            particle = createOrb(position)
-            if particle then
-                animateParticle(particle, false)
-            end
-        elseif mode == "Sparks" then
-            particle = createSpark(position)
-            if particle then
-                animateParticle(particle, true)
-            end
-        end
+        local particle = mode == "Orbs" and createOrb(position) or createSpark(position)
+        if particle then animateParticle(particle, mode == "Sparks") end
     end
 end
 
 local function createHitboxPart(part, color)
     if not part then return end
-    local size = part.Size * 1.1 -- Увеличиваем размер на 10% для лучшего покрытия
     local hitbox = safeCreateInstance("Part", {
-        Size = size,
-        CFrame = part.CFrame, -- Используем CFrame для точного соответствия позиции и ориентации
+        Size = part.Size * 1.1,
+        CFrame = part.CFrame,
         Anchored = true,
         CanCollide = false,
-        Transparency = 0,
+        Transparency = GunSilent.Settings.HitVisualTransparency.Value,
         Material = Enum.Material.Neon,
         Color = color,
         Parent = Workspace
     })
     hitbox.Name = part.Name
 
-    -- Добавляем сглаживание позиции
     local smoothTime = 0.1
     local tweenInfo = TweenInfo.new(smoothTime, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
     local smoothTween = TweenService:Create(hitbox, tweenInfo, { CFrame = part.CFrame })
     smoothTween:Play()
 
-    -- Анимация исчезновения
     local fadeTweenInfo = TweenInfo.new(GunSilent.Settings.HitVisualFadeTime.Value, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
     local fadeTween = TweenService:Create(hitbox, fadeTweenInfo, { Transparency = 1 })
     fadeTween:Play()
     fadeTween.Completed:Connect(function()
         hitbox:Destroy()
+        GunSilent.State.ActiveHitboxes[hitbox] = nil
     end)
+
+    GunSilent.State.ActiveHitboxes[hitbox] = true
+    if #GunSilent.State.ActiveHitboxes > 50 then -- Ограничение количества хитбоксов
+        for oldHitbox, _ in pairs(GunSilent.State.ActiveHitboxes) do
+            if oldHitbox ~= hitbox then
+                oldHitbox:Destroy()
+                GunSilent.State.ActiveHitboxes[oldHitbox] = nil
+                break
+            end
+        end
+    end
+
     return hitbox
 end
 
 local function spawnHitVisual(target, hitPosition)
-    if not GunSilent.Settings.HitVisualEnabled.Value or not target or not hitPosition then
-        return
-    end
+    if not GunSilent.Settings.HitVisualEnabled.Value or not target or not hitPosition then return end
 
     local character = target.Character
     if not character then return end
 
     local parts = {
-        "Head",
-        "LeftFoot",
-        "LeftHand",
-        "LeftLowerArm",
-        "LeftLowerLeg",
-        "LeftUpperArm",
-        "LeftUpperLeg",
-        "LowerTorso",
-        "RightFoot",
-        "RightHand",
-        "RightLowerArm",
-        "RightLowerLeg",
-        "RightUpperArm",
-        "RightUpperLeg",
-        "UpperTorso"
+        "Head", "LeftFoot", "LeftHand", "LeftLowerArm", "LeftLowerLeg", "LeftUpperArm", "LeftUpperLeg",
+        "LowerTorso", "RightFoot", "RightHand", "RightLowerArm", "RightLowerLeg", "RightUpperArm", "RightUpperLeg", "UpperTorso"
     }
 
     for _, partName in ipairs(parts) do
         local part = character:FindFirstChild(partName)
-        if part then
-            createHitboxPart(part, GunSilent.Settings.HitVisualColor.Value)
-        end
+        if part then createHitboxPart(part, GunSilent.Settings.HitVisualColor.Value) end
     end
 end
 
@@ -318,44 +269,31 @@ local function getEquippedGunTool()
     local playerFolder = Workspace:FindFirstChild(playerName)
     if playerFolder then
         for _, child in pairs(playerFolder:GetChildren()) do
-            if child.ClassName == "Tool" and isGunTool(child) then
-                return child
-            end
+            if child.ClassName == "Tool" and isGunTool(child) then return child end
         end
     end
 
     local character = localPlayer.Character
     for _, child in pairs(character:GetChildren()) do
-        if child.ClassName == "Tool" and isGunTool(child) then
-            return child
-        end
+        if child.ClassName == "Tool" and isGunTool(child) then return child end
     end
     return nil
 end
 
 local function getGunRange(tool)
-    if not tool or not isGunTool(tool) then
-        return GunSilent.Settings.RangePlus.Value
-    end
+    if not tool or not isGunTool(tool) then return GunSilent.Settings.RangePlus.Value end
 
     local equippedTool = getEquippedGunTool()
-    if tool ~= equippedTool then
-        return GunSilent.Settings.RangePlus.Value
-    end
+    if tool ~= equippedTool then return GunSilent.Settings.RangePlus.Value end
 
     local encryptedRangeAttr = GunSilent.Core.GetEncryptedAttributeName and GunSilent.Core.GetEncryptedAttributeName("range") or "range"
     local toolId = tostring(tool)
-    local baseRange = GunSilent.State.BaseRangeCache[toolId]
-    if not baseRange then
-        baseRange = tool:GetAttribute(encryptedRangeAttr) or 0
-        GunSilent.State.BaseRangeCache[toolId] = baseRange
-    end
+    local baseRange = GunSilent.State.BaseRangeCache[toolId] or tool:GetAttribute(encryptedRangeAttr) or 0
+    GunSilent.State.BaseRangeCache[toolId] = baseRange
 
     local totalRange = baseRange + GunSilent.Settings.RangePlus.Value
     if GunSilent.State.CurrentToolRangeApplied ~= tool then
-        pcall(function()
-            tool:SetAttribute(encryptedRangeAttr, totalRange)
-        end)
+        tool:SetAttribute(encryptedRangeAttr, totalRange)
         GunSilent.State.CurrentToolRangeApplied = tool
     end
 
@@ -364,9 +302,7 @@ end
 
 local function updateFovCircle()
     if not GunSilent.Settings.ShowCircle.Value then
-        if GunSilent.State.FovCircle then
-            GunSilent.State.FovCircle.Visible = false
-        end
+        if GunSilent.State.FovCircle then GunSilent.State.FovCircle.Visible = false end
         return
     end
 
@@ -405,27 +341,19 @@ local function getNearestPlayerGun(gunRange)
     local currentTime = tick()
     if currentTime - GunSilent.State.LastTargetUpdate < GunSilent.State.TargetUpdateInterval then
         local target = GunSilent.Core.GunSilentTarget.CurrentTarget
-        if target and target.Character and target.Character.Humanoid and target.Character.Humanoid.Health > 0 then
-            return target
-        end
+        if target and target.Character and target.Character.Humanoid and target.Character.Humanoid.Health > 0 then return target end
     end
     GunSilent.State.LastTargetUpdate = currentTime
 
     local friendsList = GunSilent.Core.Services.FriendsList or {}
     local friendsHash = {}
-    for k in pairs(friendsList) do
-        friendsHash[k:lower()] = true
-    end
+    for k in pairs(friendsList) do friendsHash[k:lower()] = true end
 
     local localRoot = GunSilent.State.LocalRoot
-    if not localRoot then
-        return nil
-    end
+    if not localRoot then return nil end
     local rootPos = localRoot.Position
     local camera = Workspace.CurrentCamera
-    if not camera then
-        return nil
-    end
+    if not camera then return nil end
 
     local nearestPlayer, shortestDistance, closestToCursor, bestScore = nil, gunRange, math.huge, math.huge
     local sortMethod = GunSilent.Settings.SortMethod.Value
@@ -472,16 +400,12 @@ end
 
 local function isInVehicle(targetChar)
     local humanoid = targetChar:FindFirstChild("Humanoid")
-    if humanoid then
-        return humanoid.SeatPart ~= nil
-    end
+    if humanoid then return humanoid.SeatPart ~= nil end
     return false
 end
 
 local function resolveVelocity(target, positionHistory, clientVelocity, targetChar)
-    if not GunSilent.Settings.ResolverEnabled.Value or not positionHistory or #positionHistory < 5 then
-        return clientVelocity
-    end
+    if not GunSilent.Settings.ResolverEnabled.Value or not positionHistory or #positionHistory < 5 then return clientVelocity end
 
     local currentTime = tick()
     local totalVelocity = Vector3.new(0, 0, 0)
@@ -490,21 +414,17 @@ local function resolveVelocity(target, positionHistory, clientVelocity, targetCh
     local maxSpeedLimit = isInVehicle(targetChar) and 150 or 50
 
     local filteredHistory = {}
-    for i = 1, #positionHistory do
-        filteredHistory[#filteredHistory + 1] = positionHistory[i]
+    for i = 1, math.min(#positionHistory, 10) do -- Ограничение истории для оптимизации
+        filteredHistory[i] = positionHistory[i]
     end
 
     local calculatedVelocity = Vector3.new(0, 0, 0)
     local useCFrame = #filteredHistory > 2 and (function()
         local meanPos = Vector3.new(0, 0, 0)
-        for _, entry in ipairs(filteredHistory) do
-            meanPos = meanPos + entry.pos
-        end
+        for _, entry in ipairs(filteredHistory) do meanPos = meanPos + entry.pos end
         meanPos = meanPos / #filteredHistory
         local variance = 0
-        for _, entry in ipairs(filteredHistory) do
-            variance = variance + (entry.pos - meanPos).Magnitude^2
-        end
+        for _, entry in ipairs(filteredHistory) do variance = variance + (entry.pos - meanPos).Magnitude^2 end
         return variance / #filteredHistory < 0.1
     end)()
 
@@ -514,7 +434,7 @@ local function resolveVelocity(target, positionHistory, clientVelocity, targetCh
         local offset = headCFrame.Position - rootCFrame.Position
         calculatedVelocity = offset / GunSilent.Settings.PingCompensation.Value
     else
-        for i = #filteredHistory - 1, math.max(1, #filteredHistory - 10), -1 do
+        for i = #filteredHistory - 1, math.max(1, #filteredHistory - 5), -1 do
             local currEntry = filteredHistory[i + 1]
             local prevEntry = filteredHistory[i]
             local timeDelta = currEntry.time - prevEntry.time
@@ -542,18 +462,14 @@ end
 
 local function predictTargetPositionGun(target)
     local localRoot = GunSilent.State.LocalRoot
-    if not target or not target.Character or not localRoot then
-        return { position = nil, direction = nil, timeToTarget = 0, clientPosition = nil }
-    end
+    if not target or not target.Character or not localRoot then return { position = nil, direction = nil, timeToTarget = 0, clientPosition = nil } end
 
     local targetChar = target.Character
     local myPos = localRoot.Position
     local hitPart = targetChar:FindFirstChild(GunSilent.Settings.HitPart.Value) or targetChar:FindFirstChild("HumanoidRootPart")
     local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
     local equippedTool = getEquippedGunTool()
-    if not hitPart or not targetRoot or not equippedTool then
-        return { position = nil, direction = nil, timeToTarget = 0, clientPosition = nil }
-    end
+    if not hitPart or not targetRoot or not equippedTool then return { position = nil, direction = nil, timeToTarget = 0, clientPosition = nil } end
 
     local targetPos = hitPart.Position
     local targetId = tostring(target.UserId)
@@ -569,9 +485,7 @@ local function predictTargetPositionGun(target)
     local currentTime = tick()
 
     positionHistory[#positionHistory + 1] = { pos = targetPos, time = currentTime, velocity = targetRoot.Velocity }
-    while #positionHistory > GunSilent.Settings.PositionHistorySize.Value do
-        table.remove(positionHistory, 1)
-    end
+    while #positionHistory > GunSilent.Settings.PositionHistorySize.Value do table.remove(positionHistory, 1) end
 
     local clientPos = targetPos
     local resolvedVelocity = resolveVelocity(target, positionHistory, targetRoot.Velocity, targetChar)
@@ -580,10 +494,7 @@ local function predictTargetPositionGun(target)
     if not isTeleporting then
         local targetSpeed = resolvedVelocity.Magnitude
         local isInVehicle = isInVehicle(targetChar)
-        local predictionStrength = GunSilent.Settings.PredictionStrength.Value
-        if isInVehicle then
-            predictionStrength = predictionStrength * 1.5
-        end
+        local predictionStrength = GunSilent.Settings.PredictionStrength.Value * (isInVehicle and 1.5 or 1)
 
         if targetSpeed < 5 then
             local ping = GunSilent.Settings.PingCompensation.Value * math.clamp(distance / 50, 0.5, 1.0)
@@ -635,9 +546,7 @@ local function createHitDataGun(target)
     local hitData = {}
 
     if useMultiBullets then
-        for i = 1, numBullets do
-            hitData[i] = {{Normal = prediction.direction, Instance = hitPart, Position = prediction.position}}
-        end
+        for i = 1, numBullets do hitData[i] = {{Normal = prediction.direction, Instance = hitPart, Position = prediction.position}} end
     else
         hitData[1] = {{Normal = prediction.direction, Instance = hitPart, Position = prediction.position}}
     end
@@ -669,29 +578,28 @@ local function createHitDataGun(target)
                 fadeConnection = RunService.RenderStepped:Connect(function()
                     local elapsed = tick() - startTime
                     local t = math.clamp(elapsed / fadeTime, 0, 1)
-                    if trail and trail.Parent then
-                        trail.Transparency = NumberSequence.new(t)
-                    end
+                    if trail and trail.Parent then trail.Transparency = NumberSequence.new(t) end
                     if t >= 1 then
                         if trail then trail:Destroy() end
                         if attachment0 then attachment0:Destroy() end
                         if attachment1 then attachment1:Destroy() end
                         if fadeConnection then fadeConnection:Disconnect() end
                         for i, v in ipairs(GunSilent.State.BulletTrails) do
-                            if v.beam == trail then
-                                table.remove(GunSilent.State.BulletTrails, i)
-                                break
-                            end
+                            if v.beam == trail then table.remove(GunSilent.State.BulletTrails, i) break end
                         end
                         for i, conn in ipairs(GunSilent.State.TrailFadeConnections) do
-                            if conn == fadeConnection then
-                                table.remove(GunSilent.State.TrailFadeConnections, i)
-                                break
-                            end
+                            if conn == fadeConnection then table.remove(GunSilent.State.TrailFadeConnections, i) break end
                         end
                     end
                 end)
                 table.insert(GunSilent.State.TrailFadeConnections, fadeConnection)
+
+                if #GunSilent.State.BulletTrails > 20 then -- Ограничение количества трейлов
+                    local oldTrail = table.remove(GunSilent.State.BulletTrails, 1)
+                    if oldTrail.beam then oldTrail.beam:Destroy() end
+                    if oldTrail.attachment0 then oldTrail.attachment0:Destroy() end
+                    if oldTrail.attachment1 then oldTrail.attachment1:Destroy() end
+                end
             end
         end
     end
@@ -734,7 +642,7 @@ local function createTrajectoryBeam(startPos, endPos)
     local attachment0 = safeCreateInstance("Attachment", { Parent = Workspace.Terrain })
     local attachment1 = safeCreateInstance("Attachment", { Parent = Workspace.Terrain })
     if not attachment0 or not attachment1 then
-        if trajectoryBeam then trajectoryBeam:Destroy() end
+        trajectoryBeam:Destroy()
         if attachment0 then attachment0:Destroy() end
         if attachment1 then attachment1:Destroy() end
         return
@@ -757,12 +665,8 @@ local function updateVisualsGun(target)
 
     local localRoot = GunSilent.State.LocalRoot
     if not GunSilent.Settings.Enabled.Value or not localRoot then
-        if GunSilent.State.PredictVisualPart then
-            GunSilent.State.PredictVisualPart.Transparency = 1
-        end
-        if GunSilent.State.TrajectoryBeam then
-            GunSilent.State.TrajectoryBeam.Enabled = false
-        end
+        if GunSilent.State.PredictVisualPart then GunSilent.State.PredictVisualPart.Transparency = 1 end
+        if GunSilent.State.TrajectoryBeam then GunSilent.State.TrajectoryBeam.Enabled = false end
         return
     end
 
@@ -771,12 +675,8 @@ local function updateVisualsGun(target)
     local predictionPos = prediction and prediction.position
 
     if not target or not target.Character or not predictionPos or not prediction.direction then
-        if GunSilent.State.PredictVisualPart then
-            GunSilent.State.PredictVisualPart.Transparency = 1
-        end
-        if GunSilent.State.TrajectoryBeam then
-            GunSilent.State.TrajectoryBeam.Enabled = false
-        end
+        if GunSilent.State.PredictVisualPart then GunSilent.State.PredictVisualPart.Transparency = 1 end
+        if GunSilent.State.TrajectoryBeam then GunSilent.State.TrajectoryBeam.Enabled = false end
         return
     end
 
@@ -822,9 +722,7 @@ local function updateVisualsGun(target)
             GunSilent.State.TrajectoryBeam.Enabled = true
         end
     else
-        if GunSilent.State.TrajectoryBeam then
-            GunSilent.State.TrajectoryBeam.Enabled = false
-        end
+        if GunSilent.State.TrajectoryBeam then GunSilent.State.TrajectoryBeam.Enabled = false end
     end
 end
 
@@ -840,9 +738,7 @@ local function initializeGunSilent()
     end
 
     local remoteEvent = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Send")
-    if not remoteEvent or not remoteEvent:IsA("RemoteEvent") then
-        return
-    end
+    if not remoteEvent or not remoteEvent:IsA("RemoteEvent") then return end
 
     remoteEvent.OnClientEvent:Connect(function(...)
         local args = {...}
@@ -922,14 +818,6 @@ local function initializeGunSilent()
         local currentTool = getEquippedGunTool()
         if currentTool ~= GunSilent.State.LastTool then
             GunSilent.State.PositionHistory = {}
-            if currentTool and not GunSilent.State.LastTool then
-                safeNotify(GunSilent.notify, "GunSilent", "Equipped: " .. currentTool.Name .. " (Range: " .. getGunRange(currentTool) .. ")", true)
-            elseif GunSilent.State.LastTool and not currentTool then
-                safeNotify(GunSilent.notify, "GunSilent", "Unequipped: " .. GunSilent.State.LastTool.Name, true)
-                GunSilent.State.CurrentToolRangeApplied = nil
-            elseif currentTool and GunSilent.State.LastTool then
-                safeNotify(GunSilent.notify, "GunSilent", "Switched to " .. currentTool.Name .. " (Range: " .. getGunRange(currentTool) .. ")", true)
-            end
             GunSilent.State.LastTool = currentTool
         end
 
@@ -971,15 +859,11 @@ local function Init(UI, Core, notify)
 
         local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
         if humanoid then
-            humanoid.Died:Connect(function()
-                cleanupTrajectoryBeam()
-            end)
+            humanoid.Died:Connect(cleanupTrajectoryBeam)
         end
         LocalPlayer.CharacterAdded:Connect(function(character)
             local newHumanoid = character:WaitForChild("Humanoid")
-            newHumanoid.Died:Connect(function()
-                cleanupTrajectoryBeam()
-            end)
+            newHumanoid.Died:Connect(cleanupTrajectoryBeam)
         end)
     end
 
@@ -997,13 +881,11 @@ local function Init(UI, Core, notify)
                     Callback = function(value)
                         GunSilent.Settings.Enabled.Value = value
                         initializeGunSilent()
-                        safeNotify(GunSilent.notify, "GunSilent", "GunSilent " .. (value and "Enabled" or "Disabled"), true)
                     end
                 }, 'GSEnabled'),
                 callback = function(value)
                     GunSilent.Settings.Enabled.Value = value
                     initializeGunSilent()
-                    safeNotify(GunSilent.notify, "GunSilent", "GunSilent " .. (value and "Enabled" or "Disabled"), true)
                 end
             }
             CombatElements.RangePlus = {
@@ -1015,7 +897,6 @@ local function Init(UI, Core, notify)
                     Precision = 0,
                     Callback = function(value)
                         GunSilent.Settings.RangePlus.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Range Plus set to: " .. value, false)
                         local currentTool = getEquippedGunTool()
                         if currentTool then
                             GunSilent.State.CurrentToolRangeApplied = nil
@@ -1025,7 +906,6 @@ local function Init(UI, Core, notify)
                 }, 'RangePlus'),
                 callback = function(value)
                     GunSilent.Settings.RangePlus.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Range Plus set to: " .. value, false)
                     local currentTool = getEquippedGunTool()
                     if currentTool then
                         GunSilent.State.CurrentToolRangeApplied = nil
@@ -1038,29 +918,17 @@ local function Init(UI, Core, notify)
                     Name = "Hit Part",
                     Default = GunSilent.Settings.HitPart.Value,
                     Options = {"Head", "UpperTorso", "HumanoidRootPart"},
-                    Callback = function(value)
-                        GunSilent.Settings.HitPart.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Hit Part set to: " .. value, true)
-                    end
+                    Callback = function(value) GunSilent.Settings.HitPart.Value = value end
                 }, 'HitPart'),
-                callback = function(value)
-                    GunSilent.Settings.HitPart.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Hit Part set to: " .. value, true)
-                end
+                callback = function(value) GunSilent.Settings.HitPart.Value = value end
             }
             CombatElements.ShotgunSupport = {
                 element = combatSection:Toggle({
                     Name = "Shotgun Support",
                     Default = GunSilent.Settings.ShotgunSupport.Value,
-                    Callback = function(value)
-                        GunSilent.Settings.ShotgunSupport.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Shotgun Support " .. (value and "Enabled" or "Disabled"), true)
-                    end
+                    Callback = function(value) GunSilent.Settings.ShotgunSupport.Value = value end
                 }, 'ShotgunSupport'),
-                callback = function(value)
-                    GunSilent.Settings.ShotgunSupport.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Shotgun Support " .. (value and "Enabled" or "Disabled"), true)
-                end
+                callback = function(value) GunSilent.Settings.ShotgunSupport.Value = value end
             }
             CombatElements.GenerateBullets = {
                 element = combatSection:Slider({
@@ -1069,58 +937,34 @@ local function Init(UI, Core, notify)
                     Minimum = 1,
                     Maximum = 10,
                     Precision = 0,
-                    Callback = function(value)
-                        GunSilent.Settings.GenBullet.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Number of Bullets set to: " .. value, false)
-                    end
+                    Callback = function(value) GunSilent.Settings.GenBullet.Value = value end
                 }, 'GenerateBullets'),
-                callback = function(value)
-                    GunSilent.Settings.GenBullet.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Number of Bullets set to: " .. value, false)
-                end
+                callback = function(value) GunSilent.Settings.GenBullet.Value = value end
             }
             CombatElements.TestGenerateBullets = {
                 element = combatSection:Toggle({
                     Name = "Test Generate Bullets",
                     Default = GunSilent.Settings.TestGenBullet.Value,
-                    Callback = function(value)
-                        GunSilent.Settings.TestGenBullet.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Test Generate Bullets " .. (value and "Enabled" or "Disabled"), true)
-                    end
+                    Callback = function(value) GunSilent.Settings.TestGenBullet.Value = value end
                 }, 'TestGenerateBullets'),
-                callback = function(value)
-                    GunSilent.Settings.TestGenBullet.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Test Generate Bullets " .. (value and "Enabled" or "Disabled"), true)
-                end
+                callback = function(value) GunSilent.Settings.TestGenBullet.Value = value end
             }
             CombatElements.SortMethod = {
                 element = combatSection:Dropdown({
                     Name = "Sort Method",
                     Default = GunSilent.Settings.SortMethod.Value,
                     Options = {"Mouse", "Distance", "Mouse&Distance"},
-                    Callback = function(value)
-                        GunSilent.Settings.SortMethod.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Sort Method set to: " .. value, true)
-                    end
+                    Callback = function(value) GunSilent.Settings.SortMethod.Value = value end
                 }, 'SortMethod'),
-                callback = function(value)
-                    GunSilent.Settings.SortMethod.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Sort Method set to: " .. value, true)
-                end
+                callback = function(value) GunSilent.Settings.SortMethod.Value = value end
             }
             CombatElements.UseFOV = {
                 element = combatSection:Toggle({
                     Name = "Use FOV",
                     Default = GunSilent.Settings.UseFOV.Value,
-                    Callback = function(value)
-                        GunSilent.Settings.UseFOV.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Use FOV " .. (value and "Enabled" or "Disabled"), true)
-                    end
+                    Callback = function(value) GunSilent.Settings.UseFOV.Value = value end
                 }, 'UseFOV'),
-                callback = function(value)
-                    GunSilent.Settings.UseFOV.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Use FOV " .. (value and "Enabled" or "Disabled"), true)
-                end
+                callback = function(value) GunSilent.Settings.UseFOV.Value = value end
             }
             CombatElements.FOV = {
                 element = combatSection:Slider({
@@ -1129,59 +973,35 @@ local function Init(UI, Core, notify)
                     Minimum = 30,
                     Maximum = 120,
                     Precision = 0,
-                    Callback = function(value)
-                        GunSilent.Settings.FOV.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "FOV set to: " .. value, false)
-                    end
+                    Callback = function(value) GunSilent.Settings.FOV.Value = value end
                 }, 'FOV'),
-                callback = function(value)
-                    GunSilent.Settings.FOV.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "FOV set to: " .. value, false)
-                end
+                callback = function(value) GunSilent.Settings.FOV.Value = value end
             }
             CombatElements.ShowCircle = {
                 element = combatSection:Toggle({
                     Name = "Show Circle",
                     Default = GunSilent.Settings.ShowCircle.Value,
-                    Callback = function(value)
-                        GunSilent.Settings.ShowCircle.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Show Circle " .. (value and "Enabled" or "Disabled"), true)
-                    end
+                    Callback = function(value) GunSilent.Settings.ShowCircle.Value = value end
                 }, 'ShowCircle'),
-                callback = function(value)
-                    GunSilent.Settings.ShowCircle.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Show Circle " .. (value and "Enabled" or "Disabled"), true)
-                end
+                callback = function(value) GunSilent.Settings.ShowCircle.Value = value end
             }
             CombatElements.CircleMethod = {
                 element = combatSection:Dropdown({
                     Name = "Circle Method",
                     Default = GunSilent.Settings.CircleMethod.Value,
                     Options = GunSilent.Settings.CircleMethod.Options,
-                    Callback = function(value)
-                        GunSilent.Settings.CircleMethod.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Circle Method set to: " .. value, true)
-                    end
+                    Callback = function(value) GunSilent.Settings.CircleMethod.Value = value end
                 }, 'CircleMethod'),
-                callback = function(value)
-                    GunSilent.Settings.CircleMethod.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Circle Method set to: " .. value, true)
-                end
+                callback = function(value) GunSilent.Settings.CircleMethod.Value = value end
             }
             combatSection:Header({ Name = "Visuals" })
             CombatElements.PredictVisual = {
                 element = combatSection:Toggle({
                     Name = "Predict Visual",
                     Default = GunSilent.Settings.PredictVisual.Value,
-                    Callback = function(value)
-                        GunSilent.Settings.PredictVisual.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Predict Visual " .. (value and "Enabled" or "Disabled"), true)
-                    end
+                    Callback = function(value) GunSilent.Settings.PredictVisual.Value = value end
                 }, 'PredictVisual'),
-                callback = function(value)
-                    GunSilent.Settings.PredictVisual.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Predict Visual " .. (value and "Enabled" or "Disabled"), true)
-                end
+                callback = function(value) GunSilent.Settings.PredictVisual.Value = value end
             }
             CombatElements.TrajectoryBeam = {
                 element = combatSection:Toggle({
@@ -1189,18 +1009,12 @@ local function Init(UI, Core, notify)
                     Default = GunSilent.Settings.TrajectoryBeam.Value,
                     Callback = function(value)
                         GunSilent.Settings.TrajectoryBeam.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Trajectory Beam " .. (value and "Enabled" or "Disabled"), true)
-                        if not value then
-                            cleanupTrajectoryBeam()
-                        end
+                        if not value then cleanupTrajectoryBeam() end
                     end
                 }, 'TrajectoryBeam'),
                 callback = function(value)
                     GunSilent.Settings.TrajectoryBeam.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Trajectory Beam " .. (value and "Enabled" or "Disabled"), true)
-                    if not value then
-                        cleanupTrajectoryBeam()
-                    end
+                    if not value then cleanupTrajectoryBeam() end
                 end
             }
             CombatElements.HitChance = {
@@ -1210,15 +1024,9 @@ local function Init(UI, Core, notify)
                     Minimum = 0,
                     Maximum = 100,
                     Precision = 0,
-                    Callback = function(value)
-                        GunSilent.Settings.HitChance.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Hit Chance set to: " .. value .. "%", false)
-                    end
+                    Callback = function(value) GunSilent.Settings.HitChance.Value = value end
                 }, 'HitChance'),
-                callback = function(value)
-                    GunSilent.Settings.HitChance.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Hit Chance set to: " .. value .. "%", false)
-                end
+                callback = function(value) GunSilent.Settings.HitChance.Value = value end
             }
             combatSection:Header({ Name = "Prediction Settings" })
             CombatElements.PredictionStrength = {
@@ -1228,15 +1036,9 @@ local function Init(UI, Core, notify)
                     Maximum = 1.5,
                     Default = GunSilent.Settings.PredictionStrength.Value,
                     Precision = 2,
-                    Callback = function(value)
-                        GunSilent.Settings.PredictionStrength.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Prediction Strength set to: " .. value, false)
-                    end
+                    Callback = function(value) GunSilent.Settings.PredictionStrength.Value = value end
                 }, 'PredictionStrength'),
-                callback = function(value)
-                    GunSilent.Settings.PredictionStrength.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Prediction Strength set to: " .. value, false)
-                end
+                callback = function(value) GunSilent.Settings.PredictionStrength.Value = value end
             }
             CombatElements.PingCompensation = {
                 element = combatSection:Slider({
@@ -1245,15 +1047,9 @@ local function Init(UI, Core, notify)
                     Maximum = 0.2,
                     Default = GunSilent.Settings.PingCompensation.Value,
                     Precision = 3,
-                    Callback = function(value)
-                        GunSilent.Settings.PingCompensation.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Ping Compensation set to: " .. value .. "s", false)
-                    end
+                    Callback = function(value) GunSilent.Settings.PingCompensation.Value = value end
                 }, 'PingCompensation'),
-                callback = function(value)
-                    GunSilent.Settings.PingCompensation.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Ping Compensation set to: " .. value .. "s", false)
-                end
+                callback = function(value) GunSilent.Settings.PingCompensation.Value = value end
             }
             CombatElements.SmoothingFactor = {
                 element = combatSection:Slider({
@@ -1262,29 +1058,17 @@ local function Init(UI, Core, notify)
                     Maximum = 0.2,
                     Default = GunSilent.Settings.SmoothingFactor.Value,
                     Precision = 2,
-                    Callback = function(value)
-                        GunSilent.Settings.SmoothingFactor.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Smoothing Factor set to: " .. value, false)
-                    end
+                    Callback = function(value) GunSilent.Settings.SmoothingFactor.Value = value end
                 }, 'SmoothingFactor'),
-                callback = function(value)
-                    GunSilent.Settings.SmoothingFactor.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Smoothing Factor set to: " .. value, false)
-                end
+                callback = function(value) GunSilent.Settings.SmoothingFactor.Value = value end
             }
             CombatElements.ResolverEnabled = {
                 element = combatSection:Toggle({
                     Name = "Resolver Enabled",
                     Default = GunSilent.Settings.ResolverEnabled.Value,
-                    Callback = function(value)
-                        GunSilent.Settings.ResolverEnabled.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Resolver " .. (value and "Enabled" or "Disabled"), true)
-                    end
+                    Callback = function(value) GunSilent.Settings.ResolverEnabled.Value = value end
                 }, 'ResolverEnabled'),
-                callback = function(value)
-                    GunSilent.Settings.ResolverEnabled.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Resolver " .. (value and "Enabled" or "Disabled"), true)
-                end
+                callback = function(value) GunSilent.Settings.ResolverEnabled.Value = value end
             }
             CombatElements.ResolverThreshold = {
                 element = combatSection:Slider({
@@ -1293,15 +1077,9 @@ local function Init(UI, Core, notify)
                     Maximum = 0.5,
                     Default = GunSilent.Settings.ResolverThreshold.Value,
                     Precision = 2,
-                    Callback = function(value)
-                        GunSilent.Settings.ResolverThreshold.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Resolver Threshold set to: " .. value, false)
-                    end
+                    Callback = function(value) GunSilent.Settings.ResolverThreshold.Value = value end
                 }, 'ResolverThreshold'),
-                callback = function(value)
-                    GunSilent.Settings.ResolverThreshold.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Resolver Threshold set to: " .. value, false)
-                end
+                callback = function(value) GunSilent.Settings.ResolverThreshold.Value = value end
             }
             CombatElements.BulletSpeed = {
                 element = combatSection:Slider({
@@ -1310,15 +1088,9 @@ local function Init(UI, Core, notify)
                     Maximum = 5000,
                     Default = GunSilent.Settings.BulletSpeed.Value,
                     Precision = 0,
-                    Callback = function(value)
-                        GunSilent.Settings.BulletSpeed.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Bullet Speed set to: " .. value, false)
-                    end
+                    Callback = function(value) GunSilent.Settings.BulletSpeed.Value = value end
                 }, 'BulletSpeed'),
-                callback = function(value)
-                    GunSilent.Settings.BulletSpeed.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Bullet Speed set to: " .. value, false)
-                end
+                callback = function(value) GunSilent.Settings.BulletSpeed.Value = value end
             }
         end
     end
@@ -1333,7 +1105,6 @@ local function Init(UI, Core, notify)
                     Default = GunSilent.Settings.BulletTrailsEnabled.Value,
                     Callback = function(value)
                         GunSilent.Settings.BulletTrailsEnabled.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails " .. (value and "Enabled" or "Disabled"), true)
                         if not value then
                             for _, trailData in ipairs(GunSilent.State.BulletTrails) do
                                 if trailData.beam then trailData.beam:Destroy() end
@@ -1350,12 +1121,11 @@ local function Init(UI, Core, notify)
                 }, 'BulletTrailsEnabled'),
                 callback = function(value)
                     GunSilent.Settings.BulletTrailsEnabled.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails " .. (value and "Enabled" or "Disabled"), true)
                     if not value then
                         for _, trailData in ipairs(GunSilent.State.BulletTrails) do
                             if trailData.beam then trailData.beam:Destroy() end
-                            if trailData.attachment0 then attachment0:Destroy() end
-                            if trailData.attachment1 then attachment1:Destroy() end
+                            if trailData.attachment0 then trailData.attachment0:Destroy() end
+                            if trailData.attachment1 then trailData.attachment1:Destroy() end
                         end
                         GunSilent.State.BulletTrails = {}
                         for _, conn in ipairs(GunSilent.State.TrailFadeConnections) do
@@ -1372,29 +1142,17 @@ local function Init(UI, Core, notify)
                     Minimum = 0.5,
                     Maximum = 3,
                     Precision = 1,
-                    Callback = function(value)
-                        GunSilent.Settings.BulletTrailsFadeTime.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Fade Time set to: " .. value .. "s", false)
-                    end
+                    Callback = function(value) GunSilent.Settings.BulletTrailsFadeTime.Value = value end
                 }, 'BulletTrailsFadeTime'),
-                callback = function(value)
-                    GunSilent.Settings.BulletTrailsFadeTime.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Fade Time set to: " .. value .. "s", false)
-                end
+                callback = function(value) GunSilent.Settings.BulletTrailsFadeTime.Value = value end
             }
             VisualsElements.BulletTrailsColor = {
                 element = bulletTrailsSection:Colorpicker({
                     Name = "Trails Color",
                     Default = GunSilent.Settings.BulletTrailsColor.Value,
-                    Callback = function(value)
-                        GunSilent.Settings.BulletTrailsColor.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails Color updated", false)
-                    end
+                    Callback = function(value) GunSilent.Settings.BulletTrailsColor.Value = value end
                 }, 'BulletTrailsColor'),
-                callback = function(value)
-                    GunSilent.Settings.BulletTrailsColor.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Bullet Trails Color updated", false)
-                end
+                callback = function(value) GunSilent.Settings.BulletTrailsColor.Value = value end
             }
         end
 
@@ -1405,59 +1163,35 @@ local function Init(UI, Core, notify)
                 element = hitParticlesSection:Toggle({
                     Name = "Enabled",
                     Default = GunSilent.Settings.HitParticlesEnabled.Value,
-                    Callback = function(value)
-                        GunSilent.Settings.HitParticlesEnabled.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Hit Particles " .. (value and "Enabled" or "Disabled"), true)
-                    end
+                    Callback = function(value) GunSilent.Settings.HitParticlesEnabled.Value = value end
                 }, 'HitParticlesEnabled'),
-                callback = function(value)
-                    GunSilent.Settings.HitParticlesEnabled.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Hit Particles " .. (value and "Enabled" or "Disabled"), true)
-                end
+                callback = function(value) GunSilent.Settings.HitParticlesEnabled.Value = value end
             }
             VisualsElements.UseGradient = {
                 element = hitParticlesSection:Toggle({
                     Name = "Use Gradient",
                     Default = GunSilent.Settings.UseGradient.Value,
-                    Callback = function(value)
-                        GunSilent.Settings.UseGradient.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Use Gradient " .. (value and "Enabled" or "Disabled"), true)
-                    end
+                    Callback = function(value) GunSilent.Settings.UseGradient.Value = value end
                 }, 'UseGradient'),
-                callback = function(value)
-                    GunSilent.Settings.UseGradient.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Use Gradient " .. (value and "Enabled" or "Disabled"), true)
-                end
+                callback = function(value) GunSilent.Settings.UseGradient.Value = value end
             }
             VisualsElements.HitParticlesMode = {
                 element = hitParticlesSection:Dropdown({
                     Name = "Mode",
                     Default = GunSilent.Settings.HitParticlesMode.Value,
                     Options = GunSilent.Settings.HitParticlesMode.Options,
-                    Callback = function(value)
-                        GunSilent.Settings.HitParticlesMode.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Hit Particles Mode set to: " .. value, true)
-                    end
+                    Callback = function(value) GunSilent.Settings.HitParticlesMode.Value = value end
                 }, 'HitParticlesMode'),
-                callback = function(value)
-                    GunSilent.Settings.HitParticlesMode.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Hit Particles Mode set to: " .. value, true)
-                end
+                callback = function(value) GunSilent.Settings.HitParticlesMode.Value = value end
             }
             VisualsElements.ParticlePhysics = {
                 element = hitParticlesSection:Dropdown({
                     Name = "Particle Physics",
                     Default = GunSilent.Settings.ParticlePhysics.Value,
                     Options = GunSilent.Settings.ParticlePhysics.Options,
-                    Callback = function(value)
-                        GunSilent.Settings.ParticlePhysics.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Particle Physics set to: " .. value, true)
-                    end
+                    Callback = function(value) GunSilent.Settings.ParticlePhysics.Value = value end
                 }, 'ParticlePhysics'),
-                callback = function(value)
-                    GunSilent.Settings.ParticlePhysics.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Particle Physics set to: " .. value, true)
-                end
+                callback = function(value) GunSilent.Settings.ParticlePhysics.Value = value end
             }
             VisualsElements.HitParticlesCount = {
                 element = hitParticlesSection:Slider({
@@ -1466,15 +1200,9 @@ local function Init(UI, Core, notify)
                     Minimum = 5,
                     Maximum = 50,
                     Precision = 0,
-                    Callback = function(value)
-                        GunSilent.Settings.HitParticlesCount.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Hit Particles Count set to: " .. value, false)
-                    end
+                    Callback = function(value) GunSilent.Settings.HitParticlesCount.Value = value end
                 }, 'HitParticlesCount'),
-                callback = function(value)
-                    GunSilent.Settings.HitParticlesCount.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Hit Particles Count set to: " .. value, false)
-                end
+                callback = function(value) GunSilent.Settings.HitParticlesCount.Value = value end
             }
             VisualsElements.HitParticlesLifetime = {
                 element = hitParticlesSection:Slider({
@@ -1483,15 +1211,9 @@ local function Init(UI, Core, notify)
                     Minimum = 0.3,
                     Maximum = 2,
                     Precision = 1,
-                    Callback = function(value)
-                        GunSilent.Settings.HitParticlesLifetime.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Hit Particles Lifetime set to: " .. value .. "s", false)
-                    end
+                    Callback = function(value) GunSilent.Settings.HitParticlesLifetime.Value = value end
                 }, 'HitParticlesLifetime'),
-                callback = function(value)
-                    GunSilent.Settings.HitParticlesLifetime.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Hit Particles Lifetime set to: " .. value .. "s", false)
-                end
+                callback = function(value) GunSilent.Settings.HitParticlesLifetime.Value = value end
             }
             VisualsElements.HitParticlesMoveDistance = {
                 element = hitParticlesSection:Slider({
@@ -1500,29 +1222,17 @@ local function Init(UI, Core, notify)
                     Minimum = 2,
                     Maximum = 20,
                     Precision = 0,
-                    Callback = function(value)
-                        GunSilent.Settings.HitParticlesMoveDistance.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Hit Particles Move Distance set to: " .. value, false)
-                    end
+                    Callback = function(value) GunSilent.Settings.HitParticlesMoveDistance.Value = value end
                 }, 'HitParticlesMoveDistance'),
-                callback = function(value)
-                    GunSilent.Settings.HitParticlesMoveDistance.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Hit Particles Move Distance set to: " .. value, false)
-                end
+                callback = function(value) GunSilent.Settings.HitParticlesMoveDistance.Value = value end
             }
             VisualsElements.HitParticlesColor = {
                 element = hitParticlesSection:Colorpicker({
                     Name = "Particles Color",
                     Default = GunSilent.Settings.HitParticlesColor.Value,
-                    Callback = function(value)
-                        GunSilent.Settings.HitParticlesColor.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Hit Particles Color updated", false)
-                    end
+                    Callback = function(value) GunSilent.Settings.HitParticlesColor.Value = value end
                 }, 'HitParticlesColor'),
-                callback = function(value)
-                    GunSilent.Settings.HitParticlesColor.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Hit Particles Color updated", false)
-                end
+                callback = function(value) GunSilent.Settings.HitParticlesColor.Value = value end
             }
         end
 
@@ -1533,15 +1243,9 @@ local function Init(UI, Core, notify)
                 element = hitVisualSection:Toggle({
                     Name = "Enabled",
                     Default = GunSilent.Settings.HitVisualEnabled.Value,
-                    Callback = function(value)
-                        GunSilent.Settings.HitVisualEnabled.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Hit Visual " .. (value and "Enabled" or "Disabled"), true)
-                    end
+                    Callback = function(value) GunSilent.Settings.HitVisualEnabled.Value = value end
                 }, 'HitVisualEnabled'),
-                callback = function(value)
-                    GunSilent.Settings.HitVisualEnabled.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Hit Visual " .. (value and "Enabled" or "Disabled"), true)
-                end
+                callback = function(value) GunSilent.Settings.HitVisualEnabled.Value = value end
             }
             VisualsElements.HitVisualFadeTime = {
                 element = hitVisualSection:Slider({
@@ -1550,29 +1254,28 @@ local function Init(UI, Core, notify)
                     Minimum = 0.5,
                     Maximum = 3,
                     Precision = 1,
-                    Callback = function(value)
-                        GunSilent.Settings.HitVisualFadeTime.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Hit Visual Fade Time set to: " .. value .. "s", false)
-                    end
+                    Callback = function(value) GunSilent.Settings.HitVisualFadeTime.Value = value end
                 }, 'HitVisualFadeTime'),
-                callback = function(value)
-                    GunSilent.Settings.HitVisualFadeTime.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Hit Visual Fade Time set to: " .. value .. "s", false)
-                end
+                callback = function(value) GunSilent.Settings.HitVisualFadeTime.Value = value end
+            }
+            VisualsElements.HitVisualTransparency = {
+                element = hitVisualSection:Slider({
+                    Name = "Transparency",
+                    Default = GunSilent.Settings.HitVisualTransparency.Value,
+                    Minimum = 0,
+                    Maximum = 1,
+                    Precision = 2,
+                    Callback = function(value) GunSilent.Settings.HitVisualTransparency.Value = value end
+                }, 'HitVisualTransparency'),
+                callback = function(value) GunSilent.Settings.HitVisualTransparency.Value = value end
             }
             VisualsElements.HitVisualColor = {
                 element = hitVisualSection:Colorpicker({
                     Name = "Visual Color",
                     Default = GunSilent.Settings.HitVisualColor.Value,
-                    Callback = function(value)
-                        GunSilent.Settings.HitVisualColor.Value = value
-                        safeNotify(GunSilent.notify, "GunSilent", "Hit Visual Color updated", false)
-                    end
+                    Callback = function(value) GunSilent.Settings.HitVisualColor.Value = value end
                 }, 'HitVisualColor'),
-                callback = function(value)
-                    GunSilent.Settings.HitVisualColor.Value = value
-                    safeNotify(GunSilent.notify, "GunSilent", "Hit Visual Color updated", false)
-                end
+                callback = function(value) GunSilent.Settings.HitVisualColor.Value = value end
             }
         end
     end
@@ -1588,30 +1291,21 @@ local function Init(UI, Core, notify)
                 CombatElements.RangePlus.callback(CombatElements.RangePlus.element:GetValue())
                 local hitPartOptions = CombatElements.HitPart.element:GetOptions()
                 for option, selected in pairs(hitPartOptions) do
-                    if selected then
-                        CombatElements.HitPart.callback(option)
-                        break
-                    end
+                    if selected then CombatElements.HitPart.callback(option) break end
                 end
                 CombatElements.ShotgunSupport.callback(CombatElements.ShotgunSupport.element:GetState())
                 CombatElements.GenerateBullets.callback(CombatElements.GenerateBullets.element:GetValue())
                 CombatElements.TestGenerateBullets.callback(CombatElements.TestGenerateBullets.element:GetState())
                 local sortMethodOptions = CombatElements.SortMethod.element:GetOptions()
                 for option, selected in pairs(sortMethodOptions) do
-                    if selected then
-                        CombatElements.SortMethod.callback(option)
-                        break
-                    end
+                    if selected then CombatElements.SortMethod.callback(option) break end
                 end
                 CombatElements.UseFOV.callback(CombatElements.UseFOV.element:GetState())
                 CombatElements.FOV.callback(CombatElements.FOV.element:GetValue())
                 CombatElements.ShowCircle.callback(CombatElements.ShowCircle.element:GetState())
                 local circleMethodOptions = CombatElements.CircleMethod.element:GetOptions()
                 for option, selected in pairs(circleMethodOptions) do
-                    if selected then
-                        CombatElements.CircleMethod.callback(option)
-                        break
-                    end
+                    if selected then CombatElements.CircleMethod.callback(option) break end
                 end
                 CombatElements.PredictVisual.callback(CombatElements.PredictVisual.element:GetState())
                 CombatElements.TrajectoryBeam.callback(CombatElements.TrajectoryBeam.element:GetState())
@@ -1629,10 +1323,7 @@ local function Init(UI, Core, notify)
                 VisualsElements.UseGradient.callback(VisualsElements.UseGradient.element:GetState())
                 local hitParticlesModeOptions = VisualsElements.HitParticlesMode.element:GetOptions()
                 for option, selected in pairs(hitParticlesModeOptions) do
-                    if selected then
-                        VisualsElements.HitParticlesMode.callback(option)
-                        break
-                    end
+                    if selected then VisualsElements.HitParticlesMode.callback(option) break end
                 end
                 VisualsElements.ParticlePhysics.callback(VisualsElements.ParticlePhysics.element:GetValue())
                 VisualsElements.HitParticlesCount.callback(VisualsElements.HitParticlesCount.element:GetValue())
@@ -1641,8 +1332,8 @@ local function Init(UI, Core, notify)
                 VisualsElements.HitParticlesColor.callback(VisualsElements.HitParticlesColor.element:GetValue())
                 VisualsElements.HitVisualEnabled.callback(VisualsElements.HitVisualEnabled.element:GetState())
                 VisualsElements.HitVisualFadeTime.callback(VisualsElements.HitVisualFadeTime.element:GetValue())
+                VisualsElements.HitVisualTransparency.callback(VisualsElements.HitVisualTransparency.element:GetValue())
                 VisualsElements.HitVisualColor.callback(VisualsElements.HitVisualColor.element:GetValue())
-                safeNotify(GunSilent.notify, "GunSilent", "Settings synchronized with UI!", true)
             end
         }, 'SyncSettings')
     end
