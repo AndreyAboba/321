@@ -30,7 +30,6 @@ local GunSilent = {
         ShotgunSupport = { Value = false, Default = false },
         GenBullet = { Value = 4, Default = 4 },
         TestGenBullet = { Value = false, Default = false },
-        -- Новые настройки для HitParticles
         HitParticlesEnabled = { Value = false, Default = false },
         HitParticlesMode = { Value = "Orbs", Default = "Orbs", Options = {"Orbs", "Sparks"} },
         HitParticlesCount = { Value = 6, Default = 6 },
@@ -64,7 +63,8 @@ local GunSilent = {
         CurrentToolRangeApplied = nil,
         BaseRangeCache = {},
         LastHitTarget = nil,
-        LastHitPosition = nil
+        LastHitPosition = nil,
+        LastShotTime = 0
     }
 }
 
@@ -97,7 +97,6 @@ local function safeCreateInstance(className, properties)
     end
 end
 
--- Функции для HitParticles
 local function createOrb(position)
     local orb = safeCreateInstance("Part", {
         Shape = Enum.PartType.Ball,
@@ -134,7 +133,6 @@ local function animateParticle(particle, isSpark)
     local targetPosition = particle.Position + Vector3.new(moveX, 0, moveY)
     
     if isSpark then
-        -- Для искр добавляем случайное вращение
         particle.CFrame = CFrame.new(particle.Position) * CFrame.Angles(0, angle, 0)
     end
     
@@ -592,9 +590,9 @@ local function createHitDataGun(target)
         end
     end
 
-    -- Сохраняем цель и позицию попадания для эффекта HitParticles
     GunSilent.State.LastHitTarget = target
     GunSilent.State.LastHitPosition = prediction.position
+    GunSilent.State.LastShotTime = tick()
 
     return hitData
 end
@@ -724,6 +722,23 @@ local function updateVisualsGun(target)
     end
 end
 
+local function checkHitSuccess(target)
+    if not target or not target.Character then return false end
+    local humanoid = target.Character:FindFirstChild("Humanoid")
+    if not humanoid then return false end
+
+    -- Проверяем здоровье цели (простая эвристика)
+    local healthBefore = GunSilent.State.LastTargetHealth and GunSilent.State.LastTargetHealth[target] or humanoid.Health
+    local healthNow = humanoid.Health
+    GunSilent.State.LastTargetHealth = GunSilent.State.LastTargetHealth or {}
+    GunSilent.State.LastTargetHealth[target] = healthNow
+
+    if healthBefore and healthNow < healthBefore and (tick() - GunSilent.State.LastShotTime) < 0.5 then
+        return true
+    end
+    return false
+end
+
 local function initializeGunSilent()
     if GunSilent.State.Connection then GunSilent.State.Connection:Disconnect() end
     if not GunSilent.State.V_U_4 then
@@ -761,17 +776,26 @@ local function initializeGunSilent()
                 end
             end
 
-            -- Вызываем FireServer и проверяем результат
             local success, result = pcall(function()
                 return GunSilent.State.OldFireServer(self, unpack(modifiedArgs))
             end)
 
-            -- Проверяем успешность попадания и активируем HitParticles
-            if success and result == true and nearestPlayer then
-                safeNotify(GunSilent.notify, "GunSilent", "Hit registered on " .. nearestPlayer.Name, false)
-                spawnHitParticles(GunSilent.State.LastHitTarget, GunSilent.State.LastHitPosition)
-            elseif success and result == false then
-                safeNotify(GunSilent.notify, "GunSilent", "Hit not registered", false)
+            -- Логирование результата для диагностики
+            safeNotify(GunSilent.notify, "GunSilent", "FireServer result: " .. tostring(result) .. " (Success: " .. tostring(success) .. ")", false)
+
+            -- Проверка успешности попадания
+            if success and nearestPlayer then
+                if result == true then
+                    safeNotify(GunSilent.notify, "GunSilent", "Hit registered on " .. nearestPlayer.Name, false)
+                    spawnHitParticles(GunSilent.State.LastHitTarget, GunSilent.State.LastHitPosition)
+                elseif result == false or result == nil then
+                    safeNotify(GunSilent.notify, "GunSilent", "Hit not registered", false)
+                    -- Альтернативная проверка через здоровье
+                    if checkHitSuccess(nearestPlayer) then
+                        safeNotify(GunSilent.notify, "GunSilent", "Hit detected via health check on " .. nearestPlayer.Name, false)
+                        spawnHitParticles(GunSilent.State.LastHitTarget, GunSilent.State.LastHitPosition)
+                    end
+                end
             elseif not success then
                 safeNotify(GunSilent.notify, "GunSilent", "FireServer failed: " .. tostring(result), false)
             end
@@ -1274,7 +1298,6 @@ local function Init(UI, Core, notify)
             }
         end
 
-        -- Новый раздел для HitParticles
         local hitParticlesSection = UI.Tabs.Visuals:Section({ Side = "Right", Name = "Hit Particles" })
         if hitParticlesSection then
             hitParticlesSection:Header({ Name = "Hit Particles" })
@@ -1422,6 +1445,7 @@ local function Init(UI, Core, notify)
                 CombatElements.BulletSpeed.callback(CombatElements.BulletSpeed.element:GetValue())
                 VisualsElements.BulletTrailsEnabled.callback(VisualsElements.BulletTrailsEnabled.element:GetState())
                 VisualsElements.BulletTrailsFadeTime.callback(VisualsElements.BulletTrailsFadeTime.element:GetValue())
+                VisualsElements.BulletTrailsColor.callback(VisualsElements.BulletTrailsColor.element:GetValue())
                 VisualsElements.HitParticlesEnabled.callback(VisualsElements.HitParticlesEnabled.element:GetState())
                 local hitParticlesModeOptions = VisualsElements.HitParticlesMode.element:GetOptions()
                 for option, selected in pairs(hitParticlesModeOptions) do
@@ -1433,6 +1457,7 @@ local function Init(UI, Core, notify)
                 VisualsElements.HitParticlesCount.callback(VisualsElements.HitParticlesCount.element:GetValue())
                 VisualsElements.HitParticlesLifetime.callback(VisualsElements.HitParticlesLifetime.element:GetValue())
                 VisualsElements.HitParticlesMoveDistance.callback(VisualsElements.HitParticlesMoveDistance.element:GetValue())
+                VisualsElements.HitParticlesColor.callback(VisualsElements.HitParticlesColor.element:GetValue())
                 safeNotify(GunSilent.notify, "GunSilent", "Settings synchronized with UI!", true)
             end
         }, 'SyncSettings')
