@@ -243,11 +243,8 @@ local function getGunRange(tool)
 
     local encryptedRangeAttr = GunSilent.Core.GetEncryptedAttributeName and GunSilent.Core.GetEncryptedAttributeName("range") or "range"
     local toolId = tostring(tool)
-    local baseRange = GunSilent.State.BaseRangeCache[toolId]
-    if not baseRange then
-        baseRange = tool:GetAttribute(encryptedRangeAttr) or 0
-        GunSilent.State.BaseRangeCache[toolId] = baseRange
-    end
+    local baseRange = tool:GetAttribute(encryptedRangeAttr) or 0
+    GunSilent.State.BaseRangeCache[toolId] = baseRange
 
     local totalRange = baseRange + GunSilent.Settings.RangePlus.Value
     if GunSilent.State.CurrentToolRangeApplied ~= tool then
@@ -812,13 +809,14 @@ local function initializeGunSilent()
         if currentTool ~= GunSilent.State.LastTool then
             GunSilent.State.PositionHistory = {}
             if currentTool and not GunSilent.State.LastTool then
-                print('1')
-                notify("GunSilent", "Equipped: " .. (currentTool.Name or "Unknown Tool") .. " (Range: " .. getGunRange(currentTool) .. ")", true)
+                local range = tostring(getGunRange(currentTool) or "N/A")
+                notify("GunSilent", string.format("Equipped: %s (Range: %s)", currentTool.Name or "Unknown Tool", range), true)
             elseif GunSilent.State.LastTool and not currentTool then
                 notify("GunSilent", "Unequipped: " .. (GunSilent.State.LastTool.Name or "Unknown Tool"), true)
                 GunSilent.State.CurrentToolRangeApplied = nil
             elseif currentTool and GunSilent.State.LastTool then
-                notify("GunSilent", "Switched to " .. (currentTool.Name or "Unknown Tool") .. " (Range: " .. getGunRange(currentTool) .. ")", true)
+                local range = tostring(getGunRange(currentTool) or "N/A")
+                notify("GunSilent", string.format("Switched to %s (Range: %s)", currentTool.Name or "Unknown Tool", range), true)
             end
             GunSilent.State.LastTool = currentTool
         end
@@ -1247,8 +1245,8 @@ local function Init(UI, Core, notify)
                     if not value then
                         for _, trailData in ipairs(GunSilent.State.BulletTrails) do
                             if trailData.beam then trailData.beam:Destroy() end
-                            if trailData.attachment0 then attachment0:Destroy() end
-                            if trailData.attachment1 then attachment1:Destroy() end
+                            if trailData.attachment0 then trailData.attachment0:Destroy() end
+                            if trailData.attachment1 then trailData.attachment1:Destroy() end
                         end
                         GunSilent.State.BulletTrails = {}
                         for _, conn in ipairs(GunSilent.State.TrailFadeConnections) do
